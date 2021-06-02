@@ -1,9 +1,11 @@
 # datafiletoolbox
-A set of classes and utilities to read from different simulation output files, text files and excel file in certain formats.
+A set of classes and utilities to read different simulation output files, text files and excel file in certain formats.
 In order to read eclipse style binaries this utility relies on libecl from equinor: https://github.com/equinor/ecl
-datafiletoolbox can also read eclipse style input data deck, but this feature is not fully developed and very prototype. It can be easly read include files of properties exported from Petrel to Eclipse and return a DataFrame with the data read from the file.
-It takes care of the units of the data loaded and is able to convert into other units.
 
+datafiletoolbox can also read eclipse style input data deck, but this feature is not fully developed and is still a prototype. 
+It can be easly read include files of properties exported from Petrel to Eclipse and return a DataFrame with the data read from the file.
+
+It takes care of the units of the data loaded and is able to convert into other units.
 In order to keep track of the units, a subclass of Pandas, is used to return the results.
 
 ## load data
@@ -20,8 +22,8 @@ The instance can also be called using ( *key_to_extract* ) and in this case will
 The data from a VIP simulation can be accessed using regular eclipse nomenclature, like 'FOPT' meaning 'Qo' of 'ROOT' or 'WGPR:WELL1' meaning 'Qg' of 'WELL1'.
 
 ### keys, wells, groups, regions
-The properties **.keys**, **.wells**, **.groups**, **.regions** shows their available corresponding values. 
-The method **.find_Keys()** can be used to find keys related to any well, group, region, attribute or any pattern (using ? * ...)
+The properties **.keys**, **.wells**, **.groups**, **.regions** contains tuples with their corresponding list of values available in the loaded data. 
+The method **.find_Keys()** can be used to find keys related to any well, group, region, attribute or pattern (using ? * ...)
 
 ### generic keys
 The **key** does not need to be exact, it can be:
