@@ -28,5 +28,5 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/ayaranitram/unyts"
-"Bug Tracker" = "https://github.com/ayaranitram/unyts/issues"
+"Homepage" = "https://github.com/ayaranitram/simpandas"
+"Bug Tracker" = "https://github.com/ayaranitram/simpandas/issues"
