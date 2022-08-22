@@ -28,7 +28,10 @@ import datetime as dt
 from warnings import warn
 import matplotlib.pyplot as plt
 from .._common.units import unit  # to use unit.isUnit method
-from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
+from unyts._convert import convertUnit_for_SimPandas as convertUnit
+from unyts._operations import unitProduct, unitDivision, unitBase
+from unyts._convert import convertible as convertibleUnits
+#from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
 from .._common.slope import slope as _slope
 from .._common.stringformat import multisplit, isDate, date as strDate
 
