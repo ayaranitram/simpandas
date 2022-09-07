@@ -6,8 +6,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.80.0'
-__release__ = 220801
+__version__ = '0.80.1'
+__release__ = 20220907
 __all__ = ['SimSeries', 'SimDataFrame', 'concat', 'znorm', 'minmaxnorm']
 
 from sys import getsizeof
@@ -3061,14 +3061,14 @@ Copy of input object, shifted.
         if inplace:
             indexUnits, indexName = self.indexUnits, None if drop else self.index.name
             super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='')
-            if indexUnits is not None and indexName is not None:
+            if type(indexUnits) in (str, dict) and indexName is not None:
                 self.set_Units(indexUnits,indexName)
             self.index.name = None
         else:
             result = SimDataFrame(
                 data=self.DF.reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill=''),
                 **self._SimParameters)
-            if not drop and self.indexUnits is not None and self.index.name is not None:
+            if not drop and type(self.indexUnits) in (str, dict) and self.index.name is not None:
                 result.set_Units(self.indexUnits,item=self.index.name)
             result.index.name = None
             return result
