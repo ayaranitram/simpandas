@@ -28,7 +28,10 @@ import datetime as dt
 from warnings import warn
 import matplotlib.pyplot as plt
 from .._common.units import unit  # to use unit.isUnit method
-from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
+from unyts._convert import convertUnit_for_SimPandas as convertUnit
+from unyts._operations import unitProduct, unitDivision, unitBase
+from unyts._convert import convertible as convertibleUnits
+#from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
 from .._common.slope import slope as _slope
 from .._common.stringformat import multisplit, isDate, date as strDate
 
@@ -7005,7 +7008,7 @@ Copy of input object, shifted.
                 injef = keywords['keyword'] == 'WCONINJE'
                 keywords.loc[injef,3] = [ 'OPEN' if each else ShutStop for each in (keywords.loc[injef,5:6].sum(axis=1) > 0) ]
 
-                if ControlMode is None or item not in ControlModel:
+                if ControlMode is None or item not in ControlMode:
                     notnull = keywords.loc[prodh,[4,6,5]].notna()
                     checkgor = DataFrame({4: keywords.loc[prodh,4].fillna(0) * GORcriteria > keywords.loc[prodh,6].fillna(0) , 5: (keywords.loc[prodh,5].notna()) & ((keywords.loc[prodh,4].isna()) & (keywords.loc[prodh,6].isna())) , 6: keywords.loc[prodh,4].fillna(0) * GORcriteria <= keywords.loc[prodh,6].fillna(0) })
                     keywords.loc[prodh,3] = ((notnull*checkgor).astype(int) *   np.array(['ORAT','GRAT','WRAT']).reshape(1,-1)).sum(axis=1)

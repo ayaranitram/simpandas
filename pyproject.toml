@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simpandas"
-version = "0.80.1"
+version = "0.80.2"
 authors = [
   { name="Martin Carlos Araya", email="martinaraya@gmail.com" },
 ]
-description = "a Pandas wrapper extended to work with units and to deal with column names in eclipse simulator output style."
+description = "a couple of Pandas DataFrame and Series subclasses with extentions to work with units and to deal with column names in eclipse simulator output style."
 readme = "README.md"
 license = { file="LICENSE" }
 requires-python = ">=3.7"
@@ -18,13 +18,10 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    'numpy', 
-    'pandas', 
-    'matplotlib', 
-    'fnmatch', 
-    'datetime', 
-    'shutil', 
-    'warnings',
+    'numpy',
+    'pandas',
+    'matplotlib',
+    'datetime',
 ]
 
 [project.urls]
