@@ -4213,11 +4213,14 @@ Copy of input object, shifted.
 
                     # if no columns has common names
                     if newNames is None:
-                        if len(otherC.columns) == 1:  # just in case there is only one column in the second operand
+                        if len(otherC.columns) == 1 and not self.autoAppend:  # just in case there is only one column in the second operand
                             return selfC + otherC.to_SimSeries()
-                        else:
+                        elif not self.autoAppend:
                             raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-
+                        else:  # self.autoAppend is True
+                            for col in otherI.values():
+                                result[col] = otherI[col]
+                            
                     if (selfI.columns != selfC.columns).any() or (otherI.columns != otherC.columns).any():
                         resultX = selfC + otherC
                         resultX.rename(columns=newNames, inplace=True)
@@ -4235,10 +4238,11 @@ Copy of input object, shifted.
             if type(other) is Series:
                 other = SimSeries(other, **self._SimParameters)
             selfI, otherI = self._JoinedIndex(other)
+            otherI = otherI.to_SimSeries()
             result = selfI.copy()
             if self.operatePerName and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] + otherI
-            elif selfI.autoAppend :  # elif selfI.autoAppend:
+            elif selfI.autoAppend:
                 result[otherI.name] = otherI
             else:
                 for col in selfI.columns:
