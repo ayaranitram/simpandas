@@ -13,7 +13,7 @@ class OverwrittingError(Exception):
     pass
 
 
-class UndefinedDateFormat(Exception):
+class UndefinedDateFormatError(Exception):
     pass
 
 
@@ -24,7 +24,7 @@ except ModuleNotFoundError :
     print("\n WARNING: missing 'cwrap' module, will not be able to load eclipse style simulation outputs.\n         Please intall it using pip command:\n           pip install cwrap\n\n       or upgrade:\n\n          pip install cwrap --upgrade\n        or intall libecl using pip command:\n           pip install libecl\n\n       or upgrade:\n\n          pip install libecl --upgrade" )
 
 
-class MissingDependence(Exception):
+class MissingDependenceError(Exception):
     pass
 
 

@@ -86,7 +86,6 @@ def slope(df,x=None, y=None, window=None, slope=True, intercept=False):
             else:
                 xx = df[x].to_numpy()
 
-
         if y is None:
             if isinstance(df, (pd.Series,)):
                 if 'datetime' in str(df.dtype):
@@ -153,7 +152,7 @@ def slope(df,x=None, y=None, window=None, slope=True, intercept=False):
                 #xx = [np.cumsum(np.array([0] + list(np.diff(df.index[max(0,ii-window):min(len(df),ii+window)]).astype('timedelta64[s]').astype(float)/60/60/24))) for ii in range(len(df))]
                 xx = [np.cumsum(np.diff(np.array(list(df.index[0:1]) + list(df.index[max(0,ii-window):min(len(df),ii+window)]))).astype('timedelta64[s]').astype(float)/60/60/24) for ii in range(len(df))]
             else:
-                xx = [df.iloc[max(0,i-window):min(i+window,len(df))].index for ii in range(len(df))]
+                xx = [df.iloc[max(0,ii-window):min(ii+window,len(df))].index for ii in range(len(df))]
         else:
             if 'datetime' in str(df[x].dtype):
                 #xx = [np.cumsum(np.array([0] + list(np.diff(df.iloc[max(0,ii-window):min(len(df),ii+window)][x]).astype('timedelta64[s]').astype(float)/60/60/24))) for ii in range(len(df))]
@@ -204,7 +203,7 @@ def slope(df,x=None, y=None, window=None, slope=True, intercept=False):
 
 
     else:
-        raise NotImplemented('window must be int, float, str or None.')
+        raise NotImplementedError("'window' must be int, float, str or None.")
 
     polys = np.array([np.polyfit(xx[ii], yy[ii], 1, full=False) for ii in range(len(xx))])
 

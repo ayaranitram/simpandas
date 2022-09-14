@@ -287,7 +287,7 @@ class SimSeries(Series):
                 }
 
     @property
-    def loc(self)  #-> _SimLocIndexer:
+    def loc(self):  #-> _SimLocIndexer:
         """
         wrapper for .loc indexing
         """
