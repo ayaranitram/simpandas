@@ -15,3 +15,9 @@ def jitter(df, std=0.10):
     jit = np.random.randn(len(df), len(df.columns))
     jit = (jit * std) + 1
     return df * jit
+
+def znorm(df):
+    return (df - df.mean()) / df.std()
+
+def minmaxnorm(df):
+    return (df - df.min()) / (df.max() - df.min())
