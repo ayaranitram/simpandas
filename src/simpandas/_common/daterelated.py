@@ -2,11 +2,11 @@
 """
 Created on Sun Oct 11 11:14:32 2020
 
-@author: Martin Carlos Araya
+@author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.1'
-__release__ = 20220907
+__version__ = '0.80.2'
+__release__ = 20220919
 
 import datetime as dt
 from pandas import Timestamp, DatetimeIndex, Series, to_datetime

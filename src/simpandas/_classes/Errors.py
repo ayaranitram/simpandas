@@ -1,11 +1,11 @@
 """
 Created on Wed May 13 15:14:35 2020
 
-@author: MCARAYA
+@author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.1'
-__release = 210924
+__version__ = '0.0.2'
+__release = 20220919
 __all__ = []
 
 

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.80.1'
-__release__ = 20220822
+__version__ = '0.80.3'
+__release__ = 20220919
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index  # , DatetimeIndex, Timestamp,
@@ -29,7 +29,10 @@ import numpy as np
 from warnings import warn
 # import matplotlib.pyplot as plt
 # from .._common.units import unit  # to use unit.isUnit method
-from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
+# from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
+from unyts import convertUnit
+from unyts._convert import convertible as convertibleUnits
+from unyts._operations import unitProduct, unitDivision, unitBase
 from .._common.slope import slope as _slope
 from .._common.helpers import cleanAxis, stringNewName
 from .._common.math import znorm, minmaxnorm, jitter

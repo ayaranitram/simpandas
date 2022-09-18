@@ -3,11 +3,11 @@
 """
 Created on Sat Dec  7 21:48:37 2019
 
-@author: martin
+@author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.5.6'
-__release__ = 220613
+__version__ = '0.5.7'
+__release__ = 20220919
 
 import numpy
 # import pandas

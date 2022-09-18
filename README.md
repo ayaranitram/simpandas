@@ -1,5 +1,5 @@
 # simpandas
-a couple of Pandas DataFrame and Series subclasses with extentions to work with units and to deal with column names in eclipse simulator output style.
+a couple of Pandas DataFrame and Series subclasses extended to work with units and to deal with column names in eclipse simulator output style.
 
 This package is under development and is regularly updated. Backcompatibility is intented to be maintained when possible.
 
@@ -13,6 +13,7 @@ This package is under development and is regularly updated. Backcompatibility is
 - numpy
 - matplotlib
 - datetime
+- unyts
 
 ## To install this package:
 pip install simpandas

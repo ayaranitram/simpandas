@@ -2,13 +2,11 @@
 """
 Created on Wed Sep 18 12:33:46 2019
 
-@author: MCARAYA
-
-routine intended to manipulate and transform date strings.
+@author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.15.0'
-__release__ = 210505
+__version__ = '0.15.1'
+__release__ = 20220919
 __all__ = ['multisplit', 'isnumeric', 'getnumber', 'isDate', 'date']
 
 from .._classes.errors import UndefinedDateFormatError

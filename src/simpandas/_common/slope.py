@@ -2,11 +2,11 @@
 """
 Created on Sun Jan 23 22:38:16 2022
 
-@author: MCARAYA
+@author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.5.0'
-__release__ = 220624
+__version__ = '0.5.1'
+__release__ = 20220919
 __all__ = ['slope']
 
 import numpy as np

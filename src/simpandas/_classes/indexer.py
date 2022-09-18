@@ -2,11 +2,11 @@
 """
 Created on Mon Aug 22 23:11:38 2022
 
-@author: Martin Carlos Araya
+@author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.1'
-__release__ = 20220822
+__version__ = '0.80.2'
+__release__ = 20220919
 __all__ = []
 
 from pandas.core import indexing
