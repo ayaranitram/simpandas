@@ -9,29 +9,32 @@ __version__ = '0.80.1'
 __release__ = 20220822
 __all__ = ['SimSeries']
 
-from pandas import Series, DataFrame, DatetimeIndex, Timestamp, Index
+from pandas import Series, DataFrame, Index  # , DatetimeIndex, Timestamp,
 import warnings
-from sys import getsizeof
+# from sys import getsizeof
 from io import StringIO
 from shutil import get_terminal_size
 from pandas._config import get_option
-from pandas.io.formats import console
-from pandas.core import indexing
-from os.path import commonprefix
-import pandas as pd
+# from pandas.io.formats import console
+# from pandas.core import indexing
+# from os.path import commonprefix
+# import pandas as pd
 import fnmatch
-import warnings
-from pandas import Series, DataFrame, DatetimeIndex, Timestamp, Index
+# import warnings
+
 # from pandas.core.groupby.generic import DataFrameGroupBy
 # from pandas.core.window.rolling import Rolling
 import numpy as np
-import datetime as dt
+# import datetime as dt
 from warnings import warn
-import matplotlib.pyplot as plt
-from .._common.units import unit  # to use unit.isUnit method
+# import matplotlib.pyplot as plt
+# from .._common.units import unit  # to use unit.isUnit method
 from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
 from .._common.slope import slope as _slope
-from .._common.stringformat import multisplit, isDate, date as strDate
+from .._common.helpers import cleanAxis, stringNewName
+from .._common.math import znorm, minmaxnorm, jitter
+# from .._common.stringformat import multisplit, isDate, date as strDate
+from .indexer import SimLocIndexer
 
 
 _SERIES_WARNING_MSG = """\
@@ -54,34 +57,14 @@ def _simseries_constructor_with_fallback(data=None, index=None, units=None, **kw
                 category=FutureWarning,
                 module="SimPandas[.*]",
             )
-            return SimSeries(data=data, index=index, units=units, **kwargs)
+            return SimSeries(data=data,
+                             index=index,
+                             units=units,
+                             **kwargs)
     except TypeError:
-        return Series(data=data, index=index, **kwargs)
-
-
-def _Series2Frame(aSimSeries):
-    """
-    when a row is extracted from a DataFrame, Pandas returns a Series in wich
-    the columns of the DataFrame are converted to the indexes of the Series and
-    the extracted index from the DataFrame is set as the Name of the Series.
-
-    This function returns the proper DataFrame view of such Series.
-
-    Works with SimSeries as well as with Pandas standard Series
-    """
-    if isinstance(aSimSeries, DataFrame):
-        return aSimSeries
-    if type(aSimSeries) is SimSeries:
-        try:
-            from ._simdataframe import SimDataFrame
-            return SimDataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), units=aSimSeries.get_Units(), index=aSimSeries.columns, speak=aSimSeries.speak, indexName=aSimSeries.index.name, indexUnits=aSimSeries.indexUnits, nameSeparator=aSimSeries.nameSeparator, intersectionCharacter=aSimSeries.intersectionCharacter, autoAppend=aSimSeries.autoAppend, operatePerName=aSimSeries.operatePerName)
-        except:
-            return aSimSeries
-    if type(aSimSeries) is Series:
-        try:
-            return DataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), index=aSimSeries.columns)
-        except:
-            return aSimSeries
+        return Series(data=data,
+                      index=index,
+                      **kwargs)
 
 
 class SimSeries(Series):
@@ -111,9 +94,13 @@ class SimSeries(Series):
     """
     _metadata = ["units", "speak", 'indexUnits', 'nameSeparator', 'intersectionCharacter', 'autoAppend', 'spdLocator', 'operatePerName']  #, 'spdiLocator']
 
-    def __init__(self, data=None, units=None, index=None, name=None, speak=False, indexName=None, indexUnits=None, nameSeparator=None, intersectionCharacter='∩' , autoAppend=False, operatePerName=False, *args, **kwargs):
-        from ._simdataframe import SimDataFrame
-        from ._simlocindexer import _SimLocIndexer
+    def __init__(self, data=None, units=None, index=None,
+                 name=None, speak=False, indexName=None, indexUnits=None,
+                 nameSeparator=None, intersectionCharacter='∩',
+                 autoAppend=False, operatePerName=False,
+                 *args, **kwargs):
+        from .frame import SimDataFrame
+        # from .indexer import SimLocIndexer
         Uname = None
         Udict = None
         self.units = None
@@ -123,7 +110,7 @@ class SimSeries(Series):
         self.intersectionCharacter = '∩'
         self.autoAppend = False
         self.operatePerName = False
-        self.spdLocator = _SimLocIndexer("loc", self)
+        self.spdLocator = SimLocIndexer("loc", self)
         # self.spdiLocator = _iSimLocIndexer("iloc", self)
 
         # validaton
@@ -287,14 +274,14 @@ class SimSeries(Series):
                 }
 
     @property
-    def loc(self):  #-> _SimLocIndexer:
+    def loc(self) -> SimLocIndexer:
         """
         wrapper for .loc indexing
         """
         return self.spdLocator
 
     # @property
-    # def iloc(self) -> _iSimLocIndexer:
+    # def iloc(self) -> iSimLocIndexer:
     #     """
     #     wrapper for .iloc indexing
     #     """
@@ -376,6 +363,7 @@ class SimSeries(Series):
         return Series(self)
 
     def to_SimDataFrame(self):
+        from .frame import SimDataFrame
         if type(self.units) is str:
             return SimDataFrame(data=self)
         elif type(self.units) is dict:
@@ -558,7 +546,25 @@ class SimSeries(Series):
             if int == 0 will keep the current order of the columns.
 
         """
-        return self.to_SimDataFrame().to_excel(excel_writer, split_by=split_by, sheet_name=sheet_name, na_rep=na_rep, float_format=float_format, columns=columns, header=header, units=units, index=index, index_label=index_label, startrow=startrow, startcol=startcol, engine=engine, merge_cells=merge_cells, encoding=encoding, inf_rep=inf_rep, verbose=verbose, freeze_panes=freeze_panes, sort=sort)
+        return self.to_SimDataFrame().to_excel(excel_writer,
+                                               split_by=split_by,
+                                               sheet_name=sheet_name,
+                                               na_rep=na_rep,
+                                               float_format=float_format,
+                                               columns=columns,
+                                               header=header,
+                                               units=units,
+                                               index=index,
+                                               index_label=index_label,
+                                               startrow=startrow,
+                                               startcol=startcol,
+                                               engine=engine,
+                                               merge_cells=merge_cells,
+                                               encoding=encoding,
+                                               inf_rep=inf_rep,
+                                               verbose=verbose,
+                                               freeze_panes=freeze_panes,
+                                               sort=sort)
 
     def renameRight(self, inplace=False):
         if self.nameSeparator in [None, '', False]:
@@ -695,6 +701,7 @@ class SimSeries(Series):
         Series or None
         Series with index labels or name altered or None if inplace=True.
         """
+        # from .indexer import SimLocIndexer
         if type(index) is dict:
             if len(index) == 1 and list(index.keys()) not in self.index:
                 return self.rename(list(index.values())[0], axis=axis, copy=copy, inplace=inplace, level=level, errors=errors)
@@ -711,21 +718,21 @@ class SimSeries(Series):
                 newUnits[cAfter[i]] = self.units[cBefore[i]]
             if inplace:
                 self.units = newUnits
-                self.spdLocator = _SimLocIndexer("loc", self)
+                self.spdLocator = SimLocIndexer("loc", self)
                 return None
             else:
                 catch.units = newUnits
-                catch.spdLocator = _SimLocIndexer("loc", catch)
+                catch.spdLocator = SimLocIndexer("loc", catch)
                 return catch
         elif type(index) is str:
             if inplace:
                 self.name = index.strip()
-                self.spdLocator = _SimLocIndexer("loc", self)
+                self.spdLocator = SimLocIndexer("loc", self)
                 return None
             else:
                 catch = self.copy()
                 catch.name = index
-                catch.spdLocator = _SimLocIndexer("loc", catch)
+                catch.spdLocator = SimLocIndexer("loc", catch)
                 return catch
 
     def to(self, units):
@@ -753,7 +760,7 @@ class SimSeries(Series):
             return self.to_SimDataFrame().convert(units).to_SimSeries()
 
     # def resample(self, rule, axis=0, closed=None, label=None, convention='start', kind=None, loffset=None, base=None, on=None, level=None, origin='start_day', offset=None):
-    #     axis = _cleanAxis(axis)
+    #     axis = cleanAxis(axis)
     #     return SimSeries(data=self.S.resample(rule, axis=axis, closed=closed, label=label, convention=convention, kind=kind, loffset=loffset, base=base, on=on, level=level, origin=origin, offset=offset), **self._SimParameters )
 
     def reindex(self, index=None, **kwargs):
@@ -768,7 +775,7 @@ class SimSeries(Series):
 
 
     def dropna(self, axis=0, inplace=False, how=None):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if inplace:
             super().dropna(axis=axis, inplace=inplace, how=how)
             return None
@@ -776,7 +783,7 @@ class SimSeries(Series):
             return SimSeries(data=self.S.dropna(axis=axis, inplace=inplace, how=how), **self._SimParameters )
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if inplace:
             super().drop(labels=labels, axis=axis, index=index, columns=columns, level=level, inplace=inplace, errors='errors')
             return None
@@ -977,7 +984,7 @@ class SimSeries(Series):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 Warning("indexes of both SimSeries are not of the same kind:\n   '"+self.index.name+"' != '"+other.index.name+"'")
             if type(self.units) is str and type(other.units) is str:
-                newName = _stringNewName(self._CommonRename(other)[2])
+                newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.S.add(other.S, fill_value=0)
                 elif convertibleUnits(other.units, self.units ):
@@ -1004,7 +1011,7 @@ class SimSeries(Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.S.add(other, fill_value=0)
-            newName = _stringNewName(self._CommonRename(SimSeries(other, **self._SimParameters))[2])
+            newName = stringNewName(self._CommonRename(SimSeries(other, **self._SimParameters))[2])
             try:
                 params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
             except ValueError:
@@ -1030,7 +1037,7 @@ class SimSeries(Series):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 Warning("indexes of both SimSeries are not of the same kind:\n   '"+self.index.name+"' != '"+other.index.name+"'")
             if type(self.units) is str and type(other.units) is str:
-                newName = _stringNewName(self._CommonRename(other)[2])
+                newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.sub(other, fill_value=0)
                 elif convertibleUnits(other.units, self.units ):
@@ -1057,7 +1064,7 @@ class SimSeries(Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.S.sub(other, fill_value=0)
-            newName = _stringNewName(self._CommonRename(SimSeries(other, **self._SimParameters))[2])
+            newName = stringNewName(self._CommonRename(SimSeries(other, **self._SimParameters))[2])
             try:
                 params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
             except ValueError:
@@ -1084,7 +1091,7 @@ class SimSeries(Series):
                 Warning("indexes of both SimSeries are not of the same kind:\n   '"+self.index.name+"' != '"+other.index.name+"'")
             if type(self.units) is str and type(other.units) is str:
                 params['units'] = unitProduct(self.units, other.units)
-                newName = _stringNewName(self._CommonRename(other)[2])
+                newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.mul(other)
                 elif convertibleUnits(other.units, self.units):
@@ -1130,7 +1137,7 @@ class SimSeries(Series):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 Warning("indexes of both SimSeries are not of the same kind:\n   '"+self.index.name+"' != '"+other.index.name+"'")
             if type(self.units) is str and type(other.units) is str:
-                newName = _stringNewName(self._CommonRename(other)[2])
+                newName = stringNewName(self._CommonRename(other)[2])
                 params['units'] = unitDivision(self.units, other.units)
                 if self.units == other.units:
                     result = self.truediv(other)
@@ -1181,7 +1188,7 @@ class SimSeries(Series):
                 Warning("indexes of both SimSeries are not of the same kind:\n   '"+self.index.name+"' != '"+other.index.name+"'")
             if type(self.units) is str and type(other.units) is str:
                 params['units'] = unitDivision(self.units, other.units)
-                newName = _stringNewName(self._CommonRename(other)[2])
+                newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.floordiv(other)
                 elif convertibleUnits(other.units, self.units ):
@@ -1222,7 +1229,7 @@ class SimSeries(Series):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 Warning("indexes of both SimSeries are not of the same kind:\n   '"+self.index.name+"' != '"+other.index.name+"'")
             if type(self.units) is str and type(other.units) is str:
-                newName = _stringNewName(self._CommonRename(other)[2])
+                newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.mod(other)
                 elif convertibleUnits(other.units, self.units ):
@@ -1261,7 +1268,7 @@ class SimSeries(Series):
                 Warning("indexes of both SimSeries are not of the same kind:\n   '"+self.index.name+"' != '"+other.index.name+"'")
             if type(self.units) is str and type(other.units) is str:
                 params['units'] = self.units+'^'+other.units
-                newName = _stringNewName(self._CommonRename(other)[2])
+                newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.pow(other)
                 elif convertibleUnits(other.units, self.units ):
@@ -1375,12 +1382,11 @@ class SimSeries(Series):
         """
         return minmaxnorm(self)
 
-    def minmaxnorm(self):
+    def minmaxnorm0(self):
         """
         return min-max normalization
         """
         return minmaxnorm(self.replace(0,np.nan))
-        return minmaxnorm(self)
 
     def __repr__(self) -> str:
         """
@@ -2022,6 +2028,7 @@ class SimSeries(Series):
         -------
         a new SimSeries with the resulting array and same index as the input.
         """
+        from .._helpers.daterelated import daysInYear
         params = self._SimParameters
         if 'units' in params:
             if type(params['units']) is str:
@@ -2087,6 +2094,8 @@ class SimSeries(Series):
         -------
         a new SimSeries with the resulting array and same index as the input.
         """
+        from .._helpers.daterelated import realYear, daysInYear
+        from .frame import SimDataFrame
         params = self._SimParameters
         params['index'] = self.index
         params['name'] = 'realYear'

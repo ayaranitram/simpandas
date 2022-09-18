@@ -7,7 +7,7 @@ Created on Mon Aug 22 23:11:38 2022
 
 __version__ = '0.80.1'
 __release__ = 20220822
-__all__ = ['SimSeries']
+__all__ = []
 
 from pandas.core import indexing
 import pandas as pd
@@ -15,16 +15,14 @@ from warnings import warn
 from .._common.units import convertUnit, convertible as convertibleUnits
 
 
-from ._simseries import SimSeries
-from ._simdataframe import SimDataFrame
-
-
-class _SimLocIndexer(indexing._LocIndexer):
+class SimLocIndexer(indexing._LocIndexer):
     def __init__(self, *args):
         self.spd = args[1]
         super().__init__(*args)
 
     def __getitem__(self, *args):
+        from .frame import SimDataFrame
+        from .series import SimSeries
         result = super().__getitem__(*args)
         if isinstance(result, (pd.Series, pd.DataFrame)):
             if type(self.spd) is SimSeries:
@@ -45,12 +43,14 @@ class _SimLocIndexer(indexing._LocIndexer):
             return result
 
     def __setitem__(self, key, value):  #, units=None):
+        from .frame import SimDataFrame
+        from .series import SimSeries
         if type(value) in (SimSeries, SimDataFrame):
             value = value.to(self.spd.get_Units())
         if type(value) is SimDataFrame and len(value.index) == 1:
             value = value.to_SimSeries()
 
-        # check if received value is tuple (value,units)
+        # check if received value is tuple (value, units)
         newUnits = False
         if type(value) is tuple and len(value) == 2:
             if key[1] not in self.spd.columns or not isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) or (
@@ -70,7 +70,7 @@ class _SimLocIndexer(indexing._LocIndexer):
             self.spd.set_Units({key[1]:units})
 
 
-# class _iSimLocIndexer(indexing._iLocIndexer):
+# class iSimLocIndexer(indexing._iLocIndexer):
 #     def __init__(self, *args):
 #         self.spd = args[1]
 #         super().__init__(*args)

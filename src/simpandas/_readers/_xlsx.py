@@ -5,7 +5,7 @@ Created on Wed Aug  3 20:24:36 2022
 @author: martin
 """
 
-from .._classes.SimPandas import SimDataFrame
+from .._classes.frame import SimDataFrame
 
 __all__ = ['read_excel']
 

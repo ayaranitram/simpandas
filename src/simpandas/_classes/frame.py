@@ -9,20 +9,18 @@ __version__ = '0.79.5'
 __release__ = 220720
 #__all__ = ['SimDataFrame', 'read_excel', 'concat', 'znorm', 'minmaxnorm']
 
-from pandas import DataFrame
-import warnings
-
+# import warnings
 
 from sys import getsizeof
-from io import StringIO
-from shutil import get_terminal_size
-from pandas._config import get_option
-from pandas.io.formats import console
-from pandas.core import indexing
+# from io import StringIO
+# from shutil import get_terminal_size
+# from pandas._config import get_option
+# from pandas.io.formats import console
+# from pandas.core import indexing
 from os.path import commonprefix
 import pandas as pd
 import fnmatch
-import warnings
+# import warnings
 from pandas import Series, DataFrame, DatetimeIndex, Timestamp, Index
 # from pandas.core.groupby.generic import DataFrameGroupBy
 # from pandas.core.window.rolling import Rolling
@@ -30,16 +28,42 @@ import numpy as np
 import datetime as dt
 from warnings import warn
 import matplotlib.pyplot as plt
-from .._common.units import unit  # to use unit.isUnit method
+# from .._common.units import unit  # to use unit.isUnit method
 from unyts._convert import convertUnit_for_SimPandas as convertUnit
-from unyts._operations import unitProduct, unitDivision, unitBase
+# from unyts._operations import unitProduct, unitDivision, unitBase
 from unyts._convert import convertible as convertibleUnits
 #from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
 from .._common.slope import slope as _slope
 from .._common.stringformat import multisplit, isDate, date as strDate
-from .._common.merger import merge_Index
-from ._simlocindexer import _SimLocIndexer
-from ._simseries import SimSeries
+from .._common.math import znorm, minmaxnorm, jitter
+from .indexer import SimLocIndexer
+from .series import SimSeries
+from .._common.helpers import cleanAxis
+
+
+def Series2Frame(aSimSeries):
+    """
+    when a row is extracted from a DataFrame, Pandas returns a Series in wich
+    the columns of the DataFrame are converted to the indexes of the Series and
+    the extracted index from the DataFrame is set as the Name of the Series.
+
+    This function returns the proper DataFrame view of such Series.
+
+    Works with SimSeries as well as with Pandas standard Series
+    """
+    if isinstance(aSimSeries, DataFrame):
+        return aSimSeries
+    if type(aSimSeries) is SimSeries:
+        try:
+            from ._simdataframe import SimDataFrame
+            return SimDataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), units=aSimSeries.get_Units(), index=aSimSeries.columns, speak=aSimSeries.speak, indexName=aSimSeries.index.name, indexUnits=aSimSeries.indexUnits, nameSeparator=aSimSeries.nameSeparator, intersectionCharacter=aSimSeries.intersectionCharacter, autoAppend=aSimSeries.autoAppend, operatePerName=aSimSeries.operatePerName)
+        except:
+            return aSimSeries
+    if type(aSimSeries) is Series:
+        try:
+            return DataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), index=aSimSeries.columns)
+        except:
+            return aSimSeries
 
 
 class SimDataFrame(DataFrame):
@@ -71,7 +95,7 @@ class SimDataFrame(DataFrame):
         self.intersectionCharacter = '∩'
         self.autoAppend = False
         self.operatePerName = False
-        self.spdLocator = _SimLocIndexer("loc", self)
+        self.spdLocator = SimLocIndexer("loc", self)
         # self.spdiLocator = _iSimLocIndexer("iloc", self)
         self.transposed = bool(transposed)
 
@@ -225,7 +249,7 @@ class SimDataFrame(DataFrame):
         return SimSeries
 
     @property
-    def loc(self) -> _SimLocIndexer:
+    def loc(self) -> SimLocIndexer:
         """
         wrapper for .loc indexing
         """
@@ -841,7 +865,7 @@ Copy of input object, shifted.
             'index' or 'rows' 0 : removes all the rows fill with zeroes
             'both' or 2 : removes all the rows and columns fill with zeroes
         """
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if inplace:
             if axis in ['both', 2]:
                 self.replace(0, np.nan, inplace=True)
@@ -871,7 +895,7 @@ Copy of input object, shifted.
 
 
     def dropna(self, axis='index', how='all', thresh=None, subset=None, inplace=False):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if subset is not None:
             if type(subset) is str and subset in self.columns:
                 pass
@@ -885,7 +909,7 @@ Copy of input object, shifted.
             return SimDataFrame(data=self.DF.dropna(axis=axis, how=how, thresh=thresh, subset=subset, inplace=inplace), **self._SimParameters)
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if labels is not None:
             if axis == 1 and type(labels) is not str and hasattr(labels,'__iter__'):
                 labels = list(self.find_Keys(labels))
@@ -912,14 +936,14 @@ Copy of input object, shifted.
             return SimDataFrame(data=self.DF.drop_duplicates(subset=subset, keep=keep, inplace=inplace, ignore_index=ignore_index), **self._SimParameters)
 
     def fillna(self, value=None, method=None, axis='index', inplace=False, limit=None, downcast=None):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if inplace:
             super().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast)
         else:
             return SimDataFrame(data=self.DF.fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast), **self._SimParameters)
 
     def interpolate(self, method='slinear', axis='index', limit=None, inplace=False, limit_direction=None, limit_area=None, downcast=None, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if inplace:
             super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace, limit_direction=limit_direction, limit_area=limit_area, downcast=downcast, **kwargs)
         else:
@@ -932,7 +956,7 @@ Copy of input object, shifted.
             return SimDataFrame(data=self.DF.replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex, method=method), **self._SimParameters)
 
     # def groupby(self, by=None, axis=0, level=None, as_index=True, sort=True, group_keys=True, squeeze=False, observed=False, dropna=True):
-    #     axis = _cleanAxis(axis)
+    #     axis = cleanAxis(axis)
     #     selfGrouped = self.DF.groupby(by=by, axis=axis, level=level, as_index=as_index, sort=sort, group_keys=group_keys, squeeze=squeeze, observed=observed, dropna=dropna)
     #     return SimDataFrame(data=selfGrouped, **self._SimParameters )
 
@@ -1190,6 +1214,7 @@ Copy of input object, shifted.
             If string 'last' the last day of each month will be used.
             Ignored if datetimeIndex is False.
         """
+        from .._helpers.daterelated import daysInMonth
         if day is None:
             day = '01'
         elif type(day) in [int,float]:
@@ -1349,6 +1374,7 @@ Copy of input object, shifted.
             If string 'last' the last month of the year will be used, always 12.
             Default is None.
         """
+        from .._helpers.daterelated import daysInMonth
         monthsnames = {'JAN':1, 'ENE':1, 'GEN':1,
                        'FEB':2,
                        'MAR':3,
@@ -1502,11 +1528,11 @@ Copy of input object, shifted.
         return output
 
     def aggregate(self, func=None, axis=0, *args, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         return SimDataFrame(data=self.DF.aggregate(func=func, axis=axis, *args, **kwargs), **self._SimParameters )
 
     # def resample(self, rule, axis=0, closed=None, label=None, convention='start', kind=None, loffset=None, base=None, on=None, level=None, origin='start_day', offset=None):
-    #     axis = _cleanAxis(axis)
+    #     axis = cleanAxis(axis)
     #     return SimDataFrame(data=self.DF.resample(rule, axis=axis, closed=closed, label=label, convention=convention, kind=kind, loffset=loffset, base=base, on=on, level=level, origin=origin, offset=offset), **self._SimParameters )
 
     def reindex(self, labels=None, index=None, columns=None, axis=None, **kwargs):
@@ -1533,7 +1559,7 @@ Copy of input object, shifted.
                 axis = 1
             else:
                 raise TypeError("labels does not match neither len(index) or len(columns).")
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         return SimDataFrame(data=self.DF.reindex(labels=labels, axis=axis, **kwargs), **self._SimParameters )
 
     def rename(self, mapper=None, index=None, columns=None, axis=None, copy=True, inplace=False, level=None, errors='ignore'):
@@ -1590,11 +1616,11 @@ Copy of input object, shifted.
                 newUnits[cAfter[i]] = self.units[cBefore[i]]
         if inplace:
             self.units = newUnits
-            self.spdLocator = _SimLocIndexer("loc", self)
+            self.spdLocator = SimLocIndexer("loc", self)
             return None
         else:
             catch.units = newUnits
-            catch.spdLocator = _SimLocIndexer("loc", catch)
+            catch.spdLocator = SimLocIndexer("loc", catch)
             return catch
 
     def rename_item(self, mapper=None, index=None, columns=None, axis=None, copy=True, inplace=False, level=None, errors='ignore'):
@@ -1822,12 +1848,15 @@ Copy of input object, shifted.
         return SDF1C, SDF2C, commonNames
 
     def _JoinedIndex(self, other, *, drop_duplicates=False, keep='first'):
+        from .._common.merger import merge_Index
         return merge_Index(self, other, how='outer', drop_duplicates=drop_duplicates, keep=keep)
 
     def _CommonIndex(self, other, *, drop_duplicates=True, keep='first'):
+        from .._common.merger import merge_Index
         return merge_Index(self, other, how='inner', drop_duplicates=drop_duplicates, keep=keep)
 
     def _MergeIndex(self, other, how='outer', *, drop_duplicates=True, keep='first'):
+        from .._common.merger import merge_Index
         return merge_Index(self, other, how=how, drop_duplicates=drop_duplicates, keep=keep)
 
     def __contains__(self, item):
@@ -2296,6 +2325,7 @@ Copy of input object, shifted.
         return SimDataFrame(data=self.DF.astype(int), **self._SimParameters)
 
     def merge(self, right, how='inner', on=None, left_on=None, right_on=None, left_index=None, right_index=None, sort=False, suffixes=('_x', '_y'), copy=True, indicator=False, validate=None):
+        from .._common.merger import merge
         if on is None and left_on is None and right_on is None and right_index is None and left_index is None:
             left_index, right_index = True, True
         return merge(self, right, how='inner', on=on, left_on=left_on, right_on=right_on, left_index=left_index, right_index=right_index, sort=sort, suffixes=suffixes, copy=copy, indicator=indicator, validate=validate)
@@ -2313,7 +2343,7 @@ Copy of input object, shifted.
         return self.mean0(axis=axis, **kwargs)
 
     def count(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.count(axis=axis, **kwargs), **self._SimParameters )
         if axis == 1:
@@ -2335,7 +2365,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).count(axis=axis, **kwargs)
 
     def max(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.max(axis=axis, **kwargs), **self._SimParameters )
         if axis == 1:
@@ -2361,7 +2391,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).max(axis=axis, **kwargs)
 
     def mean(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.mean(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2387,7 +2417,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).mean(axis=axis, **kwargs)
 
     def median(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.median(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2413,7 +2443,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).median(axis=axis, **kwargs)
 
     def min(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.min(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2439,7 +2469,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).min(axis=axis, **kwargs)
 
     def mode(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.mode(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2465,7 +2495,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).mode(axis=axis, **kwargs)
 
     def prod(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.prod(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2491,7 +2521,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).prod(axis=axis, **kwargs)
 
     def quantile(self, q=0.5, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.quantile(q=q, axis=axis, **kwargs), **self._SimParameters)
         if axis == 1 and hasattr(q, '__iter__'):  # q is a list
@@ -2550,7 +2580,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).quantile(axis=axis, **kwargs)
 
     def rms(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             result = SimDataFrame(data=(self.DF**2), **self._SimParameters).mean(axis=axis, **kwargs)
             return SimDataFrame(data=result.DF**0.5, **result._SimParameters)
@@ -2576,7 +2606,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).rms(axis=axis, **kwargs)
 
     def std(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.std(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2602,7 +2632,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).std(axis=axis, **kwargs)
 
     def sum(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             if len(set(self.get_Units(self.columns).values())) == 1:
                 params = self._SimParameters
@@ -2651,7 +2681,7 @@ Copy of input object, shifted.
         return self.sum(axis=axis, **kwargs)
 
     def var(self, axis=0, **kwargs):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.var(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2680,7 +2710,7 @@ Copy of input object, shifted.
         return SimDataFrame(data=self.DF.round(decimals=decimals, **kwargs), **self._SimParameters)
 
     def diff(self,periods=1, axis=0, forward=False):
-        axis = _cleanAxis(axis)
+        axis = cleanAxis(axis)
         if type(periods) is bool:
             periods, forward = 1, periods
         if axis == 0:
@@ -2732,7 +2762,7 @@ Copy of input object, shifted.
         """
         return minmaxnorm(self)
 
-    def minmaxnorm(self):
+    def minmaxnorm0(self):
         """
         return min-max normalization
         """
@@ -2829,7 +2859,6 @@ Copy of input object, shifted.
                     self.new_Units(self.columns[c], 'UNITLESS')
 
     def __getitem__(self, key):
-
         ### if key is boolean filter, return the filtered SimDataFrame
         if isinstance(key, (Series)) or type(key) is np.ndarray:
             if str(key.dtype) == 'bool':
@@ -2847,7 +2876,7 @@ Copy of input object, shifted.
             else:
                 result = SimDataFrame(data=self._getbyIndex(key), **self._SimParameters)
                 if len(result) == 1:
-                    result = _Series2Frame(result)
+                    result = Series2Frame(result)
                 return result
 
         ### here below we try to guess what the user is requesting
@@ -2967,10 +2996,10 @@ Copy of input object, shifted.
         ### apply indexes and slices
         if bool(indexes) or bool(slices):
             indexeslices = indexes + slices
-            iresult = _Series2Frame(result._getbyIndex(indexeslices[0]))
+            iresult = Series2Frame(result._getbyIndex(indexeslices[0]))
             if len(indexeslices) > 1:
                 for i in indexeslices[1:]:
-                    iresult = iresult.append(_Series2Frame(result._getbyIndex(i)) )
+                    iresult = iresult.append(Series2Frame(result._getbyIndex(i)) )
             try:
                 result = iresult.sort_index()
             except:
@@ -2978,7 +3007,7 @@ Copy of input object, shifted.
 
         ### if is a single row return it as a DataFrame instead of a Series
         if byIndex:
-            result = _Series2Frame(result)
+            result = Series2Frame(result)
 
         if type(result) is DataFrame:
             result = SimDataFrame(result, **self._SimParameters)
@@ -3903,6 +3932,8 @@ Copy of input object, shifted.
 
         Returns a new SimDataFrame
         """
+        from .._helpers.daterelated import daysInMonth, daysInYear
+
         method = method.lower().strip()
 
         sl1 = slice(0,-1)
@@ -4203,6 +4234,7 @@ Copy of input object, shifted.
         -------
         a new SimSeries with the resulting array and same index as the input.
         """
+        from .._helpers.daterelated import daysInYear
         params = self._SimParameters
         params['index'] = self.index
         if column is not None:
@@ -4210,7 +4242,7 @@ Copy of input object, shifted.
                 if self[column].dtype in ('int','int64') and self[column].min() > 0:
                     params['name'] = 'DaysInYear'
                     params['units'] = 'days'
-                    return SimSeries( data=daysInYear(self[column].to_numpy()), **params )
+                    return SimSeries(data=daysInYear(self[column].to_numpy()), **params)
                 elif 'datetime' in str(self[column].dtype):
                     return daysInYear(self[column])
                 else:
@@ -4284,6 +4316,7 @@ Copy of input object, shifted.
         -------
         a new SimSeries with the resulting array and same index as the input.
         """
+        from .._helpers.daterelated import realYear, daysInYear
         params = self._SimParameters
         params['index'] = self.index
         params['name'] = 'realYear'
@@ -4514,6 +4547,7 @@ Copy of input object, shifted.
         Return:
             SimDataFrame
         """
+        from .._common.merger import concat
         if type(objs) not in [list, SimDataFrame, DataFrame, SimSeries, Series]:
             raise TypeError("objs must be a list of DataFrames or SimDataFrames")
         if len(objs) == 1:
@@ -4907,204 +4941,3 @@ Copy of input object, shifted.
     #     return SimRolling(self.df, window, min_periods=min_periods, center=center, win_type=win_type, on=on, axis=axis, closed=closed, method=method,
     #         SimParameters=self._SimParameters,
     #         )
-
-
-def daysInYear(year):
-    """
-    returns the number of days in a particular year
-
-    Parameters
-    ----------
-    year : int, date, datetime or array-like of int, date, or datetime
-        The year to calculate the number of days.
-        Can a single year, represented as an integer or as date or datetime object
-        Also, list or array of year is accepted.
-
-    Returns
-    -------
-    int or array of ints, according to the input
-    """
-    if type(year) in (int,float):
-        return dt.date(int(year), 12, 31).timetuple().tm_yday
-    if type(year) in (dt.date, dt.datetime):
-        return dt.date(year.timetuple().tm_year, 12, 31).timetuple().tm_yday
-    if type(year) is pd.Timestamp:
-        return dt.date(year.year,12,31).timetuple().tm_yday
-
-    if type(year) in (list,tuple,np.ndarray):
-        if np.array(year).dtype in ('int','int64','float','float64'):
-            return np.array([ dt.date(int(Y), 12, 31).timetuple().tm_yday for Y in year ], dtype=int)
-        elif 'datetime' in str(np.array(year).dtype):
-            return np.array([ dt.date(Y.astype(object).timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int)
-        elif len(set(map(type,year))) == 1 and list(set(map(type,year)))[0] in (dt.date, dt.datetime):
-            return np.array([ dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int)
-        elif len(set(map(type,year))) == 2 and list(set(map(type,year)))[0] in (dt.date, dt.datetime) and list(set(map(type,year)))[1] in (dt.date, dt.datetime):
-            return np.array([ dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int)
-    if isinstance(year,pd.DatetimeIndex):
-        return np.array([ dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int)
-
-    if isinstance(year,SimSeries):
-        params = year._SimParameters
-        params['name'] = 'DaysInYear'
-        params['units'] = 'days'
-        return SimSeries(data=np.array([ dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int), index=year.index, **params)
-
-    if isinstance(year,Series):
-        return Series(data=np.array([ dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int), index=year.index)
-
-    raise ValueError("input 'year' is not a valid date or year integer")
-
-def daysInMonth(month,year=None):
-    """
-    returns the number of days in a particular month of particular year
-
-    Parameters
-    ----------
-    month : str, int, date, datetime or array-like of int, date, or datetime
-        The month to calculate the number of days.
-        Can a single month, represented as an integer or as date or datetime object
-        Also, list or array of months is accepted.
-    year : integer, optional
-        If 'month' is provided as integer, year can be used to specify the year
-        when to calculate the number of days in the month.
-        This is only useful for February
-
-    Returns
-    -------
-    int or array of ints, according to the input
-    """
-    daysinmonths = {1:31,
-                    2:28,
-                    3:31,
-                    4:30,
-                    5:31,
-                    6:30,
-                    7:31,
-                    8:31,
-                    9:30,
-                    10:31,
-                    11:30,
-                    12:31}
-    monthsnames = {'JAN':1,
-                   'ENE':1,
-                   'GEN':1,
-                   'FEB':2,
-                   'MAR':3,
-                   'APR':4,
-                   'ABR':4,
-                   'MAY':5,
-                   'JUN':6,
-                   'GIU':6,
-                   'JUL':7,
-                   'JLY':7,
-                   'LUG':7,
-                   'AUG':8,
-                   'AGO':8,
-                   'SEP':9,
-                   'SET':9,
-                   'OCT':10,
-                   'OTT':10,
-                   'NOV':11,
-                   'DEC':12,
-                   'DIC':12,
-                   }
-    if type(month) is str:
-        if month.upper() in monthsnames:
-            month = monthsnames[month.upper()]
-        elif month.isdigit():
-            return daysInMonth(int(month),year)
-        elif year is None:
-            try:
-                month = pd.to_datetime(month)
-                return daysInMonth(month.month,month.year)
-            except:
-                raise ValueError("input 'month' not recognized.")
-        else:
-            raise ValueError("input 'month' not recognized.")
-
-    if type(month) in (int,float):
-        if year is None:
-            return daysinmonths[int(month)]
-        if type(year) is not int:
-            raise ValueError("input 'year' is not a valid year integer")
-        if dt.date(int(year), 12, 31).timetuple().tm_yday == 366 and month == 2:
-            return 29
-        else:
-            return daysinmonths[int(month)]
-
-    if type(month) in (dt.date, dt.datetime):
-        return daysInMonth(month.timetuple().tm_mon, month.timetuple().tm_year)
-
-    if type(month) is pd.Timestamp:
-        return daysInMonth(month.month, month.year)
-
-    if isinstance(month,pd.DatetimeIndex):
-        return np.array([ daysInMonth(M.month, M.year) for M in month ], dtype=int)
-
-    if type(month) in (list,tuple):
-        month = np.array(month)
-
-    if str(month.dtype).startswith('date'):
-        return np.array([ daysInMonth(M.month, M.year) for M in pd.to_datetime(month) ], dtype=int)
-    if str(month.dtype) in ('int','int64','float','float64'):
-        if len(month.shape) == 1:
-            return np.array([ daysInMonth(M) for M in month ], dtype=int)
-        elif month.shape[1] == 2:
-            return np.array([ daysInMonth(M[0],M[1]) for M in month ], dtype=int)
-
-    # if type(month) is np.ndarray:
-    #     if np.array(month).dtype in ('int','int64','float','float64'):
-    #         return np.array([ daysInMonth(M,year) for M in month ], dtype=int)
-    #     elif 'datetime' in str(np.array(year).dtype):
-    #         return np.array([ M.astype(object).timetuple().tm_mon for M in month ], dtype=int)
-    #     elif len(set(map(type,month))) == 1 and list(set(map(type,month)))[0] in (dt.date, dt.datetime):
-    #         return np.array([ M.timetuple().tm_mon for M in month ], dtype=int)
-    #     elif len(set(map(type,month))) == 2 and list(set(map(type,month)))[0] in (dt.date, dt.datetime) and list(set(map(type,month)))[1] in (dt.date, dt.datetime):
-    #         return np.array([ M.timetuple().tm_mon for M in month ], dtype=int)
-
-    if isinstance(month,SimSeries):
-        params = month._SimParameters
-        params['name'] = 'DaysInMonth'
-        params['units'] = 'days'
-        return SimSeries(data=np.array([ daysInMonth(M.month) for M in month ], dtype=int), index=month.index, **params)
-
-    if isinstance(month,Series):
-        return Series(data=np.array([ M.month for M in month ], dtype=int), index=month.index)
-
-    raise ValueError("input 'month' is not a valid date or month integer")
-
-def realYear(date):
-    """
-    returns a float corresponding for the year and the fraction of year represented by the date.
-
-    Parameters
-    ----------
-    date : date, datetime, or array of date objects
-
-    Returns
-    -------
-    float
-    """
-    if type(date) in (dt.date, dt.datetime):
-        return date.timetuple().tm_year + date.timetuple().tm_yday / dt.date(date.timetuple().tm_year, 12, 31).timetuple().tm_yday
-    if type(date) is pd.Timestamp:
-        return date.year + dt.date(date.year,date.month,date.day).timetuple().tm_yday / dt.date(date.year, 12, 31).timetuple().tm_yday
-
-    if type(date) is np.ndarray and 'datetime' in str(np.array(date).dtype):
-            return np.array([ Y.year + dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in pd.to_datetime(date) ], dtype=float)
-    if type(date) in (list,tuple):
-        if len(set(map(type,date))) == 1 and list(set(map(type,date)))[0] in (dt.date, dt.datetime):
-            return np.array([ Y.timetuple().tm_year + Y.timetuple().tm_yday / dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float)
-        elif len(set(map(type,date))) == 2 and list(set(map(type,date)))[0] in (dt.date, dt.datetime) and list(set(map(type,date)))[1] in (dt.date, dt.datetime):
-            return np.array([ Y.timetuple().tm_year + Y.timetuple().tm_yday / dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float)
-    if isinstance(date,pd.DatetimeIndex):
-        return np.array([ Y.year + dt.date(Y.year,Y.month,Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float)
-
-    if isinstance(date,SimSeries):
-        params = date._SimParameters
-        params['name'] = 'Year'
-        params['units'] = 'year'
-        return SimSeries(data=realYear(date.to_Pandas()), **params)
-
-    if isinstance(date,Series):
-        return Series(data=np.array([ Y.year + dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float), index=date.index)

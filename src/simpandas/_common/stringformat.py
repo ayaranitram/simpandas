@@ -11,7 +11,7 @@ __version__ = '0.15.0'
 __release__ = 210505
 __all__ = ['multisplit', 'isnumeric', 'getnumber', 'isDate', 'date']
 
-from .._classes.Errors import UndefinedDateFormat
+from .._classes.errors import UndefinedDateFormatError
 
 import numpy as np
 import pandas as pd
@@ -281,7 +281,7 @@ def date(date, formatIN='', formatOUT='', speak=True, YYbaseIN=1900, returnForma
                 if int(max(datelist[2])) <= 31 and int(min(datelist[0])) >= 1900 and int(max(datelist[0])) <= 2050 and int(max(datelist[1]))<=12 :
                     pass # YYYYMMDD
                 else :
-                    raise UndefinedDateFormat('unable to idenfy date format, please provide with keyword formatIN')
+                    raise UndefinedDateFormatError('unable to idenfy date format, please provide with keyword formatIN')
         elif l == 9 :
             x, y = 0, 0
             for i in range(9) :
@@ -293,7 +293,7 @@ def date(date, formatIN='', formatOUT='', speak=True, YYbaseIN=1900, returnForma
             datelist = [ [d[:x], d[x:y], d[y:]] for d in date ]
             datelist = [ [ datelist[i][0] for i in range(len(datelist)) ], [ datelist[i][1] for i in range(len(datelist)) ], [ datelist[i][2] for i in range(len(datelist)) ] ]
         else :
-            raise UndefinedDateFormat('unable to idenfy date format, please provide with keyword formatIN')
+            raise UndefinedDateFormatError('unable to idenfy date format, please provide with keyword formatIN')
 
 
     # if formatIN is not defined try to guess what it is
@@ -368,7 +368,7 @@ def date(date, formatIN='', formatOUT='', speak=True, YYbaseIN=1900, returnForma
                 print(' the input format is: ' + formatIN)
 
         else :
-            raise UndefinedDateFormat('unable to idenfy date format, please provide with keyword formatIN')
+            raise UndefinedDateFormatError('unable to idenfy date format, please provide with keyword formatIN')
 
         if returnFormat :
             return formatIN
