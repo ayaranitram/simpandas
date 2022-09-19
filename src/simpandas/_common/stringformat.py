@@ -132,12 +132,12 @@ def isDate(dateStr, formatIN='', speak=False, returnFormat=False ):
     return False
 
 def splitDMMMY(string) :
-    mi, mf = -1, -1
+    mi, mf = len(string)+1, len(string)+1
     for x in range(len(string)) :
-        if not string[x].isdigit() and mf == -1 :
+        if not string[x].isdigit() and x < mi:
             mi = x
-        if string[x].isdigit() and mi > -1 :
-            mf = x+1
+        if string[x].isdigit() and x < mf and x > mi:
+            mf = x
             break
     if mi > 0 and mf > 0 :
         return [string[:mi], string[mi:mf], string[mf:]]
