@@ -18,9 +18,11 @@ import datetime as dt
 
 def multisplit(string, sep=[' '], remove=[' ']) :
     """
-    receives a string and returns a list with string split by all the separators in sep.
+    receives a string and returns a list with string split
+    by all the separators in sep.
     the default separator is the blank space ' '.
-    use the remove parameter to indicate the separators that must not be reported in the output list.
+    use the remove parameter to indicate the separators that
+    must not be reported in the output list.
     by default, the blank space is not reported.
     """
     assert type(string) is str
