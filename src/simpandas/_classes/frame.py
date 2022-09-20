@@ -814,15 +814,26 @@ Copy of input object, shifted.
             else:
                 return None
         if type(units) is str:
-            result = self.copy()
+            if len(set(self.units.values())) == 1:
+                if convertibleUnits(list(set(self.units.values()))[0], units):
+                    params = self._SimParameters
+                    params['units'] = units
+                    params['columns'] = self.columns
+                    params['index'] = self.index
+                    return SimDataFrame(data=convertUnit(self, list(set(self.units.values()))[0], units), **params)
+                else:
+                    return None                        
+            result = SimDataFrame(index=self.index, columns=self.columns, **self._SimParameters)
             valid = False
             for col in self.columns:
-                if convertibleUnits(self.get_Units(col)[col], units ):
-                    result[col] = self[col].to(units)
+                if convertibleUnits(self.get_Units(col)[col], units):
+                    print(col, units, convertibleUnits(self.get_Units(col)[col], units))
+                    print(self[col].to(units))
+                    result.loc[:,col] = self[col].to(units)
                     valid = True
             if valid:
                 return result
-        if type(units) not in (str,dict) and hasattr(units,'__iter__'):
+        if type(units) not in (str, dict) and hasattr(units, '__iter__'):
             result = self.copy()
             valid = False
             for col in self.columns:
@@ -847,7 +858,7 @@ Copy of input object, shifted.
             result = self.copy()
             for col in self.columns:
                 if col in unitsDict and convertibleUnits(self.get_Units(col)[col], unitsDict[col] ):
-                    result[col] = self[col].to(unitsDict[col]) # convertUnit(self[col].S, self.get_Units(col)[col], unitsDict[col], self.speak ), unitsDict[col]
+                    result[col] = self[col].to(unitsDict[col])  # convertUnit(self[col].S, self.get_Units(col)[col], unitsDict[col], self.speak ), unitsDict[col]
             return result
 
     def dropzeros(self,axis='both'):
@@ -2787,7 +2798,7 @@ Copy of input object, shifted.
             key = key.strip()
         if type(value) is tuple and len(value) == 2 and type(value[1]) in [str,dict] and units is None :  # and type(value[0]) in [SimSeries, Series, list, tuple, np.ndarray,float,int,str]
             value, units = value[0], value[1]
-        if type(value) is SimDataFrame and len(value.index) == 1 and type(key) is not slice and ( (key in self.index or pd.to_datetime(key) in self.index) and (key not in self.columns and pd.to_datetime(key) not in self.columns)):
+        if type(value) is SimDataFrame and len(value.index) == 1 and type(key) is not slice and ((key in self.index or pd.to_datetime(key) in self.index) and (key not in self.columns and pd.to_datetime(key) not in self.columns)):
             self.loc[key] = value
             return None
         if units is None:
