@@ -54,7 +54,7 @@ class SimLocIndexer(indexing._LocIndexer):
         newUnits = False
         if type(value) is tuple and len(value) == 2:
             if key[1] not in self.spd.columns or not isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) or (
-                    isinstance(self.spd.loc[key], (pd.Series, pd.SimSeries, pd.DataFrame, pd.SimDataFrame)) and type(value[0]) is not str and hasattr(value[0],'__iter__') and len(self.spd.loc[key]) == len(value[0])):
+                    isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) and type(value[0]) is not str and hasattr(value[0],'__iter__') and len(self.spd.loc[key]) == len(value[0])):
                 value, units = value[0], value[1]
                 if key[1] not in self.spd.columns or self.spd.get_Units(key[1])[key[1]] is None or self.spd.get_Units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
                     newUnits = True
