@@ -5,38 +5,23 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.80.3'
-__release__ = 20220919
+__version__ = '0.80.4'
+__release__ = 20220920
 __all__ = ['SimSeries']
 
-from pandas import Series, DataFrame, Index  # , DatetimeIndex, Timestamp,
-import warnings
-# from sys import getsizeof
+from pandas import Series, DataFrame, Index
 from io import StringIO
 from shutil import get_terminal_size
 from pandas._config import get_option
-# from pandas.io.formats import console
-# from pandas.core import indexing
-# from os.path import commonprefix
-# import pandas as pd
 import fnmatch
-# import warnings
-
-# from pandas.core.groupby.generic import DataFrameGroupBy
-# from pandas.core.window.rolling import Rolling
 import numpy as np
-# import datetime as dt
+import warnings
 from warnings import warn
-# import matplotlib.pyplot as plt
-# from .._common.units import unit  # to use unit.isUnit method
-# from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
-from unyts import convertUnit
-from unyts._convert import convertible as convertibleUnits
-from unyts._operations import unitProduct, unitDivision, unitBase
-from .._common.slope import slope as _slope
-from .._common.helpers import cleanAxis, stringNewName
-from .._common.math import znorm, minmaxnorm, jitter
-# from .._common.stringformat import multisplit, isDate, date as strDate
+
+from unyts.convert import convertible, convertUnit_for_SimPandas as convert
+from unyts.operations import unitProduct, unitDivision, unitBase
+from ..common.helpers import clean_axis, stringNewName
+from ..common.math import znorm, minmaxnorm, jitter
 from .indexer import SimLocIndexer
 
 
@@ -751,19 +736,19 @@ class SimSeries(Series):
         else returns None
         """
         if type(units) is str and type(self.units) is str:
-            if convertibleUnits(self.units, units):
+            if convertible(self.units, units):
                 params = self._SimParameters
                 params['units'] = units
-                return SimSeries(data=convertUnit(self.S, self.units, units, self.speak), **params)
+                return SimSeries(data=convert(self.S, self.units, units, self.speak), **params)
         if type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
             params = self._SimParameters
             params['units'] = units
-            return SimSeries(data=convertUnit(self.S, list(set(self.units.values()))[0], units, self.speak ), **params )
+            return SimSeries(data=convert(self.S, list(set(self.units.values()))[0], units, self.speak ), **params )
         if type(units) is dict :  # and type(self.units) is dict:
             return self.to_SimDataFrame().convert(units).to_SimSeries()
 
     # def resample(self, rule, axis=0, closed=None, label=None, convention='start', kind=None, loffset=None, base=None, on=None, level=None, origin='start_day', offset=None):
-    #     axis = cleanAxis(axis)
+    #     axis = clean_axis(axis)
     #     return SimSeries(data=self.S.resample(rule, axis=axis, closed=closed, label=label, convention=convention, kind=kind, loffset=loffset, base=base, on=on, level=level, origin=origin, offset=offset), **self._SimParameters )
 
     def reindex(self, index=None, **kwargs):
@@ -778,7 +763,7 @@ class SimSeries(Series):
 
 
     def dropna(self, axis=0, inplace=False, how=None):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if inplace:
             super().dropna(axis=axis, inplace=inplace, how=how)
             return None
@@ -786,7 +771,7 @@ class SimSeries(Series):
             return SimSeries(data=self.S.dropna(axis=axis, inplace=inplace, how=how), **self._SimParameters )
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if inplace:
             super().drop(labels=labels, axis=axis, index=index, columns=columns, level=level, inplace=inplace, errors='errors')
             return None
@@ -990,11 +975,11 @@ class SimSeries(Series):
                 newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.S.add(other.S, fill_value=0)
-                elif convertibleUnits(other.units, self.units ):
-                    otherC = convertUnit(other, other.units, self.units, self.speak )
+                elif convertible(other.units, self.units ):
+                    otherC = convert(other, other.units, self.units, self.speak )
                     result = self.S.add(otherC.S, fill_value=0)
-                elif convertibleUnits(self.units, other.units ):
-                    selfC = convertUnit(self, self.units, other.units, self.speak )
+                elif convertible(self.units, other.units ):
+                    selfC = convert(self, self.units, other.units, self.speak )
                     result = other.S.add(selfC.S, fill_value=0)
                     params['units'] = other.units
                 else:
@@ -1043,11 +1028,11 @@ class SimSeries(Series):
                 newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.sub(other, fill_value=0)
-                elif convertibleUnits(other.units, self.units ):
-                    otherC = convertUnit(other, other.units, self.units, self.speak)
+                elif convertible(other.units, self.units ):
+                    otherC = convert(other, other.units, self.units, self.speak)
                     result = self.sub(otherC, fill_value=0)
-                elif convertibleUnits(self.units, other.units ):
-                    selfC = convertUnit(self, self.units, other.units, self.speak)
+                elif convertible(self.units, other.units ):
+                    selfC = convert(self, self.units, other.units, self.speak)
                     result = selfC.sub(other, fill_value=0)
                     params['units'] = other.units
                 else:
@@ -1097,18 +1082,18 @@ class SimSeries(Series):
                 newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.mul(other)
-                elif convertibleUnits(other.units, self.units):
-                    otherC = convertUnit(other, other.units, self.units, self.speak )
+                elif convertible(other.units, self.units):
+                    otherC = convert(other, other.units, self.units, self.speak )
                     result = self.mul(otherC)
-                elif convertibleUnits(self.units, other.units):
-                    selfC = convertUnit(self, self.units, other.units, self.speak )
+                elif convertible(self.units, other.units):
+                    selfC = convert(self, self.units, other.units, self.speak )
                     result = other.mul(selfC)
                     params['units'] = unitProduct(other.units, self.units)
-                elif convertibleUnits(other.units, unitBase(self.units)):
-                    otherC = convertUnit(other, other.units, unitBase(self.units), self.speak )
+                elif convertible(other.units, unitBase(self.units)):
+                    otherC = convert(other, other.units, unitBase(self.units), self.speak )
                     result = self.mul(otherC)
-                elif convertibleUnits(self.units, unitBase(other.units)):
-                    selfC = convertUnit(self, self.units, unitBase(other.units), self.speak )
+                elif convertible(self.units, unitBase(other.units)):
+                    selfC = convert(self, self.units, unitBase(other.units), self.speak )
                     result = other.mul(selfC)
                     params['units'] = unitProduct(other.units, self.units)
                 else:
@@ -1144,18 +1129,18 @@ class SimSeries(Series):
                 params['units'] = unitDivision(self.units, other.units)
                 if self.units == other.units:
                     result = self.truediv(other)
-                elif convertibleUnits(other.units, self.units):
-                    otherC = convertUnit(other, other.units, self.units, self.speak )
+                elif convertible(other.units, self.units):
+                    otherC = convert(other, other.units, self.units, self.speak )
                     result = self.truediv(otherC)
-                elif convertibleUnits(self.units, other.units):
-                    selfC = convertUnit(self, self.units, other.units, self.speak )
+                elif convertible(self.units, other.units):
+                    selfC = convert(self, self.units, other.units, self.speak )
                     result = selfC.truediv(other)
                     params['units'] = unitDivision(other.units, self.units)
-                elif convertibleUnits(other.units, unitBase(self.units)):
-                    otherC = convertUnit(other, other.units, unitBase(self.units), self.speak )
+                elif convertible(other.units, unitBase(self.units)):
+                    otherC = convert(other, other.units, unitBase(self.units), self.speak )
                     result = self.truediv(otherC)
-                elif convertibleUnits(self.units, unitBase(other.units)):
-                    selfC = convertUnit(self, self.units, unitBase(other.units), self.speak )
+                elif convertible(self.units, unitBase(other.units)):
+                    selfC = convert(self, self.units, unitBase(other.units), self.speak )
                     result = selfC.truediv(other)
                     params['units'] = unitDivision(other.units, self.units)
                 else:
@@ -1194,18 +1179,18 @@ class SimSeries(Series):
                 newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.floordiv(other)
-                elif convertibleUnits(other.units, self.units ):
-                    otherC = convertUnit(other, other.units, self.units, self.speak )
+                elif convertible(other.units, self.units ):
+                    otherC = convert(other, other.units, self.units, self.speak )
                     result = self.floordiv(otherC)
-                elif convertibleUnits(self.units, other.units ):
-                    selfC = convertUnit(self, self.units, other.units, self.speak )
+                elif convertible(self.units, other.units ):
+                    selfC = convert(self, self.units, other.units, self.speak )
                     result = other.floordiv(selfC)
                     params['units'] = unitDivision(other.units, self.units)
-                elif convertibleUnits(other.units, unitBase(self.units) ):
-                    otherC = convertUnit(other, other.units, unitBase(self.units), self.speak )
+                elif convertible(other.units, unitBase(self.units) ):
+                    otherC = convert(other, other.units, unitBase(self.units), self.speak )
                     result = self.floordiv(otherC)
-                elif convertibleUnits(self.units, unitBase(other.units)):
-                    selfC = convertUnit(self, self.units, unitBase(other.units), self.speak )
+                elif convertible(self.units, unitBase(other.units)):
+                    selfC = convert(self, self.units, unitBase(other.units), self.speak )
                     result = other.floordiv(selfC)
                     params['units'] = unitDivision(other.units, self.units)
                 else:
@@ -1235,11 +1220,11 @@ class SimSeries(Series):
                 newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.mod(other)
-                elif convertibleUnits(other.units, self.units ):
-                    otherC = convertUnit(other, other.units, self.units, self.speak )
+                elif convertible(other.units, self.units ):
+                    otherC = convert(other, other.units, self.units, self.speak )
                     result = self.mod(otherC)
-                elif convertibleUnits(self.units, other.units ):
-                    selfC = convertUnit(self, self.units, other.units, self.speak )
+                elif convertible(self.units, other.units ):
+                    selfC = convert(self, self.units, other.units, self.speak )
                     result = other.mod(selfC)
                     params['units'] = other.units
                 else:
@@ -1274,12 +1259,12 @@ class SimSeries(Series):
                 newName = stringNewName(self._CommonRename(other)[2])
                 if self.units == other.units:
                     result = self.pow(other)
-                elif convertibleUnits(other.units, self.units ):
-                    otherC = convertUnit(other, other.units, self.units, self.speak )
+                elif convertible(other.units, self.units ):
+                    otherC = convert(other, other.units, self.units, self.speak )
                     result = self.pow(otherC)
                     params['units'] = self.units+'^'+self.units
-                elif convertibleUnits(self.units, other.units ):
-                    selfC = convertUnit(self, self.units, other.units, self.speak )
+                elif convertible(self.units, other.units ):
+                    selfC = convert(self, self.units, other.units, self.speak )
                     result = other.pow(selfC)
                     params['units'] = other.units+'^'+other.units
                 else:

@@ -7,9 +7,10 @@ Created on Sun Oct 11 11:14:32 2020
 
 __version__ = '0.80.2'
 __release__ = 20220919
+__all__ = ['clean_axis', 'stringNewName', 'typeOfFrame']
 
 
-def cleanAxis(axis=None):
+def clean_axis(axis=None):
     if axis is None:
         return 0
     if type(axis) is str and axis.lower() in ['row', 'rows', 'ind', 'index']:
@@ -22,11 +23,13 @@ def cleanAxis(axis=None):
         return int(axis)
     return axis
 
+
 def stringNewName(newName):
     if len(newName) == 1:
         return list(newName.values())[0]
     else:
         return '∩'.join(map(str,set(newName.values())))
+
 
 def typeOfFrame(frame):
     from simpandas import SimSeries, SimDataFrame

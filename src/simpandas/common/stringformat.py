@@ -5,11 +5,11 @@ Created on Wed Sep 18 12:33:46 2019
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.15.1'
-__release__ = 20220919
-__all__ = ['multisplit', 'isnumeric', 'getnumber', 'isDate', 'date']
+__version__ = '0.15.2'
+__release__ = 20220920
+__all__ = ['multisplit', 'is_numeric', 'get_number', 'is_date', 'date']
 
-from .._classes.errors import UndefinedDateFormatError
+from ..classes.errors import UndefinedDateFormatError
 
 import numpy as np
 import pandas as pd
@@ -68,7 +68,7 @@ def multisplit(string, sep=[' '], remove=[' ']) :
     return newlist
 
 
-def isnumeric(string) :
+def is_numeric(string) :
     """
     returns True if the string is a number
     """
@@ -79,15 +79,15 @@ def isnumeric(string) :
     except :
         return False
 
-def getnumber(string) :
+def get_number(string) :
     "returns the number, as integer or float, contained in a string"
-    if isnumeric(string) :
+    if is_numeric(string) :
         try :
             return int(string)
         except :
             return float(string)
 
-def isDate(dateStr, formatIN='', speak=False, returnFormat=False ):
+def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
     """
     returns True if the string 'dateStr' is a valid date, otherwise returns False.
     """

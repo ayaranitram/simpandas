@@ -6,14 +6,15 @@ Created on Sun Jan 23 22:38:16 2022
 """
 
 __version__ = '0.5.1'
-__release__ = 20220919
+__release__ = 20220920
 __all__ = ['slope']
 
 import numpy as np
 import pandas as pd
 import warnings
 
-def slope(df,x=None, y=None, window=None, slope=True, intercept=False):
+
+def slope(df, x=None, y=None, window=None, slope=True, intercept=False):
     """
     Calculates the slope of column Y vs column X or vs index if 'x' is None
 

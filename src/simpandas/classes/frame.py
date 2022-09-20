@@ -5,40 +5,29 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.79.6'
-__release__ = 20220919
+__version__ = '0.79.70'
+__release__ = 20220920
 __all__ = ['SimDataFrame']
 
 # import warnings
 
 from sys import getsizeof
-# from io import StringIO
-# from shutil import get_terminal_size
-# from pandas._config import get_option
-# from pandas.io.formats import console
-# from pandas.core import indexing
 from os.path import commonprefix
 import pandas as pd
 import fnmatch
-# import warnings
 from pandas import Series, DataFrame, DatetimeIndex, Timestamp, Index
-# from pandas.core.groupby.generic import DataFrameGroupBy
-# from pandas.core.window.rolling import Rolling
 import numpy as np
 import datetime as dt
 from warnings import warn
 import matplotlib.pyplot as plt
-# from .._common.units import unit  # to use unit.isUnit method
-from unyts._convert import convertUnit_for_SimPandas as convertUnit
-# from unyts._operations import unitProduct, unitDivision, unitBase
-from unyts._convert import convertible as convertibleUnits
-#from .._common.units import convertUnit, unitProduct, unitDivision, convertible as convertibleUnits, unitBase
-from .._common.slope import slope as _slope
-from .._common.stringformat import multisplit, isDate, date as strDate
-from .._common.math import znorm, minmaxnorm, jitter
+from unyts.convert import convertUnit_for_SimPandas as convert
+from unyts.convert import convertible
+from ..common.slope import slope as _slope
+from ..common.stringformat import multisplit, is_date, date as strDate
+from ..common.math import znorm, minmaxnorm, jitter
 from .indexer import SimLocIndexer
 from .series import SimSeries
-from .._common.helpers import cleanAxis
+from ..common.helpers import clean_axis
 
 
 def Series2Frame(aSimSeries):
@@ -787,7 +776,7 @@ Copy of input object, shifted.
             for col, units in self.get_units(self.columns).items():
                 if col in otherC.columns:
                     if units != otherC.get_units(col)[col]:
-                        if convertibleUnits(otherC.get_units(col)[col], units):
+                        if convertible(otherC.get_units(col)[col], units):
                             otherC[col] = otherC[col].to(units)
                         else:
                             newUnits[col+'_2nd'] = otherC.get_units(col)[col]
@@ -815,19 +804,19 @@ Copy of input object, shifted.
                 return None
         if type(units) is str:
             if len(set(self.units.values())) == 1:
-                if convertibleUnits(list(set(self.units.values()))[0], units):
+                if convertible(list(set(self.units.values()))[0], units):
                     params = self._SimParameters
                     params['units'] = units
                     params['columns'] = self.columns
                     params['index'] = self.index
-                    return SimDataFrame(data=convertUnit(self, list(set(self.units.values()))[0], units), **params)
+                    return SimDataFrame(data=convert(self, list(set(self.units.values()))[0], units), **params)
                 else:
-                    return None                        
+                    return None
             result = SimDataFrame(index=self.index, columns=self.columns, **self._SimParameters)
             valid = False
             for col in self.columns:
-                if convertibleUnits(self.get_Units(col)[col], units):
-                    print(col, units, convertibleUnits(self.get_Units(col)[col], units))
+                if convertible(self.get_Units(col)[col], units):
+                    print(col, units, convertible(self.get_Units(col)[col], units))
                     print(self[col].to(units))
                     result.loc[:,col] = self[col].to(units)
                     valid = True
@@ -838,7 +827,7 @@ Copy of input object, shifted.
             valid = False
             for col in self.columns:
                 for ThisUnits in units:
-                    if convertibleUnits(self.get_Units(col)[col], ThisUnits ):
+                    if convertible(self.get_Units(col)[col], ThisUnits ):
                         result[col] = self[col].to(ThisUnits)
                         valid = True
                         break
@@ -857,8 +846,8 @@ Copy of input object, shifted.
             unitsDict = { i:v for k,v in units.items() for i in self.find_Keys(k) }
             result = self.copy()
             for col in self.columns:
-                if col in unitsDict and convertibleUnits(self.get_Units(col)[col], unitsDict[col] ):
-                    result[col] = self[col].to(unitsDict[col])  # convertUnit(self[col].S, self.get_Units(col)[col], unitsDict[col], self.speak ), unitsDict[col]
+                if col in unitsDict and convertible(self.get_Units(col)[col], unitsDict[col] ):
+                    result[col] = self[col].to(unitsDict[col])  # convert(self[col].S, self.get_Units(col)[col], unitsDict[col], self.speak ), unitsDict[col]
             return result
 
     def dropzeros(self,axis='both'):
@@ -876,7 +865,7 @@ Copy of input object, shifted.
             'index' or 'rows' 0 : removes all the rows fill with zeroes
             'both' or 2 : removes all the rows and columns fill with zeroes
         """
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if inplace:
             if axis in ['both', 2]:
                 self.replace(0, np.nan, inplace=True)
@@ -906,7 +895,7 @@ Copy of input object, shifted.
 
 
     def dropna(self, axis='index', how='all', thresh=None, subset=None, inplace=False):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if subset is not None:
             if type(subset) is str and subset in self.columns:
                 pass
@@ -920,7 +909,7 @@ Copy of input object, shifted.
             return SimDataFrame(data=self.DF.dropna(axis=axis, how=how, thresh=thresh, subset=subset, inplace=inplace), **self._SimParameters)
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if labels is not None:
             if axis == 1 and type(labels) is not str and hasattr(labels,'__iter__'):
                 labels = list(self.find_Keys(labels))
@@ -947,14 +936,14 @@ Copy of input object, shifted.
             return SimDataFrame(data=self.DF.drop_duplicates(subset=subset, keep=keep, inplace=inplace, ignore_index=ignore_index), **self._SimParameters)
 
     def fillna(self, value=None, method=None, axis='index', inplace=False, limit=None, downcast=None):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if inplace:
             super().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast)
         else:
             return SimDataFrame(data=self.DF.fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast), **self._SimParameters)
 
     def interpolate(self, method='slinear', axis='index', limit=None, inplace=False, limit_direction=None, limit_area=None, downcast=None, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if inplace:
             super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace, limit_direction=limit_direction, limit_area=limit_area, downcast=downcast, **kwargs)
         else:
@@ -967,7 +956,7 @@ Copy of input object, shifted.
             return SimDataFrame(data=self.DF.replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex, method=method), **self._SimParameters)
 
     # def groupby(self, by=None, axis=0, level=None, as_index=True, sort=True, group_keys=True, squeeze=False, observed=False, dropna=True):
-    #     axis = cleanAxis(axis)
+    #     axis = clean_axis(axis)
     #     selfGrouped = self.DF.groupby(by=by, axis=axis, level=level, as_index=as_index, sort=sort, group_keys=group_keys, squeeze=squeeze, observed=observed, dropna=dropna)
     #     return SimDataFrame(data=selfGrouped, **self._SimParameters )
 
@@ -1539,11 +1528,11 @@ Copy of input object, shifted.
         return output
 
     def aggregate(self, func=None, axis=0, *args, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         return SimDataFrame(data=self.DF.aggregate(func=func, axis=axis, *args, **kwargs), **self._SimParameters )
 
     # def resample(self, rule, axis=0, closed=None, label=None, convention='start', kind=None, loffset=None, base=None, on=None, level=None, origin='start_day', offset=None):
-    #     axis = cleanAxis(axis)
+    #     axis = clean_axis(axis)
     #     return SimDataFrame(data=self.DF.resample(rule, axis=axis, closed=closed, label=label, convention=convention, kind=kind, loffset=loffset, base=base, on=on, level=level, origin=origin, offset=offset), **self._SimParameters )
 
     def reindex(self, labels=None, index=None, columns=None, axis=None, **kwargs):
@@ -1570,7 +1559,7 @@ Copy of input object, shifted.
                 axis = 1
             else:
                 raise TypeError("labels does not match neither len(index) or len(columns).")
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         return SimDataFrame(data=self.DF.reindex(labels=labels, axis=axis, **kwargs), **self._SimParameters )
 
     def rename(self, mapper=None, index=None, columns=None, axis=None, copy=True, inplace=False, level=None, errors='ignore'):
@@ -2354,7 +2343,7 @@ Copy of input object, shifted.
         return self.mean0(axis=axis, **kwargs)
 
     def count(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.count(axis=axis, **kwargs), **self._SimParameters )
         if axis == 1:
@@ -2376,7 +2365,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).count(axis=axis, **kwargs)
 
     def max(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.max(axis=axis, **kwargs), **self._SimParameters )
         if axis == 1:
@@ -2402,7 +2391,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).max(axis=axis, **kwargs)
 
     def mean(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.mean(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2428,7 +2417,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).mean(axis=axis, **kwargs)
 
     def median(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.median(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2454,7 +2443,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).median(axis=axis, **kwargs)
 
     def min(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.min(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2480,7 +2469,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).min(axis=axis, **kwargs)
 
     def mode(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.mode(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2506,7 +2495,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).mode(axis=axis, **kwargs)
 
     def prod(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.prod(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2532,7 +2521,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).prod(axis=axis, **kwargs)
 
     def quantile(self, q=0.5, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.quantile(q=q, axis=axis, **kwargs), **self._SimParameters)
         if axis == 1 and hasattr(q, '__iter__'):  # q is a list
@@ -2591,7 +2580,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).quantile(axis=axis, **kwargs)
 
     def rms(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             result = SimDataFrame(data=(self.DF**2), **self._SimParameters).mean(axis=axis, **kwargs)
             return SimDataFrame(data=result.DF**0.5, **result._SimParameters)
@@ -2617,7 +2606,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).rms(axis=axis, **kwargs)
 
     def std(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.std(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2643,7 +2632,7 @@ Copy of input object, shifted.
         return self.replace(0,np.nan).std(axis=axis, **kwargs)
 
     def sum(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             if len(set(self.get_Units(self.columns).values())) == 1:
                 params = self._SimParameters
@@ -2692,7 +2681,7 @@ Copy of input object, shifted.
         return self.sum(axis=axis, **kwargs)
 
     def var(self, axis=0, **kwargs):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if axis == 0:
             return SimDataFrame(data=self.DF.var(axis=axis, **kwargs), **self._SimParameters)
         if axis == 1:
@@ -2721,7 +2710,7 @@ Copy of input object, shifted.
         return SimDataFrame(data=self.DF.round(decimals=decimals, **kwargs), **self._SimParameters)
 
     def diff(self,periods=1, axis=0, forward=False):
-        axis = cleanAxis(axis)
+        axis = clean_axis(axis)
         if type(periods) is bool:
             periods, forward = 1, periods
         if axis == 0:
@@ -2826,9 +2815,9 @@ Copy of input object, shifted.
                     if self.indexUnits is None and value.indexUnits is not None:
                         self.indexUnits = value.indexUnits
                     elif self.indexUnits is not None and value.indexUnits is not None and self.indexUnits != value.indexUnits:
-                        if convertibleUnits(value.indexUnits, self.indexUnits):
+                        if convertible(value.indexUnits, self.indexUnits):
                             try:
-                                value.index = convertUnit(value.index, value.indexUnits, self.indexUnits)
+                                value.index = convert(value.index, value.indexUnits, self.indexUnits)
                             except:
                                 print("WARNING: failed to convert the provided index to the units of this SimDataFrame index.")
                         else:
@@ -3102,7 +3091,7 @@ Copy of input object, shifted.
                 except:
                     pass
 
-            if type(key) is not str and(isDate(key) or type(key) not in [DatetimeIndex, Timestamp] ):
+            if type(key) is not str and(is_date(key) or type(key) not in [DatetimeIndex, Timestamp] ):
                 try:
                     return self.DF.loc[key]
                 except:
@@ -3111,12 +3100,12 @@ Copy of input object, shifted.
                     except:
                         pass
 
-            if type(key) is str and len(multisplit(key, ('==', '!=', '>=', '<=', '<>', '><', '>', '<', '=', ' ')) ) == 1 and isDate(key):
+            if type(key) is str and len(multisplit(key, ('==', '!=', '>=', '<=', '<>', '><', '>', '<', '=', ' ')) ) == 1 and is_date(key):
                 try:
                     key = strDate(key )
                 except:
                     try:
-                        key = strDate(key, formatIN=isDate(key, returnFormat=True), formatOUT='DD-MMM-YYYY' )
+                        key = strDate(key, formatIN=is_date(key, returnFormat=True), formatOUT='DD-MMM-YYYY' )
                     except:
                         raise Warning('\n Not able to undertand the key as a date.\n')
                 try:
@@ -3131,10 +3120,10 @@ Copy of input object, shifted.
                 temporal = SimDataFrame(index=self.index, **self._SimParameters)
                 datesN = len(self)
                 for P in range(len(keyParts)):
-                    if isDate(keyParts[P]):
+                    if is_date(keyParts[P]):
                         keySearch += ' D'+str(P)
                         datesDict['D'+str(P)] = keyParts[P]
-                        temporal.__setitem__('D'+str(P), DatetimeIndex([ Timestamp(strDate(keyParts[P], formatIN=isDate(keyParts[P], returnFormat=True), formatOUT='YYYY-MMM-DD')) ] * datesN ).to_numpy() )
+                        temporal.__setitem__('D'+str(P), DatetimeIndex([ Timestamp(strDate(keyParts[P], formatIN=is_date(keyParts[P], returnFormat=True), formatOUT='YYYY-MMM-DD')) ] * datesN ).to_numpy() )
                     else:
                         keySearch += ' '+keyParts[P]
                 datesFilter = temporal.filter(keySearch, returnFilter=True)

@@ -4,6 +4,8 @@
 Created on Sat Dec  7 21:48:37 2019
 
 @author: Martín Carlos Araya <martinaraya@gmail.com>
+
+THIS MODULE IS DEPRECATED, WILL BE SUBSTITUTED BY unyts package
 """
 
 __version__ = '0.5.7'

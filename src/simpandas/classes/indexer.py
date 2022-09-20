@@ -5,17 +5,18 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.2'
-__release__ = 20220919
+__version__ = '0.80.3'
+__release__ = 20220920
 __all__ = []
 
 from pandas.core import indexing
 import pandas as pd
 from warnings import warn
-from .._common.units import convertUnit, convertible as convertibleUnits
+from unyts.convert import convertible, convertUnit as convert
 
 
 class SimLocIndexer(indexing._LocIndexer):
+
     def __init__(self, *args):
         self.spd = args[1]
         super().__init__(*args)
@@ -61,8 +62,8 @@ class SimLocIndexer(indexing._LocIndexer):
                 else:
                     if units == self.spd.get_Units(key[1])[key[1]]:
                         pass
-                    elif convertibleUnits(units, self.spd.get_Units(key[1])[key[1]]):
-                        value = convertUnit(value,units,self.spd.get_Units(key[1])[key[1]],self.spd.speak)
+                    elif convertible(units, self.spd.get_Units(key[1])[key[1]]):
+                        value = convert(value, units, self.spd.get_Units(key[1])[key[1]], self.spd.speak)
                     else:
                         warn(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_Units(key[1])[key[1]]))
         super().__setitem__(key, value)
