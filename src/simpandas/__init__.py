@@ -5,9 +5,9 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.3'
-__release__ = 20220920
-__all__ = ['SimSeries', 'SimDataFrame', 'read_excel']
+__version__ = '0.80.4'
+__release__ = 20220921
+__all__ = ['SimSeries', 'SimDataFrame']
 
 from .classes.series import SimSeries
 from .classes.frame import SimDataFrame
