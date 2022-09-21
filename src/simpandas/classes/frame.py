@@ -797,7 +797,7 @@ Copy of input object, shifted.
         else returns None
         """
         if self.transposed:
-            result = self.transpose().convert(units)
+            result = self.transpose()._convert(units)
             if result is not None:
                 return result.transpose()
             else:
@@ -809,20 +809,23 @@ Copy of input object, shifted.
                     params['units'] = units
                     params['columns'] = self.columns
                     params['index'] = self.index
-                    return SimDataFrame(data=convert(self, list(set(self.units.values()))[0], units), **params)
+                    return SimDataFrame(data=_convert(self, list(set(self.units.values()))[0], units), **params)
                 else:
                     return None
-            result = SimDataFrame(index=self.index, columns=self.columns, **self._SimParameters)
-            valid = False
-            for col in self.columns:
-                if convertible(self.get_Units(col)[col], units):
-                    print(col, units, convertible(self.get_Units(col)[col], units))
-                    print(self[col].to(units))
-                    result.loc[:,col] = self[col].to(units)
-                    valid = True
-            if valid:
-                return result
-        if type(units) not in (str, dict) and hasattr(units, '__iter__'):
+            else:
+                result = SimDataFrame(index=self.index, columns=self.columns, **self._SimParameters)
+                valid = False
+                for col in self.columns:
+                    if convertible(self.get_Units(col)[col], units):
+                        print(col, units, convertible(self.get_Units(col)[col], units))
+                        print(self[col].to(units))
+                        result[col] = self[col].to(units)
+                        valid = True
+                    else:
+                        result[col] = self[col]
+                if valid:
+                    return result
+        elif type(units) not in (str, dict) and hasattr(units, '__iter__'):
             result = self.copy()
             valid = False
             for col in self.columns:
@@ -2817,7 +2820,7 @@ Copy of input object, shifted.
                     elif self.indexUnits is not None and value.indexUnits is not None and self.indexUnits != value.indexUnits:
                         if convertible(value.indexUnits, self.indexUnits):
                             try:
-                                value.index = convert(value.index, value.indexUnits, self.indexUnits)
+                                value.index = _convert(value.index, value.indexUnits, self.indexUnits)
                             except:
                                 print("WARNING: failed to convert the provided index to the units of this SimDataFrame index.")
                         else:

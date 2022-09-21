@@ -739,13 +739,14 @@ class SimSeries(Series):
             if convertible(self.units, units):
                 params = self._SimParameters
                 params['units'] = units
-                return SimSeries(data=convert(self.S, self.units, units, self.speak), **params)
+                return SimSeries(data=_convert(self.S, self.units, units, self.speak), **params)
         if type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
             params = self._SimParameters
             params['units'] = units
-            return SimSeries(data=convert(self.S, list(set(self.units.values()))[0], units, self.speak ), **params )
+            return SimSeries(data=_convert(self.S, list(set(self.units.values()))[0], units, self.speak ), **params )
         if type(units) is dict :  # and type(self.units) is dict:
-            return self.to_SimDataFrame().convert(units).to_SimSeries()
+            return self.to_SimDataFrame()._convert(units).to_SimSeries()
+
 
     # def resample(self, rule, axis=0, closed=None, label=None, convention='start', kind=None, loffset=None, base=None, on=None, level=None, origin='start_day', offset=None):
     #     axis = clean_axis(axis)
@@ -976,10 +977,10 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.S.add(other.S, fill_value=0)
                 elif convertible(other.units, self.units ):
-                    otherC = convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.speak )
                     result = self.S.add(otherC.S, fill_value=0)
                 elif convertible(self.units, other.units ):
-                    selfC = convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.speak )
                     result = other.S.add(selfC.S, fill_value=0)
                     params['units'] = other.units
                 else:
@@ -1029,10 +1030,10 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.sub(other, fill_value=0)
                 elif convertible(other.units, self.units ):
-                    otherC = convert(other, other.units, self.units, self.speak)
+                    otherC = _convert(other, other.units, self.units, self.speak)
                     result = self.sub(otherC, fill_value=0)
                 elif convertible(self.units, other.units ):
-                    selfC = convert(self, self.units, other.units, self.speak)
+                    selfC = _convert(self, self.units, other.units, self.speak)
                     result = selfC.sub(other, fill_value=0)
                     params['units'] = other.units
                 else:
@@ -1083,17 +1084,17 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.mul(other)
                 elif convertible(other.units, self.units):
-                    otherC = convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.speak )
                     result = self.mul(otherC)
                 elif convertible(self.units, other.units):
-                    selfC = convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.speak )
                     result = other.mul(selfC)
                     params['units'] = unitProduct(other.units, self.units)
                 elif convertible(other.units, unitBase(self.units)):
-                    otherC = convert(other, other.units, unitBase(self.units), self.speak )
+                    otherC = _convert(other, other.units, unitBase(self.units), self.speak )
                     result = self.mul(otherC)
                 elif convertible(self.units, unitBase(other.units)):
-                    selfC = convert(self, self.units, unitBase(other.units), self.speak )
+                    selfC = _convert(self, self.units, unitBase(other.units), self.speak )
                     result = other.mul(selfC)
                     params['units'] = unitProduct(other.units, self.units)
                 else:
@@ -1130,17 +1131,17 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.truediv(other)
                 elif convertible(other.units, self.units):
-                    otherC = convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.speak )
                     result = self.truediv(otherC)
                 elif convertible(self.units, other.units):
-                    selfC = convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.speak )
                     result = selfC.truediv(other)
                     params['units'] = unitDivision(other.units, self.units)
                 elif convertible(other.units, unitBase(self.units)):
-                    otherC = convert(other, other.units, unitBase(self.units), self.speak )
+                    otherC = _convert(other, other.units, unitBase(self.units), self.speak )
                     result = self.truediv(otherC)
                 elif convertible(self.units, unitBase(other.units)):
-                    selfC = convert(self, self.units, unitBase(other.units), self.speak )
+                    selfC = _convert(self, self.units, unitBase(other.units), self.speak )
                     result = selfC.truediv(other)
                     params['units'] = unitDivision(other.units, self.units)
                 else:
@@ -1180,17 +1181,17 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.floordiv(other)
                 elif convertible(other.units, self.units ):
-                    otherC = convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.speak )
                     result = self.floordiv(otherC)
                 elif convertible(self.units, other.units ):
-                    selfC = convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.speak )
                     result = other.floordiv(selfC)
                     params['units'] = unitDivision(other.units, self.units)
                 elif convertible(other.units, unitBase(self.units) ):
-                    otherC = convert(other, other.units, unitBase(self.units), self.speak )
+                    otherC = _convert(other, other.units, unitBase(self.units), self.speak )
                     result = self.floordiv(otherC)
                 elif convertible(self.units, unitBase(other.units)):
-                    selfC = convert(self, self.units, unitBase(other.units), self.speak )
+                    selfC = _convert(self, self.units, unitBase(other.units), self.speak )
                     result = other.floordiv(selfC)
                     params['units'] = unitDivision(other.units, self.units)
                 else:
@@ -1221,10 +1222,10 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.mod(other)
                 elif convertible(other.units, self.units ):
-                    otherC = convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.speak )
                     result = self.mod(otherC)
                 elif convertible(self.units, other.units ):
-                    selfC = convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.speak )
                     result = other.mod(selfC)
                     params['units'] = other.units
                 else:
@@ -1260,11 +1261,11 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.pow(other)
                 elif convertible(other.units, self.units ):
-                    otherC = convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.speak )
                     result = self.pow(otherC)
                     params['units'] = self.units+'^'+self.units
                 elif convertible(self.units, other.units ):
-                    selfC = convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.speak )
                     result = other.pow(selfC)
                     params['units'] = other.units+'^'+other.units
                 else:
