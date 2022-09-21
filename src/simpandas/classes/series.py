@@ -1281,6 +1281,13 @@ class SimSeries(Series):
             else:
                 raise NotImplementedError
 
+        # if other is integer or float
+        elif type(other) in (int, float):
+            result = self.as_Series() ** other
+            params = self._SimParameters
+            params['units'] = {c: unitPower(self.get_Units(c)[c], other) for c in self.columns}
+            return SimSeries(data=result, **params)
+
         # let's Pandas deal with other types(types with no units), maintain units and dtype
         result = self.as_Series() ** other
         try:

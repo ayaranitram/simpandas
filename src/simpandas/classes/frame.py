@@ -2319,6 +2319,13 @@ Copy of input object, shifted.
         elif isinstance(other, DataFrame):
             return self.__pow__(SimDataFrame(data=other, **self._SimParameters))
 
+        # if other is integer or float
+        elif type(other) in (int, float):
+            result = self.as_DataFrame() ** other
+            params = self._SimParameters
+            params['units'] = {c: unitPower(self.get_Units(c)[c], other) for c in self.columns}
+            return SimDataFrame(data=result, **params)
+
         # let's Pandas deal with other types, maintain units and dtype
         else:
             result = self.as_DataFrame() ** other
