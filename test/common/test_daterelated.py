@@ -5,7 +5,7 @@ Created on Sat Oct 24 18:24:20 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-from simpandas._common.daterelated import daysInYear, daysInMonth, realYear
+from simpandas.common.daterelated import daysInYear, daysInMonth, realYear
 from pandas import to_datetime
 import datetime as dt
 import numpy as np
@@ -25,7 +25,7 @@ def test_daysInYear():
     assert daysInYear(dt.datetime(2024, 8, 15, 12, 53, 26)) == 366
 
 def test_daysInMonth():
-    for m, d in {1:31, 2:28, 3:31, 4:30, 5:31, 6:30, 7:31, 8:31, 9:30, 10:31, 11:30, 12:31}:
+    for m, d in {1:31, 2:28, 3:31, 4:30, 5:31, 6:30, 7:31, 8:31, 9:30, 10:31, 11:30, 12:31}.items():
         assert daysInMonth(m) == d
         assert daysInMonth(m, 2023) == d
         assert daysInMonth(m, 2024) == d if m != 2 else 29
@@ -49,5 +49,5 @@ def test_daysInMonth():
 def test_realYear():
     assert realYear(dt.date(2022, 1, 1)) == 2022.0
     assert realYear(dt.date(2022, 12, 31)) == 2022 + 364/365
-    assert realYear(dt.date(2024, 3, 1)) == 2024.0 + (31+29)/365
+    assert realYear(dt.date(2024, 3, 15)) == 2024.0 + (31+29+15-1)/366
     assert realYear(dt.date(2023, 3, 1)) == 2023.0 + (31+28)/365
