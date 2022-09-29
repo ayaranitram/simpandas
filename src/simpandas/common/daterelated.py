@@ -11,7 +11,7 @@ __release__ = 20220919
 import datetime as dt
 from pandas import Timestamp, DatetimeIndex, Series, to_datetime
 import numpy as np
-from ..classes.series import SimSeries
+from ..series import SimSeries
 
 
 def daysInYear(year):

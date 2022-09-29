@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.80.5'
-__release__ = 20220921
+__version__ = '0.80.6'
+__release__ = 20220927
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -20,9 +20,9 @@ from warnings import warn
 
 from unyts.convert import convertible, convertUnit_for_SimPandas as _convert
 from unyts.operations import unitProduct, unitDivision, unitBase, unitPower
-from ..common.helpers import clean_axis, stringNewName
-from ..common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
-from ..common.slope import slope as _slope
+from .common.helpers import clean_axis, stringNewName
+from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
+from .common.slope import slope as _slope
 from .indexer import SimLocIndexer
 
 
@@ -145,7 +145,7 @@ class SimSeries(Series):
                 if data.index.name not in units:
                         units[data.index.name] = data.indexUnits
         else:
-            self.units = 'UNITLESS'
+            self.units = 'unitless'
 
 
         # remove arguments not known by Pandas
@@ -163,6 +163,8 @@ class SimSeries(Series):
         if type(data) in [ SimDataFrame, SimSeries ]:
             self.nameSeparator = data.nameSeparator
             data = data.to_Pandas()
+        if data is None and ('dtype' not in kwargs or kwargs['dtype'] is None):
+            kwargs['dtype']=object
         super().__init__(data=data, index=index, *args, **kwargs)
 
         # set the name of the index
@@ -267,6 +269,64 @@ class SimSeries(Series):
                 'autoAppend':self.autoAppend if hasattr(self, 'autoAppend') else False,
                 'operatePerName':self.operatePerName if hasattr(self, 'operatedPerName') else False,
                }
+
+
+    def __repr__(self) -> str:
+        """
+        Return a string representation for a particular Series, with Units.
+        """
+
+        # taken from Pandas Series
+        buf = StringIO("")
+        width, height = get_terminal_size()
+        max_rows =(
+            height
+            if get_option("display.max_rows") == 0
+            else get_option("display.max_rows")
+        )
+        min_rows =(
+            height
+            if get_option("display.max_rows") == 0
+            else get_option("display.min_rows")
+        )
+        show_dimensions = get_option("display.show_dimensions")
+
+        self.to_string(
+            buf=buf,
+            name=self.name,
+            dtype=self.dtype,
+            min_rows=min_rows,
+            max_rows=max_rows,
+            length=show_dimensions,
+        )
+        result = buf.getvalue()
+
+        if type(self.units) is str:
+            return result + ', units: ' + self.units
+        elif type(self.units) is dict:
+            result = result.split('\n')
+            for n in range(len(result)-1):
+                keys = result[n] + ' '
+                i, f = 0, 0
+                while i < len(keys):
+                    f = keys.index(' ', i)
+                    key = keys[i:f]
+                    if key == '...':
+                        i = len(keys)
+                        continue
+                    while key not in self.index and f <= len(keys):
+                        f = keys.index(' ', f+1) if ' ' in keys[f+1:] else len(keys)+1
+                        key = keys[i:f]
+                    if key not in self.index:
+                        i = len(keys)
+                        continue
+                    if key in self.units and self.units[key] is not None:
+                        result[n] += '    ' + self.units[key].strip()
+                    i = len(keys)
+            result = '\n'.join(result)
+            return '\n' + result
+        else:
+            return result
 
 
     @property
@@ -1496,61 +1556,7 @@ class SimSeries(Series):
         return _minmaxnorm(self.replace(0,np.nan))
 
 
-    def __repr__(self) -> str:
-        """
-        Return a string representation for a particular Series, with Units.
-        """
-        # from Pandas Series
-        buf = StringIO("")
-        width, height = get_terminal_size()
-        max_rows =(
-            height
-            if get_option("display.max_rows") == 0
-            else get_option("display.max_rows")
-        )
-        min_rows =(
-            height
-            if get_option("display.max_rows") == 0
-            else get_option("display.min_rows")
-        )
-        show_dimensions = get_option("display.show_dimensions")
 
-        self.to_string(
-            buf=buf,
-            name=self.name,
-            dtype=self.dtype,
-            min_rows=min_rows,
-            max_rows=max_rows,
-            length=show_dimensions,
-        )
-        result = buf.getvalue()
-
-        if type(self.units) is str:
-            return result + ', Units: ' + self.units
-        elif type(self.units) is dict:
-            result = result.split('\n')
-            for n in range(len(result)-1):
-                keys = result[n] + ' '
-                i, f = 0, 0
-                while i < len(keys):
-                    f = keys.index(' ', i)
-                    key = keys[i:f]
-                    if key == '...':
-                        i = len(keys)
-                        continue
-                    while key not in self.index and f <= len(keys):
-                        f = keys.index(' ', f+1) if ' ' in keys[f+1:] else len(keys)+1
-                        key = keys[i:f]
-                    if key not in self.index:
-                        i = len(keys)
-                        continue
-                    if key in self.units and self.units[key] is not None:
-                        result[n] += '    ' + self.units[key].strip()
-                    i = len(keys)
-            result = '\n'.join(result)
-            return '\n' + result
-        else:
-            return result
 
 
     def get_units(self, items=None):

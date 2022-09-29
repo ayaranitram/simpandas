@@ -9,7 +9,7 @@ __version__ = '0.15.2'
 __release__ = 20220920
 __all__ = ['multisplit', 'is_numeric', 'get_number', 'is_date', 'date']
 
-from ..classes.errors import UndefinedDateFormatError
+from ..errors import UndefinedDateFormatError
 
 import numpy as np
 import pandas as pd

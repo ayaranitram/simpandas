@@ -23,13 +23,13 @@ import matplotlib.pyplot as plt
 from unyts.convert import convertUnit_for_SimPandas as _convert
 from unyts.convert import convertible
 from unyts.operations import unitPower
-from ..common.slope import slope as _slope
-from ..common.stringformat import multisplit, is_date, date as strDate
-from ..common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
+from .common.slope import slope as _slope
+from .common.stringformat import multisplit, is_date, date as strDate
+from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .indexer import SimLocIndexer
 from .series import SimSeries
-from ..common.helpers import clean_axis
-from ..writters.xlsx import write_excel
+from .common.helpers import clean_axis
+from .writters.xlsx import write_excel
 
 
 def Series2Frame(aSimSeries):

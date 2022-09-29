@@ -5,11 +5,11 @@ Created on Wed Sep 21 11:08:06 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.1.1'
-__release__ = 20220921
+__version__ = '0.1.2'
+__release__ = 20220927
 __all__ = ['write_schedule']
 
-from .._Classes.errors import OverwrittingError
+from ..errors import OverwrittingError
 import os
 # from .._common.stringformat import date as strDate
 from pandas import DataFrame
