@@ -47,7 +47,7 @@ def Series2Frame(aSimSeries):
     if type(aSimSeries) is SimSeries:
         try:
             from ._simdataframe import SimDataFrame
-            return SimDataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), units=aSimSeries.get_Units(), index=aSimSeries.columns, speak=aSimSeries.speak, indexName=aSimSeries.index.name, indexUnits=aSimSeries.indexUnits, nameSeparator=aSimSeries.nameSeparator, intersectionCharacter=aSimSeries.intersectionCharacter, autoAppend=aSimSeries.autoAppend, operatePerName=aSimSeries.operatePerName)
+            return SimDataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), units=aSimSeries.get_Units(), index=aSimSeries.columns, verbose=aSimSeries.verbose, indexName=aSimSeries.index.name, indexUnits=aSimSeries.indexUnits, nameSeparator=aSimSeries.nameSeparator, intersectionCharacter=aSimSeries.intersectionCharacter, autoAppend=aSimSeries.autoAppend, operatePerName=aSimSeries.operatePerName)
         except:
             return aSimSeries
     if type(aSimSeries) is Series:
@@ -76,11 +76,11 @@ class SimDataFrame(DataFrame):
     pandas.DataFrame
 
     """
-    _metadata = ["units", "speak", "indexUnits", "nameSeparator", "intersectionCharacter", "autoAppend", "spdLocator", "transposed", "operatePerName"]  #, "spdiLocator"]
+    _metadata = ["units", "verbose", "indexUnits", "nameSeparator", "intersectionCharacter", "autoAppend", "spdLocator", "transposed", "operatePerName"]  #, "spdiLocator"]
 
-    def __init__(self, data=None, units=None, index=None, speak=False, indexName=None, indexUnits=None, nameSeparator=None, intersectionCharacter='∩', autoAppend=False, transposed=False, operatePerName=False, *args, **kwargs):
+    def __init__(self, data=None, units=None, index=None, verbose=False, indexName=None, indexUnits=None, nameSeparator=None, intersectionCharacter='∩', autoAppend=False, transposed=False, operatePerName=False, *args, **kwargs):
         self.units = None
-        self.speak = bool(speak)
+        self.verbose = bool(verbose)
         self.indexUnits = None
         self.nameSeparator = None
         self.intersectionCharacter = '∩'
@@ -104,7 +104,7 @@ class SimDataFrame(DataFrame):
             if type(indexInput.name) is str:
                 indexInput = indexInput.name
         # if index is None and data is SimSeries or SimDataFrame get the name
-        elif type(data) in [SimSeries, SimDataFrame] and type(data.index.name) is str and len(data.index.name)>0:
+        elif type(data) in (SimSeries, SimDataFrame) and type(data.index.name) is str and len(data.index.name)>0:
             indexInput = data.index.name
             self.indexUnits = data.indexUnits.copy() if type(data.indexUnits) is dict else data.indexUnits
 
@@ -129,7 +129,7 @@ class SimDataFrame(DataFrame):
         kwargs.pop('indexUnits', None)
         kwargs.pop('nameSeparator', None)
         kwargs.pop('units', None)
-        kwargs.pop('speak', None)
+        kwargs.pop('verbose', None)
         kwargs.pop('autoAppend', None)
         kwargs.pop('operatePerName',None)
         # convert to pure Pandas
@@ -261,7 +261,7 @@ class SimDataFrame(DataFrame):
     @property
     def _SimParameters(self):
         return {'units':self.units.copy() if type(self.units) is dict else self.units,
-                'speak':self.speak if hasattr(self,'speak') else False,
+                'verbose':self.verbose if hasattr(self,'verbose') else False,
                 'indexName':self.index.name,
                 'indexUnits':self.indexUnits if hasattr(self,'indexUnits') else None,
                 'nameSeparator':self.nameSeparator if hasattr(self,'nameSeparator') else None,
@@ -595,7 +595,7 @@ Copy of input object, shifted.
             result = self.copy()
             for col in self.columns:
                 if col in unitsDict and convertible(self.get_Units(col)[col], unitsDict[col] ):
-                    result[col] = self[col].to(unitsDict[col])  # convert(self[col].S, self.get_Units(col)[col], unitsDict[col], self.speak ), unitsDict[col]
+                    result[col] = self[col].to(unitsDict[col])  # convert(self[col].S, self.get_Units(col)[col], unitsDict[col], self.verbose ), unitsDict[col]
             return result
 
 
@@ -3462,7 +3462,7 @@ Copy of input object, shifted.
         if key not in self.units:
             self.units[key] = units
         else:
-            if units != self.units[key] and self.speak:
+            if units != self.units[key] and self.verbose:
                 print("overwritting existing units for key '" + key + "': " + self.units[key] + ' -> ' + units )
             self.units[key] = units
 

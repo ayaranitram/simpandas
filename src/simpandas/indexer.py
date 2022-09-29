@@ -77,7 +77,7 @@ class SimLocIndexer(indexing._LocIndexer):
                     if units == self.spd.get_Units(key[1])[key[1]]:
                         pass
                     elif convertible(units, self.spd.get_Units(key[1])[key[1]]):
-                        value = convert(value, units, self.spd.get_Units(key[1])[key[1]], self.spd.speak)
+                        value = convert(value, units, self.spd.get_Units(key[1])[key[1]], self.spd.verbose)
                     else:
                         warn(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_Units(key[1])[key[1]]))
         super().__setitem__(key, value)

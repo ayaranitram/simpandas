@@ -81,21 +81,19 @@ class SimSeries(Series):
     pandas.Series
 
     """
-    _metadata = ["units", "speak", 'indexUnits', 'nameSeparator',
+    _metadata = ["units", "verbose", 'indexUnits', 'nameSeparator',
                  'intersectionCharacter', 'autoAppend', 'spdLocator',
                  'operatePerName']  #, 'spdiLocator']
 
     def __init__(self, data=None, units=None, index=None,
-                 name=None, speak=False, indexName=None, indexUnits=None,
+                 name=None, verbose=False, indexName=None, indexUnits=None,
                  nameSeparator=None, intersectionCharacter='∩',
                  autoAppend=False, operatePerName=False,
                  *args, **kwargs):
         from .frame import SimDataFrame
-        # from .indexer import SimLocIndexer
-        Uname = None
-        Udict = None
+
         self.units = None
-        self.speak = bool(speak)
+        self.verbose = bool(verbose)
         self.indexUnits = None
         self.nameSeparator = None
         self.intersectionCharacter = '∩'
@@ -105,35 +103,35 @@ class SimSeries(Series):
         # self.spdiLocator = _iSimLocIndexer("iloc", self)
 
         # validaton
-        if isinstance(data, DataFrame) and len(data.columns)>1:
+        if isinstance(data, DataFrame) and len(data.columns) > 1:
             raise ValueError("'data' paramanter can be an instance of DataFrame but must have only one column.")
 
+        # catch index attributes from input parameters
         indexInput = None
-        # catch index keyword from input parameters
         if index is not None:
             indexInput = index
         elif 'index' in kwargs and kwargs['index'] is not None:
             indexInput = kwargs['index']
         elif len(args) >= 3 and args[2] is not None:
             indexInput = args[2]
-        # if index is a Series, get the name
-        elif isinstance(indexInput, Series):
-            if type(indexInput.name) is str:
+
+        if type(indexInput) in (Series, DataFrame) and type(indexInput.name) is str and len(data.index.name) > 0:
                 indexInput = indexInput.name
-        # if index is None and data is SimSeries or SimDataFrame get the name
-        elif type(data) in [SimSeries, SimDataFrame] and type(data.index.name) is str and len(data.index.name)>0:
+        elif type(data) in (SimSeries, SimDataFrame) and type(data.index.name) is str and len(data.index.name) > 0:
             indexInput = data.index.name
             self.indexUnits = data.indexUnits.copy() if type(data.indexUnits) is dict else data.indexUnits
 
         # catch units or get from data if it is SimDataFrame or SimSeries
+        uName = None
+        uDict = None
         if type(units) is dict and len(units) > 0:
-            Udict, units = units, None
-            if len(Udict) == 1:
-                if type(Udict[ list(Udict.keys())[0] ] ) is str:
-                    Uname = list(Udict.keys())[0]
-                    units = Udict[ Uname ]
-        elif type(units) is str:
-            self.units = units
+            uDict, units = units, None
+            if len(uDict) == 1:
+                if type(uDict[list(uDict.keys())[0]]) is str:
+                    uName = list(uDict.keys())[0]
+                    units = uDict[uName].strip()
+        elif type(units) is str and len(units.strip()) > 0:
+            self.units = units.strip()
         elif (units is None or (type(units) is dict and len(units) > 0)) and (type(data) is SimSeries and data.units is not None):
             if type(data.units) is str:
                 units = data.units
@@ -151,14 +149,17 @@ class SimSeries(Series):
         # remove arguments not known by Pandas
         kwargsB = kwargs.copy()
         if name is not None and 'name' in kwargs:
-            kwargs.pop('name',None)
-        kwargs.pop('columns',None)
+            kwargs.pop('name', None)
+        if index is not None and 'index' in kwargs:
+            kwargs.pop('index', None)
+        kwargs.pop('columns', None)
         kwargs.pop('indexName', None)
         kwargs.pop('indexUnits', None)
         kwargs.pop('nameSeparator', None)
         kwargs.pop('autoAppend', None)
-        kwargs.pop('operatePerName',None)
-        kwargs.pop('transposed',None)
+        kwargs.pop('operatePerName', None)
+        kwargs.pop('transposed', None)
+
         # convert to pure Pandas
         if type(data) in [ SimDataFrame, SimSeries ]:
             self.nameSeparator = data.nameSeparator
@@ -177,26 +178,26 @@ class SimSeries(Series):
             self.set_indexName(kwargsB['indexName'])
 
         # set the name
-        if self.name is None and Uname is not None:
-            self.name = Uname
+        if self.name is None and uName is not None:
+            self.name = uName
         # set the units
-        if self.name is not None and self.units is None and Udict is not None:
-            if self.name in Udict:
-                self.units = Udict[ self.name ]
+        if self.name is not None and self.units is None and uDict is not None:
+            if self.name in uDict:
+                self.units = uDict[ self.name ]
             else:
                 for each in self.index:
-                    if each in Udict:
+                    if each in uDict:
                         if type(self.units) is dict:
-                            self.units[each] = Udict[each]
+                            self.units[each] = uDict[each]
                         else:
-                            self.units = { each:Udict[each] }
+                            self.units = { each:uDict[each] }
                     else:
                         if type(self.units) is dict:
                             self.units[each] = 'UNITLESS'
                         else:
                             self.units = { each:'UNITLESS' }
-        if Udict is not None and self.index.name is not None and self.index.name in Udict:
-            self.indexUnits = Udict[self.index.name]
+        if uDict is not None and self.index.name is not None and self.index.name in uDict:
+            self.indexUnits = uDict[self.index.name]
         # overwrite the indexUnits with input from the argument indexName
         if indexUnits is not None and type(indexUnits) is str and len(indexUnits.strip())>0:
             self.indexUnits = indexUnits
@@ -261,7 +262,7 @@ class SimSeries(Series):
     def _SimParameters(self):
         return {'units':self.units.copy() if type(self.units) is dict else self.units,
                 'name':self.name,
-                'speak':self.speak if hasattr(self, 'speak') else False,
+                'verbose':self.verbose if hasattr(self, 'verbose') else False,
                 'indexName':self.index.name,
                 'indexUnits':self.indexUnits if hasattr(self, 'indexUnits') else None,
                 'nameSeparator':self.nameSeparator if hasattr(self, 'nameSeparator') else None,
@@ -849,11 +850,11 @@ class SimSeries(Series):
             if convertible(self.units, units):
                 params = self._SimParameters
                 params['units'] = units
-                return SimSeries(data=_convert(self.S, self.units, units, self.speak), **params)
+                return SimSeries(data=_convert(self.S, self.units, units, self.verbose), **params)
         if type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
             params = self._SimParameters
             params['units'] = units
-            return SimSeries(data=_convert(self.S, list(set(self.units.values()))[0], units, self.speak ), **params )
+            return SimSeries(data=_convert(self.S, list(set(self.units.values()))[0], units, self.verbose ), **params )
         if type(units) is dict :  # and type(self.units) is dict:
             return self.to_SimDataFrame()._convert(units).to_SimSeries()
 
@@ -1114,10 +1115,10 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.S.add(other.S, fill_value=0)
                 elif convertible(other.units, self.units ):
-                    otherC = _convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.verbose )
                     result = self.S.add(otherC.S, fill_value=0)
                 elif convertible(self.units, other.units ):
-                    selfC = _convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.verbose )
                     result = other.S.add(selfC.S, fill_value=0)
                     params['units'] = other.units
                 else:
@@ -1169,10 +1170,10 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.sub(other, fill_value=0)
                 elif convertible(other.units, self.units ):
-                    otherC = _convert(other, other.units, self.units, self.speak)
+                    otherC = _convert(other, other.units, self.units, self.verbose)
                     result = self.sub(otherC, fill_value=0)
                 elif convertible(self.units, other.units ):
-                    selfC = _convert(self, self.units, other.units, self.speak)
+                    selfC = _convert(self, self.units, other.units, self.verbose)
                     result = selfC.sub(other, fill_value=0)
                     params['units'] = other.units
                 else:
@@ -1225,17 +1226,17 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.mul(other)
                 elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.verbose )
                     result = self.mul(otherC)
                 elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.verbose )
                     result = other.mul(selfC)
                     params['units'] = unitProduct(other.units, self.units)
                 elif convertible(other.units, unitBase(self.units)):
-                    otherC = _convert(other, other.units, unitBase(self.units), self.speak )
+                    otherC = _convert(other, other.units, unitBase(self.units), self.verbose )
                     result = self.mul(otherC)
                 elif convertible(self.units, unitBase(other.units)):
-                    selfC = _convert(self, self.units, unitBase(other.units), self.speak )
+                    selfC = _convert(self, self.units, unitBase(other.units), self.verbose )
                     result = other.mul(selfC)
                     params['units'] = unitProduct(other.units, self.units)
                 else:
@@ -1274,17 +1275,17 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.truediv(other)
                 elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.verbose )
                     result = self.truediv(otherC)
                 elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.verbose )
                     result = selfC.truediv(other)
                     params['units'] = unitDivision(other.units, self.units)
                 elif convertible(other.units, unitBase(self.units)):
-                    otherC = _convert(other, other.units, unitBase(self.units), self.speak )
+                    otherC = _convert(other, other.units, unitBase(self.units), self.verbose )
                     result = self.truediv(otherC)
                 elif convertible(self.units, unitBase(other.units)):
-                    selfC = _convert(self, self.units, unitBase(other.units), self.speak )
+                    selfC = _convert(self, self.units, unitBase(other.units), self.verbose )
                     result = selfC.truediv(other)
                     params['units'] = unitDivision(other.units, self.units)
                 else:
@@ -1326,17 +1327,17 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.floordiv(other)
                 elif convertible(other.units, self.units ):
-                    otherC = _convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.verbose )
                     result = self.floordiv(otherC)
                 elif convertible(self.units, other.units ):
-                    selfC = _convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.verbose )
                     result = other.floordiv(selfC)
                     params['units'] = unitDivision(other.units, self.units)
                 elif convertible(other.units, unitBase(self.units) ):
-                    otherC = _convert(other, other.units, unitBase(self.units), self.speak )
+                    otherC = _convert(other, other.units, unitBase(self.units), self.verbose )
                     result = self.floordiv(otherC)
                 elif convertible(self.units, unitBase(other.units)):
-                    selfC = _convert(self, self.units, unitBase(other.units), self.speak )
+                    selfC = _convert(self, self.units, unitBase(other.units), self.verbose )
                     result = other.floordiv(selfC)
                     params['units'] = unitDivision(other.units, self.units)
                 else:
@@ -1369,10 +1370,10 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.mod(other)
                 elif convertible(other.units, self.units ):
-                    otherC = _convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.verbose )
                     result = self.mod(otherC)
                 elif convertible(self.units, other.units ):
-                    selfC = _convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.verbose )
                     result = other.mod(selfC)
                     params['units'] = other.units
                 else:
@@ -1409,11 +1410,11 @@ class SimSeries(Series):
                 if self.units == other.units:
                     result = self.pow(other)
                 elif convertible(other.units, self.units ):
-                    otherC = _convert(other, other.units, self.units, self.speak )
+                    otherC = _convert(other, other.units, self.units, self.verbose )
                     result = self.pow(otherC)
                     params['units'] = self.units+'^'+self.units
                 elif convertible(self.units, other.units ):
-                    selfC = _convert(self, self.units, other.units, self.speak )
+                    selfC = _convert(self, self.units, other.units, self.verbose )
                     result = other.pow(selfC)
                     params['units'] = other.units+'^'+other.units
                 else:
