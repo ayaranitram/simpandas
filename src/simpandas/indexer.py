@@ -5,20 +5,27 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.2'
-__release__ = 20220919
+__version__ = '0.80.5'
+__release__ = 20220924
 __all__ = []
 
 from pandas.core import indexing
 import pandas as pd
 from warnings import warn
-from .._common.units import convertUnit, convertible as convertibleUnits
+from unyts.convert import convertible, convertUnit as convert
+from unyts import units
+from unyts.unit_class import unit
 
 
 class SimLocIndexer(indexing._LocIndexer):
+
+
     def __init__(self, *args):
+        from .frame import SimDataFrame
+        from .series import SimSeries
         self.spd = args[1]
         super().__init__(*args)
+
 
     def __getitem__(self, *args):
         from .frame import SimDataFrame
@@ -27,7 +34,6 @@ class SimLocIndexer(indexing._LocIndexer):
         if isinstance(result, (pd.Series, pd.DataFrame)):
             if type(self.spd) is SimSeries:
                 return self.spd._class(data=result, **self.spd._SimParameters)
-
             elif type(self.spd) is SimDataFrame and type(*args) is not tuple and isinstance(result, pd.Series):
                 return self.spd._class(data=dict(zip(result.index,result.values)),index=[result.name], **self.spd._SimParameters)
             elif type(self.spd) is SimDataFrame and type(*args) is not tuple and isinstance(result, pd.DataFrame):
@@ -40,12 +46,21 @@ class SimLocIndexer(indexing._LocIndexer):
                 result.set_units(self.spd.get_units(self.spd[[args[0][-1]]].columns))
                 return result
         else:
-            return result
+            return units(result, self.spd.get_UnitsString(args[0][1]))
+
 
     def __setitem__(self, key, value):  #, units=None):
         from .frame import SimDataFrame
         from .series import SimSeries
-        if type(value) in (SimSeries, SimDataFrame):
+        if isinstance(value, unit):
+            if key[1] in self.spd.columns and self.spd.get_UnitsString(key[1]) is not None:
+                value = value.to(self.spd.get_UnitsString(key[1])).value
+            elif key[1] in self.spd.columns and self.spd.get_UnitsString(key[1]) is None:
+                value = value.value
+            else:  # if key[1] not in self.spd.columns:
+                value = (value.value, value.unit)
+
+        elif type(value) in (SimSeries, SimDataFrame):
             value = value.to(self.spd.get_Units())
         if type(value) is SimDataFrame and len(value.index) == 1:
             value = value.to_SimSeries()
@@ -54,15 +69,15 @@ class SimLocIndexer(indexing._LocIndexer):
         newUnits = False
         if type(value) is tuple and len(value) == 2:
             if key[1] not in self.spd.columns or not isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) or (
-                    isinstance(self.spd.loc[key], (pd.Series, pd.SimSeries, pd.DataFrame, pd.SimDataFrame)) and type(value[0]) is not str and hasattr(value[0],'__iter__') and len(self.spd.loc[key]) == len(value[0])):
+                    isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) and type(value[0]) is not str and hasattr(value[0],'__iter__') and len(self.spd.loc[key]) == len(value[0])):
                 value, units = value[0], value[1]
                 if key[1] not in self.spd.columns or self.spd.get_Units(key[1])[key[1]] is None or self.spd.get_Units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
                     newUnits = True
                 else:
                     if units == self.spd.get_Units(key[1])[key[1]]:
                         pass
-                    elif convertibleUnits(units, self.spd.get_Units(key[1])[key[1]]):
-                        value = convertUnit(value,units,self.spd.get_Units(key[1])[key[1]],self.spd.speak)
+                    elif convertible(units, self.spd.get_Units(key[1])[key[1]]):
+                        value = convert(value, units, self.spd.get_Units(key[1])[key[1]], self.spd.verbose)
                     else:
                         warn(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_Units(key[1])[key[1]]))
         super().__setitem__(key, value)

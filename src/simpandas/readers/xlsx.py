@@ -5,16 +5,50 @@ Created on Wed Aug  3 20:24:36 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.1.1'
-__release__ = 20220919
+__version__ = '0.1.3'
+__release__ = 20221103
 
-from .._classes.frame import SimDataFrame
+from ..frame import SimDataFrame
 
 __all__ = ['read_excel']
 
 
-def read_excel(io, sheet_name=None, header=0, names=None, index_col=None, usecols=None, squeeze=None, dtype=None, engine=None, converters=None, true_values=None, false_values=None, skiprows=None, nrows=None, na_values=None, keep_default_na=True, na_filter=True, verbose=False, parse_dates=False, date_parser=None, thousands=None, decimal='.', comment=None, skipfooter=0, convert_float=None, mangle_dupe_cols=True, storage_options=None,
-units=1, speak=False, indexName=None, indexUnits=None, nameSeparator=None, intersectionCharacter='∩', autoAppend=False, transposed=False, operatePerName=False, *args, **kwargs):
+def read_excel(io,
+               sheet_name=None,
+               header=0,
+               names=None,
+               index_col=None,
+               usecols=None,
+               squeeze=None,
+               dtype=None,
+               engine=None,
+               converters=None,
+               true_values=None,
+               false_values=None,
+               skiprows=None,
+               nrows=None,
+               na_values=None,
+               keep_default_na=True,
+               na_filter=True,
+               verbose=False,
+               parse_dates=False,
+               date_parser=None,
+               thousands=None,
+               decimal='.',
+               comment=None,
+               skipfooter=0,
+               convert_float=None,
+               mangle_dupe_cols=True,
+               storage_options=None,
+               units=1,
+               indexName=None,
+               indexUnits=None,
+               nameSeparator=None,
+               intersectionCharacter='∩',
+               autoAppend=False,
+               transposed=False,
+               operatePerName=False,
+               *args, **kwargs):
     """
     wrapper of pandas.read_excel enhanced with units support
 
@@ -24,20 +58,20 @@ units=1, speak=False, indexName=None, indexUnits=None, nameSeparator=None, inter
     import pandas
 
     dateunits = ['date']  #,'fecha']
-    speak = bool(speak)
+    verbose = bool(verbose)
 
     if type(units) is int:
         if units < 0:
             raise ValueError("'units' parameter must be positive")
         if type(header) is int:
             if header == units:
-                if speak:
+                if verbose:
                     print(" > same row will be used as header and as units.")
             else:
                 header = [header, units]
         elif type(header) is list:
             if len(header) == 1 and units in header:
-                if speak:
+                if verbose:
                     print(" > same row will be used as header and as units.")
                 header = header[0]
             else:
@@ -113,7 +147,17 @@ units=1, speak=False, indexName=None, indexUnits=None, nameSeparator=None, inter
             if str(indexUnits).lowrt().strip() not in dateunits:
                 indexUnits = 'date'
 
-        output[name] = SimDataFrame(data=df, units=dataunits, speak=speak, indexName=indexName, indexUnits=indexUnits, nameSeparator=nameSeparator, intersectionCharacter=intersectionCharacter, autoAppend=autoAppend, transposed=transposed, operatePerName=operatePerName, *args, **kwargs)
+        output[name] = SimDataFrame(data=df,
+                                    units=dataunits,
+                                    verbose=verbose,
+                                    indexName=indexName,
+                                    indexUnits=indexUnits,
+                                    nameSeparator=nameSeparator,
+                                    intersectionCharacter=intersectionCharacter,
+                                    autoAppend=autoAppend,
+                                    transposed=transposed,
+                                    operatePerName=operatePerName,
+                                    *args, **kwargs)
 
         if bool(squeeze):
             output[name] = output[name].squeeze()

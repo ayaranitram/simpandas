@@ -12,6 +12,7 @@ __all__ = ['concat', 'merge']
 from simpandas import SimDataFrame, SimSeries
 import pandas as pd
 
+
 def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=None, names=None, verify_integrity=False, sort=False, copy=True, squeeze=True):
     """
     wrapper of pandas.concat enhaced with units support
@@ -40,6 +41,7 @@ def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=Non
         return sdf.squeeze()
     else:
         return sdf
+
 
 def merge_Index(left, right, how='outer', *, drop_duplicates=True, keep='first'):
     """
@@ -70,6 +72,7 @@ def merge_Index(left, right, how='outer', *, drop_duplicates=True, keep='first')
         Reindexed to the merged index.
 
     """
+
 
     def mergeAppend(frame, newIndex):
         if type(frame) is SimSeries:
@@ -210,6 +213,7 @@ def merge_units(left, right=None, suffixes=('_x', '_y')):
 
     return merged
 
+
 def merge_SimParameters(left, right=None):
     """
     return a dictionary with the SimParameters of both SimDataFrames merged, corresponding to the merged DataFrame.
@@ -297,7 +301,12 @@ def merge_SimParameters(left, right=None):
 
     return merged
 
-def merge(left, right, how='inner', on=None, left_on=None, right_on=None, left_index=False, right_index=False, sort=False, suffixes=('_x', '_y'), copy=True, indicator=False, validate=None):
+
+def merge(left, right, how='inner', on=None,
+          left_on=None, right_on=None,
+          left_index=False, right_index=False,
+          sort=False, suffixes=('_x', '_y'),
+          copy=True, indicator=False, validate=None):
     """
     Wrapper of Pandas merge, to merge also the units dictionary.
     Merge SimDataFrame, DataFrame or named SimSeries or Series objects with a database-style join.

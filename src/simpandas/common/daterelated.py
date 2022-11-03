@@ -11,7 +11,7 @@ __release__ = 20220919
 import datetime as dt
 from pandas import Timestamp, DatetimeIndex, Series, to_datetime
 import numpy as np
-from .._classes.series import SimSeries
+from ..series import SimSeries
 
 
 def daysInYear(year):
@@ -54,12 +54,12 @@ def daysInYear(year):
         params['units'] = 'days'
         return SimSeries(data=np.array([ dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int), index=year.index, **params)
 
-    if isinstance(year,Series):
-        return Series(data=np.array([ dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in year ], dtype=int), index=year.index)
+    if isinstance(year, Series):
+        return Series(data=np.array([dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in year], dtype=int), index=year.index)
 
     raise ValueError("input 'year' is not a valid date or year integer")
 
-def daysInMonth(month,year=None):
+def daysInMonth(month, year=None):
     """
     returns the number of days in a particular month of particular year
 
@@ -117,7 +117,7 @@ def daysInMonth(month,year=None):
         if month.upper() in monthsnames:
             month = monthsnames[month.upper()]
         elif month.isdigit():
-            return daysInMonth(int(month),year)
+            return daysInMonth(int(month), year)
         elif year is None:
             try:
                 month = to_datetime(month)
@@ -127,7 +127,7 @@ def daysInMonth(month,year=None):
         else:
             raise ValueError("input 'month' not recognized.")
 
-    if type(month) in (int,float):
+    if type(month) in (int, float):
         if year is None:
             return daysinmonths[int(month)]
         if type(year) is not int:
@@ -146,7 +146,7 @@ def daysInMonth(month,year=None):
     if isinstance(month,DatetimeIndex):
         return np.array([ daysInMonth(M.month, M.year) for M in month ], dtype=int)
 
-    if type(month) in (list,tuple):
+    if type(month) in (list, tuple):
         month = np.array(month)
 
     if str(month.dtype).startswith('date'):
@@ -155,7 +155,7 @@ def daysInMonth(month,year=None):
         if len(month.shape) == 1:
             return np.array([ daysInMonth(M) for M in month ], dtype=int)
         elif month.shape[1] == 2:
-            return np.array([ daysInMonth(M[0],M[1]) for M in month ], dtype=int)
+            return np.array([ daysInMonth(M[0], M[1]) for M in month ], dtype=int)
 
     # if type(month) is np.ndarray:
     #     if np.array(month).dtype in ('int','int64','float','float64'):
@@ -191,19 +191,19 @@ def realYear(date):
     float
     """
     if type(date) in (dt.date, dt.datetime):
-        return date.timetuple().tm_year + date.timetuple().tm_yday / dt.date(date.timetuple().tm_year, 12, 31).timetuple().tm_yday
+        return date.timetuple().tm_year + (date.timetuple().tm_yday -1) / dt.date(date.timetuple().tm_year, 12, 31).timetuple().tm_yday
     if type(date) is Timestamp:
-        return date.year + dt.date(date.year,date.month,date.day).timetuple().tm_yday / dt.date(date.year, 12, 31).timetuple().tm_yday
+        return date.year + (dt.date(date.year,date.month,date.day).timetuple().tm_yday -1) / dt.date(date.year, 12, 31).timetuple().tm_yday
 
     if type(date) is np.ndarray and 'datetime' in str(np.array(date).dtype):
-            return np.array([ Y.year + dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in to_datetime(date) ], dtype=float)
-    if type(date) in (list,tuple):
-        if len(set(map(type,date))) == 1 and list(set(map(type,date)))[0] in (dt.date, dt.datetime):
-            return np.array([ Y.timetuple().tm_year + Y.timetuple().tm_yday / dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float)
+            return np.array([Y.year + (dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday -1) / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in to_datetime(date)], dtype=float)
+    if type(date) in (list, tuple):
+        if len(set(map(type, date))) == 1 and list(set(map(type,date)))[0] in (dt.date, dt.datetime):
+            return np.array([Y.timetuple().tm_year + (Y.timetuple().tm_yday -1) / dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in date], dtype=float)
         elif len(set(map(type,date))) == 2 and list(set(map(type,date)))[0] in (dt.date, dt.datetime) and list(set(map(type,date)))[1] in (dt.date, dt.datetime):
-            return np.array([ Y.timetuple().tm_year + Y.timetuple().tm_yday / dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float)
+            return np.array([Y.timetuple().tm_year + (Y.timetuple().tm_yday -1) / dt.date(Y.timetuple().tm_year, 12, 31).timetuple().tm_yday for Y in date], dtype=float)
     if isinstance(date,DatetimeIndex):
-        return np.array([ Y.year + dt.date(Y.year,Y.month,Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float)
+        return np.array([ Y.year + (dt.date(Y.year,Y.month,Y.day).timetuple().tm_yday -1) / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in date], dtype=float)
 
     if isinstance(date,SimSeries):
         params = date._SimParameters
@@ -212,4 +212,4 @@ def realYear(date):
         return SimSeries(data=realYear(date.to_Pandas()), **params)
 
     if isinstance(date,Series):
-        return Series(data=np.array([ Y.year + dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in date ], dtype=float), index=date.index)
+        return Series(data=np.array([Y.year + dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in date], dtype=float), index=date.index)

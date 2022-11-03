@@ -5,11 +5,11 @@ Created on Wed Sep 18 12:33:46 2019
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.15.1'
-__release__ = 20220919
-__all__ = ['multisplit', 'isnumeric', 'getnumber', 'isDate', 'date']
+__version__ = '0.15.3'
+__release__ = 20221103
+__all__ = ['multisplit', 'is_numeric', 'get_number', 'is_date', 'date']
 
-from .._classes.errors import UndefinedDateFormatError
+from ..errors import UndefinedDateFormatError
 
 import numpy as np
 import pandas as pd
@@ -18,9 +18,11 @@ import datetime as dt
 
 def multisplit(string, sep=[' '], remove=[' ']) :
     """
-    receives a string and returns a list with string split by all the separators in sep.
+    receives a string and returns a list with string split
+    by all the separators in sep.
     the default separator is the blank space ' '.
-    use the remove parameter to indicate the separators that must not be reported in the output list.
+    use the remove parameter to indicate the separators that
+    must not be reported in the output list.
     by default, the blank space is not reported.
     """
     assert type(string) is str
@@ -66,26 +68,81 @@ def multisplit(string, sep=[' '], remove=[' ']) :
     return newlist
 
 
-def isnumeric(string) :
+def is_numeric(string):
     """
     returns True if the string is a number
     """
-    # assert type(string) is str
-    try :
-        float(string)
+    try:
+        complex(string)
         return True
-    except :
-        return False
+    except ValueError:
+        if type(string) is str:
+            string = string.strip()
+            if ' ' in string:
+                string = string.replace(' ', '')
+            if "'" in string:
+                string = string.replace("'", "")
+            if ',' in string and '.' not in string:
+                string = string.replace(',', '.')
+            if ',' in string and '.' in string:
+                string = string.replace('.', '').replace(',', '.')
+            if string.startswith('(') and string.endswith(')') and len(string) > 2:
+                string = '-' + string[1:-1]
+            try:
+                complex(string)
+                return True
+            except:
+                return False
+        else:
+            return False
 
-def getnumber(string) :
+
+def get_number(string):
     "returns the number, as integer or float, contained in a string"
-    if isnumeric(string) :
-        try :
-            return int(string)
-        except :
-            return float(string)
 
-def isDate(dateStr, formatIN='', speak=False, returnFormat=False ):
+    def cast_to_best_number(string):
+        """
+        helper funtion to attempt to convert the imput to int, to float or to complex
+        """
+        try:
+            return int(string)
+        except ValueError:
+            try:
+                return float(string)
+            except ValueError:
+                try:
+                    return complex(string)
+                except ValueError:
+                    return None
+
+    def clean_string(string):
+        """
+        helper function to clean the input string
+        """
+        if type(string) is str:
+            string = string.strip()
+            if ' ' in string:
+                string = string.replace(' ', '')
+            if "'" in string:
+                string = string.replace("'", "")
+            if ',' in string and '.' not in string:
+                string = string.replace(',', '.')
+            if ',' in string and '.' in string:
+                string = string.replace('.', '').replace(',', '.')
+            if string.startswith('(') and string.endswith(')') and len(string) > 2:
+                string = '-' + string[1:-1]
+            return string
+
+    attempt = cast_to_best_number(string)
+    if attempt is None:
+        attempt = cast_to_best_number(clean_string(string))
+    if attempt is None:
+        raise ValueError("could not convert string to number: " + str(string))
+    else:
+        return attempt
+
+
+def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
     """
     returns True if the string 'dateStr' is a valid date, otherwise returns False.
     """
@@ -132,12 +189,12 @@ def isDate(dateStr, formatIN='', speak=False, returnFormat=False ):
     return False
 
 def splitDMMMY(string) :
-    mi, mf = -1, -1
+    mi, mf = len(string)+1, len(string)+1
     for x in range(len(string)) :
-        if not string[x].isdigit() and mf == -1 :
+        if not string[x].isdigit() and x < mi:
             mi = x
-        if string[x].isdigit() and mi > -1 :
-            mf = x+1
+        if string[x].isdigit() and x < mf and x > mi:
+            mf = x
             break
     if mi > 0 and mf > 0 :
         return [string[:mi], string[mi:mf], string[mf:]]
