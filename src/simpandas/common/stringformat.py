@@ -5,8 +5,8 @@ Created on Wed Sep 18 12:33:46 2019
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.15.2'
-__release__ = 20220920
+__version__ = '0.15.3'
+__release__ = 20221103
 __all__ = ['multisplit', 'is_numeric', 'get_number', 'is_date', 'date']
 
 from ..errors import UndefinedDateFormatError
@@ -68,24 +68,79 @@ def multisplit(string, sep=[' '], remove=[' ']) :
     return newlist
 
 
-def is_numeric(string) :
+def is_numeric(string):
     """
     returns True if the string is a number
     """
-    # assert type(string) is str
-    try :
-        float(string)
+    try:
+        complex(string)
         return True
-    except :
-        return False
+    except ValueError:
+        if type(string) is str:
+            string = string.strip()
+            if ' ' in string:
+                string = string.replace(' ', '')
+            if "'" in string:
+                string = string.replace("'", "")
+            if ',' in string and '.' not in string:
+                string = string.replace(',', '.')
+            if ',' in string and '.' in string:
+                string = string.replace('.', '').replace(',', '.')
+            if string.startswith('(') and string.endswith(')') and len(string) > 2:
+                string = '-' + string[1:-1]
+            try:
+                complex(string)
+                return True
+            except:
+                return False
+        else:
+            return False
 
-def get_number(string) :
+
+def get_number(string):
     "returns the number, as integer or float, contained in a string"
-    if is_numeric(string) :
-        try :
+
+    def cast_to_best_number(string):
+        """
+        helper funtion to attempt to convert the imput to int, to float or to complex
+        """
+        try:
             return int(string)
-        except :
-            return float(string)
+        except ValueError:
+            try:
+                return float(string)
+            except ValueError:
+                try:
+                    return complex(string)
+                except ValueError:
+                    return None
+
+    def clean_string(string):
+        """
+        helper function to clean the input string
+        """
+        if type(string) is str:
+            string = string.strip()
+            if ' ' in string:
+                string = string.replace(' ', '')
+            if "'" in string:
+                string = string.replace("'", "")
+            if ',' in string and '.' not in string:
+                string = string.replace(',', '.')
+            if ',' in string and '.' in string:
+                string = string.replace('.', '').replace(',', '.')
+            if string.startswith('(') and string.endswith(')') and len(string) > 2:
+                string = '-' + string[1:-1]
+            return string
+
+    attempt = cast_to_best_number(string)
+    if attempt is None:
+        attempt = cast_to_best_number(clean_string(string))
+    if attempt is None:
+        raise ValueError("could not convert string to number: " + str(string))
+    else:
+        return attempt
+
 
 def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
     """
