@@ -514,7 +514,7 @@ Copy of input object, shifted.
             SimDataFrame
         """
 
-        if type(other) in (SimDataFrame,SimSeries):
+        if type(other) in (SimDataFrame, SimSeries):
             otherC = other.copy()
             newUnits = self.get_units(self.columns).copy()
             for col, units in self.get_units(self.columns).items():
@@ -530,10 +530,12 @@ Copy of input object, shifted.
                     newUnits[col] = otherC.get_units(col)[col]
             params = self._SimParameters
             params['units'] = newUnits
-            return SimDataFrame(data=self.DF.append(otherC), **params)
+            data = pd.concat([self.DF, otherC], axis=0)
+            return SimDataFrame(data=data, **params)
         else:
             # append and return SimDataFrame
-            return SimDataFrame(data=self.DF.append(other), **self._SimParameters)
+            data = pd.concat([self.DF, otherC], axis=0)
+            return SimDataFrame(data=data, **self._SimParameters)
 
 
     def convert(self, units):

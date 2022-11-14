@@ -19,4 +19,8 @@ units = {'A': 'ml',
 sdf = SimDataFrame(data, units)
 
 sdf['C3'] = (sdf['C']**3).to('m3')
+
+
+sdf['C'] + sdf['D']
+
 ss = SimSeries

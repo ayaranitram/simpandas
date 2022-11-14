@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.80.6'
-__release__ = 20220927
+__version__ = '0.80.7'
+__release__ = 20221114
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -663,6 +663,8 @@ class SimSeries(Series):
                                                freeze_panes=freeze_panes,
                                                sort=sort)
 
+    def rename_right(self, inplace=False):
+        return self.renameRight(inplace=inplace)
 
     def renameRight(self, inplace=False):
         if self.nameSeparator in [None, '', False]:
@@ -682,6 +684,9 @@ class SimSeries(Series):
         else:
             return self.rename(objs, inplace=False)
 
+
+    def rename_left(self, inplace=False):
+        return self.renameLeft(inplace=inplace)
 
     def renameLeft(self, inplace=False):
         if self.nameSeparator in [None, '', False]:
@@ -703,8 +708,6 @@ class SimSeries(Series):
 
 
     def _CommonRename(self, SimSeries1, SimSeries2=None, LR=None):
-        SDF1, SDF2 = SimSeries1, SimSeries2
-
         cha = self.intersectionCharacter
 
         if LR is not None:
@@ -712,8 +715,10 @@ class SimSeries(Series):
             if LR not in 'LR':
                 LR = None
 
-        if SDF2 is None:
-            SDF1, SDF2 = self, SDF1
+        if SimSeries2 is None:
+            SDF1, SDF2 = self, SimSeries1
+        else:
+            SDF1, SDF2 = SimSeries1, SimSeries2
 
         if type(SDF1) is not SimSeries:
             raise TypeError("both series to be compared must be SimSeries.")
@@ -761,11 +766,16 @@ class SimSeries(Series):
                 if len(alternative[2]) < len(commonNames):
                     return alternative
 
+        else:
+            SDF1C, SDF2C = SDF1, SDF2.copy()
+            commonNames = None
+
         # check if proposed names are not repetitions of original names
         for name in commonNames:
             if self.nameSeparator  is str and len(self.nameSeparator) > 0 and self.nameSeparator in commonNames[name]:
                 if commonNames[name].split(self.nameSeparator)[0] == commonNames[name].split(self.nameSeparator)[1] and commonNames[name].split(self.nameSeparator)[0] == name:
                     commonNames[name] = name
+
         return SDF1C, SDF2C, commonNames
 
 
@@ -1137,6 +1147,7 @@ class SimSeries(Series):
 
         # other is Pandas Series
         elif isinstance(other, Series):
+            return 'series'
             result = self.S.add(other, fill_value=0)
             newName = stringNewName(self._CommonRename(SimSeries(other, **self._SimParameters))[2])
             try:
@@ -1146,6 +1157,7 @@ class SimSeries(Series):
             params['name'] = newName
             return SimSeries(data=result, **params)
 
+        return 'other'
         # let's Pandas deal with other types, maintain units, dtype and name
         result = self.as_Series() + other
         try:
