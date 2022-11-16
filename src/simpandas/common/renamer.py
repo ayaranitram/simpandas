@@ -8,14 +8,62 @@ Created on Wed Nov 16 18:25:41 2022
 
 __version__ = '0.80.7'
 __release__ = 20221116
-__all__ = ['renameLeft', 'renameRight', 'commonRename']
+__all__ = ['left', 'right', 'renameLeft', 'renameRight', 'commonRename']
+
+from pandas import Series
+
+def right(sdf, name_separator=None):
+    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+        if name_separator is None:
+            return {sdf.name:sdf.name} if type(sdf) is Series else {col: col for col in sdf.columns}
+    if name_separator is None and sdf.nameSeparator not in [None, False, '']:
+        name_separator = sdf.nameSeparator
+    if type(sdf) is Series:
+        objs = {sdf.name: str(sdf.name).split(name_separator)[-1] if name_separator in sdf.name else sdf.name}
+    else:
+        objs = {each: str(each).split(name_separator)[-1] if name_separator in str(each) else each for each in sdf.columns if each is not None}
+    return objs
+
+
+def left(sdf, name_separator=None):
+    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+        if name_separator is None:
+            return {sdf.name:sdf.name} if type(sdf) is Series else {col: col for col in sdf.columns}
+    if name_separator is None and sdf.nameSeparator not in [None, False, '']:
+        name_separator = sdf.nameSeparator
+    if type(sdf) is Series:
+        objs = {sdf.name: str(sdf.name).split(name_separator)[0] if name_separator in sdf.name else sdf.name}
+    else:
+        objs = {each: str(each).split(name_separator)[0] if name_separator in str(each) else each for each in sdf.columns if each is not None}
+    return objs
+
+
+def renameRight(sdf, name_separator=None):
+    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+        if name_separator is None:
+            return sdf
+    objs = right(sdf, name_separator=name_separator)
+    if type(sdf) is Series:
+        return sdf.rename(list(objs.values())[0])
+    return sdf.rename(columns=objs, inplace=False)
+
+
+def renameLeft(sdf, name_separator=None):
+    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+        if name_separator is None:
+            return sdf
+    objs = left(sdf, name_separator=name_separator)
+    if type(sdf) is Series:
+        return sdf.rename(list(objs.values())[0])
+    return sdf.rename(columns=objs, inplace=False)
+
 
 def commonRename(sdf1, sdf2, *,
-                 left_right=None, 
-                 intersection_character=None, 
+                 left_right=None,
+                 intersection_character=None,
                  name_separator1=None,
                  name_separator2=None):
-    
+
     if intersection_character is None:
         if hasattr(sdf1, 'intersectionCharacter'):
             ic = sdf1.intersectionCharacter
@@ -51,10 +99,10 @@ def commonRename(sdf1, sdf2, *,
         raise ValueError("`name_separator1` and `name_separator2` must be a string.")
 
     if left_right == 'l' or (
-            left_right is None and 
-            hasattr(sdf1, 'left') and len(sdf1.left) == 1 and 
+            left_right is None and
+            hasattr(sdf1, 'left') and len(sdf1.left) == 1 and
             hasattr(sdf2, 'left') and len(sdf2.left) == 1):
-        
+
         sdf1_copy = sdf1.renameRight(inplace=False)
         sdf2_copy = sdf2.renameRight(inplace=False)
 
