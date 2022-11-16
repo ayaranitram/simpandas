@@ -772,7 +772,7 @@ class SimSeries(Series):
 
         # check if proposed names are not repetitions of original names
         for name in commonNames:
-            if self.nameSeparator  is str and len(self.nameSeparator) > 0 and self.nameSeparator in commonNames[name]:
+            if self.nameSeparator is str and len(self.nameSeparator) > 0 and self.nameSeparator in commonNames[name]:
                 if commonNames[name].split(self.nameSeparator)[0] == commonNames[name].split(self.nameSeparator)[1] and commonNames[name].split(self.nameSeparator)[0] == name:
                     commonNames[name] = name
 
