@@ -8,8 +8,33 @@ Created on Thu Sep 29 19:03:52 2022
 __version__ = '0.80.6'
 __release__ = 20220927
 
-def _get_units(data, units):
+import pandas as pd
+
+def _get_units(data, units, columns=None):
     # catch units or get from data if it is SimDataFrame or SimSeries
+
+    if units is None and hasattr(data, 'units'):
+        try:
+            return data.get_units()
+        except:
+            pass
+
+    if hasattr(units, '__len__') and len(units) == 0:
+        return 'unitless'
+
+    if type(units) is dict and len(units) > 0:
+        if isinstance(data, Series):
+            return {data.name: }
+        elif isinstance(data, DataFrame):
+            return {col: 'unitless' for col in data.columns}
+        elif type(data) is dict:
+            return {key: 'unitless' for key in data.keys()}
+
+
+
+
+
+
     uName = None
 
     uDict = None
@@ -19,6 +44,7 @@ def _get_units(data, units):
             if type(uDict[list(uDict.keys())[0]]) is str:
                 uName = list(uDict.keys())[0]
                 units = uDict[uName].strip()
+
     elif type(units) is str and len(units.strip()) > 0:
         self.units = units.strip()
     elif (units is None or (type(units) is dict and len(units) > 0)) and (type(data) is SimSeries and data.units is not None):

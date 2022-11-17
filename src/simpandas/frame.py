@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.5'
-__release__ = 20220921
+__version__ = '0.80.9'
+__release__ = 20221003
 __all__ = ['SimDataFrame']
 
 # import warnings
@@ -514,7 +514,7 @@ Copy of input object, shifted.
             SimDataFrame
         """
 
-        if type(other) in (SimDataFrame,SimSeries):
+        if type(other) in (SimDataFrame, SimSeries):
             otherC = other.copy()
             newUnits = self.get_units(self.columns).copy()
             for col, units in self.get_units(self.columns).items():
@@ -530,10 +530,12 @@ Copy of input object, shifted.
                     newUnits[col] = otherC.get_units(col)[col]
             params = self._SimParameters
             params['units'] = newUnits
-            return SimDataFrame(data=self.DF.append(otherC), **params)
+            data = pd.concat([self.DF, otherC], axis=0)
+            return SimDataFrame(data=data, **params)
         else:
             # append and return SimDataFrame
-            return SimDataFrame(data=self.DF.append(other), **self._SimParameters)
+            data = pd.concat([self.DF, otherC], axis=0)
+            return SimDataFrame(data=data, **self._SimParameters)
 
 
     def convert(self, units):
@@ -1682,19 +1684,19 @@ Copy of input object, shifted.
                         elif not self.autoAppend:
                             raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
                         else:  # self.autoAppend is True
-                            for col in otherI.values():
+                            for col in otherI.columns:
                                 result[col] = otherI[col]
-
-                    if (selfI.columns != selfC.columns).any() or (otherI.columns != otherC.columns).any():
-                        resultX = selfC + otherC
-                        resultX.rename(columns=newNames, inplace=True)
                     else:
-                        resultX = result
-                    if self.autoAppend:
-                        for col in newNames.values():
-                            result[col] = resultX[col]
-                    else:
-                        result = resultX
+                        if (selfI.columns != selfC.columns).any() or (otherI.columns != otherC.columns).any():
+                            resultX = selfC + otherC
+                            resultX.rename(columns=newNames, inplace=True)
+                        else:
+                            resultX = result
+                        if self.autoAppend:
+                            for col in newNames.values():
+                                result[col] = resultX[col]
+                        else:
+                            result = resultX
             return result
 
         # other is SimSeries
