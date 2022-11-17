@@ -76,161 +76,87 @@ class SimDataFrame(DataFrame):
     pandas.DataFrame
 
     """
-    _metadata = ["units", "verbose", "indexUnits", "nameSeparator", "intersectionCharacter", "autoAppend", "spdLocator", "transposed", "operatePerName"]  #, "spdiLocator"]
+    _metadata = ['units',
+                 # 'name',
+                 'verbose',
+                 'indexUnits',
+                 'nameSeparator',
+                 'intersectionCharacter',
+                 'autoAppend',
+                 'spdLocator',
+                 'operatePerName',
+                 'transposed',]
 
-    def __init__(self, data=None, units=None, index=None, verbose=False, indexName=None, indexUnits=None, nameSeparator=None, intersectionCharacter='∩', autoAppend=False, transposed=False, operatePerName=False, *args, **kwargs):
+    def __init__(self,
+                 data=None,
+                 units=None,
+                 index=None,
+                 columns=None,
+                 dtype=None,
+                 copy=None,
+                 # name=None,
+                 verbose=False,
+                 indexName=None,
+                 indexUnits=None,
+                 nameSeparator=None,
+                 intersectionCharacter='∩',
+                 autoAppend=False,
+                 operatePerName=False,
+                 transposed=False,
+                 *args, **kwargs):
+
         self.units = None
         self.verbose = bool(verbose)
         self.indexUnits = None
         self.nameSeparator = None
-        self.intersectionCharacter = '∩'
-        self.autoAppend = False
-        self.operatePerName = False
-        self.spdLocator = SimLocIndexer("loc", self)
-        # self.spdiLocator = _iSimLocIndexer("iloc", self)
+        self.intersectionCharacter = intersectionCharacter if type(intersectionCharacter) is str else '∩'
+        self.autoAppend = bool(autoAppend)
+        self.operatePerName = bool(operatePerName)
         self.transposed = bool(transposed)
+        self.spdLocator = SimLocIndexer("loc", self)
+        # self.name = None
 
-
-        indexInput = None
-        # catch index keyword from input parameters
-        if index is not None:
-            indexInput = index
-        elif 'index' in kwargs and kwargs['index'] is not None:
-            indexInput = kwargs['index']
-        elif len(args) >= 3 and args[2] is not None:
-            indexInput = args[2]
-        # if index is a Series, get the name
-        elif isinstance(indexInput, Series):
-            if type(indexInput.name) is str:
-                indexInput = indexInput.name
-        # if index is None and data is SimSeries or SimDataFrame get the name
-        elif type(data) in (SimSeries, SimDataFrame) and type(data.index.name) is str and len(data.index.name)>0:
-            indexInput = data.index.name
-            self.indexUnits = data.indexUnits.copy() if type(data.indexUnits) is dict else data.indexUnits
-
-        # if units is None data is SimDataFrame or SimSeries get the units
-        if units is None:
-            if type(data) is SimDataFrame:
-                if type(data.units) is dict:
-                    units = data.units.copy()
-            elif type(data) is SimSeries:
-                if type(data.units) is dict:
-                    units = data.units.copy()
-                    if data.index.name not in units:
-                        units[data.index.name] = data.indexUnits
-                elif type(data.name) is str and type(data.units) is str:
-                    units = {data.name: data.units,
-                             data.index.name: data.indexUnits}
-
-        # remove arguments not known by Pandas
-        kwargsB = kwargs.copy()
-        kwargs.pop('name', None)
-        kwargs.pop('indexName', None)
-        kwargs.pop('indexUnits', None)
-        kwargs.pop('nameSeparator', None)
-        kwargs.pop('units', None)
-        kwargs.pop('verbose', None)
-        kwargs.pop('autoAppend', None)
-        kwargs.pop('operatePerName',None)
-        # convert to pure Pandas
-        if type(data) in [ SimDataFrame, SimSeries ]:
-            self.nameSeparator = data.nameSeparator
-            self.autoAppend = data.autoAppend
-            self.operatePerName = data.operatePerName
-            data = data.to_Pandas()
-        super().__init__(data=data, index=index, *args, **kwargs)
-
-        # set the name of the index
-        if(self.index.name is None or(type(self.index.name) is str and len(self.index.name) == 0)) and(type(indexInput) is str and len(indexInput) > 0):
-            self.index.name = indexInput
-        # overwrite the index.name with input from the argument indexName
-        if indexName is not None and type(indexName) is str and len(indexName.strip()) > 0:
-            self.set_indexName(indexName)
-        elif 'indexName' in kwargsB and type(kwargsB['indexName']) is str and len(kwargsB['indexName'].strip()) > 0:
-            self.set_indexName(kwargsB['indexName'])
-        # set units of the index
-        elif indexUnits is not None and type(indexUnits) is str and len(indexUnits.strip()) > 0:
-            self.set_indexUnits(indexUnits)
-        elif 'indexUnits' in kwargsB and type(kwargsB['indexUnits']) is str and len(kwargsB['indexUnits'].strip()) > 0:
-            self.set_indexUnits(kwargsB['indexUnits'])
-        if self.indexUnits is not None and self.index.name is not None and len(self.index.name) > 0 and type(self.units) is dict and self.index.name not in self.units:
-            self.units[self.index.name] = self.indexUnits
-
-        # set the units
-        if type(units) is str:
-            if self.transposed:
-                self.transposed = False
-            # self.units = {}
-            # for key in list(self.columns):
-            #     self.units[ key ] = units
-            self.units = dict(zip(list(self.columns), [units]*len(list(self.columns))))
-        elif hasattr(units,'__iter__') and type(units) not in (str,dict):
-            if self.transposed:
-                if len(units) == len(self.index):
-                    self.units = dict(zip(list(self.index), units))
-            elif not self.transposed:
-                if len(units) == len(self.columns):
-                    self.units = dict(zip(list(self.columns), units))
-                else:
-                    raise ValueError('The number of items in the iterable provided by units argument must coincide with the number of columns.')
+        # get units from data if it is SimDataFrame or SimSeries
+        if units is None or (type(units) in [list, dict] and len(units) == 0):
+            if hasattr(data, 'get_units'):
+                units = data.get_units()
         elif type(units) is str:
-            if self.transposed:
-                if len(self.index) == 1:
-                    self.units = {self.index[0]:units}
-            elif not self.transposed:
-                if len(self.columns) == 1:
-                    self.units = {self.columns[0]:units}
-        elif type(units) is dict and len(units) > 0:
-            self.units = {}
-            if self.transposed:
-                for key in list(self.index):
-                    if key is not None and key in units:
-                        self.units[key] = units[key]
-                    else:
-                        self.units[key] = 'UNITLESS'
-            elif not self.transposed:
-                for key in list(self.columns):
-                    if key is not None and key in units:
-                        self.units[key] = units[key]
-                    else:
-                        self.units[key] = 'UNITLESS'
-            if self.index.name in units:
-                self.units[self.index.name] = units[self.index.name]
-            for key in self.index.names:
-                if key is not None and key in units:
-                    self.units[key] = units[key]
-        if self.indexUnits is None and self.index.name is not None and units is not None:
-            if self.index.name in units:
-                self.indexUnits = units[self.index.name]
-        if self.indexUnits is None and indexUnits is not None:
-            self.indexUnits = indexUnits.strip() if type(indexUnits) is str else indexUnits
+            units = units.strip()
 
-        if self.index.name is not None and type(self.units) is dict and self.index.name not in self.units:
-            self.units[self.index.name] = '' if self.indexUnits is None else self.indexUnits
+        # get nameSeparator
+        if nameSeparator is None and hasattr(data, 'nameSeparator'):
+            nameSeparator = data.nameSeparator
+        elif nameSeparator is not None and type(nameSeparator) is str and len(nameSeparator.strip()) > 0:
+            pass
+        elif nameSeparator is False:
+            nameSeparator = ''
+        else:
+            nameSeparator = ':'
+        self.nameSeparator = nameSeparator
 
-        # get separator for the column names, 'partA'+'separator'+'partB'
-        if nameSeparator is not None and type(nameSeparator) is str and len(nameSeparator.strip()) > 0:
-            self.set_NameSeparator(nameSeparator)
-        elif 'nameSeparator' in kwargsB and type(kwargsB['nameSeparator']) is str and len(kwargsB['nameSeparator'].strip()) > 0:
-            self.set_NameSeparator(kwargsB['nameSeparator'])
-        if self.nameSeparator in [None, '', False] and ':' in ' '.join(list(map(str, self.columns))):
-            self.nameSeparator = ':'
-        if self.nameSeparator in [None, '', False]:
-            self.nameSeparator = ''
-        if self.nameSeparator is True:
-            self.nameSeparator = ':'
+        # define default dtype
+        if data is None and dtype is None:
+            dtype = object
 
-        # set autoAppend if provided as argument
-        if autoAppend is not None:
-            self.autoAppend = bool(autoAppend)
-        elif 'autoAppend' in kwargsB and kwargsB['autoAppend'] is not None:
-            self.autoAppend = bool(kwargsB['autoAppend'])
+        # initialize pd.DataFrame
+        super().__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy)
 
-        # set operatePerName if provided as argument
-        if operatePerName is not None:
-            self.operatePerName = bool(operatePerName)
-        elif 'operatePerName' in kwargsB and kwargsB['operatePerName'] is not None:
-            self.operatePerName = bool(kwargsB['operatePerName'])
+        # set units
+        self.set_units(units)
+
+        # get indexUnits
+        if indexUnits is None:
+            if self.index.name is not None and self.index.name in self.units:
+                self.indexUnits = self.units[self.index.name]
+            elif hasattr(data, 'indexUnits'):
+                self.indexUnits = data.indexUnits.copy() if type(data.indexUnits) is dict else data.indexUnits
+
+        # override index.name with indexName
+        if indexName is not None:
+            if self.index.name in self.units:
+                self.units[indexName] = self.units[self.index.name]
+            self.index.name = indexName
+
 
     @property
     def _constructor(self):
@@ -2636,7 +2562,7 @@ Copy of input object, shifted.
                 elif type(value.units) is dict:
                     uDic = value.units
                 else:
-                    uDic = { str(key) : 'UNITLESS' }
+                    uDic = { str(key) : 'unitless' }
                 if self.indexUnits is None and value.indexUnits is not None:
                     self.indexUnits = value.indexUnits
             elif isinstance(value, SimDataFrame):
@@ -2644,7 +2570,7 @@ Copy of input object, shifted.
                     if value.columns[0] in value.units:
                         uDic = { str(key) : value.units[value.columns[0]] }
                     else:
-                        uDic = { str(key) : 'UNITLESS' }
+                        uDic = { str(key) : 'unitless' }
                 else:
                     uDic = value.units.copy() if type(value.units) is dict else { str(key) : value.units }
                     if value.index.name not in value.columns and value.index.name in uDic:
@@ -2663,7 +2589,7 @@ Copy of input object, shifted.
                             print("WARNING: not able to convert the provided index to the units of this SimDataFrame index.")
 
             else:
-                uDic = { str(key) : 'UNITLESS' }
+                uDic = { str(key) : 'unitless' }
         elif type(units) is str:
             uDic = { str(key) : units.strip() }
         elif type(units) is dict:
@@ -2695,7 +2621,7 @@ Copy of input object, shifted.
                 if self.columns[c] in self.columns[ before : after ] and self.columns[c] in uDic:
                     self.new_Units(self.columns[c], uDic[ self.columns[c] ])
                 else:
-                    self.new_Units(self.columns[c], 'UNITLESS')
+                    self.new_Units(self.columns[c], 'unitless')
 
 
     def __getitem__(self, key):
@@ -2817,11 +2743,11 @@ Copy of input object, shifted.
                     try:
                         resultUnits = self.get_Units(result.index)
                     except:
-                        resultUnits = { result.name:'UNITLESS' }
+                        resultUnits = { result.name:'unitless' }
                 else:
                     resultUnits = self.get_Units(result.name)
             else:
-                resultUnits = { result.name:'UNITLESS' }
+                resultUnits = { result.name:'unitless' }
             params = self._SimParameters
             params['units'] = resultUnits
             result = SimSeries(data=result, **params)
@@ -3001,7 +2927,7 @@ Copy of input object, shifted.
                 if i in self.units:
                     units.append(self.units[i])
                 else:
-                    units.append('UNITLESS')
+                    units.append('unitless')
             joker = ('*','@','$','-','%','_',' ')
             for unitsCol in [s + 'units' for s in joker ] + [s + 'units' + s for s in joker ] + [s + 'UNITS' for s in joker ] + [s + 'UNITS' + s for s in joker ]:
                 if unitsCol not in result.columns:
@@ -3299,7 +3225,7 @@ Copy of input object, shifted.
                     if att in self.units:
                         uDic[att] = self.units[att]
                     else:
-                        uDic[att] = 'UNITLESS'
+                        uDic[att] = 'unitless'
             elif len(self.get_Keys(each)) > 0:
                 for key in self.get_Keys(each):
                     uDic[key] = self.units[key] if key in self.units else ''

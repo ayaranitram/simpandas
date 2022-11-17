@@ -18,7 +18,22 @@ ss1 = SimSeries(
 
 ss2 = SimSeries(
     data=[0.25, 73, 20.0, 9.87, 1000.0],
-    units='cm'
+    units='cm',
+    name='length'
+    )
+
+ss3 = SimSeries(
+    data=[0.0153, 5.1476, 1.1537, 0.1432, 15.1588],
+    index=range(1,6),
+    indexUnits='m',
+    indexName='metros',
+    units={'length':'ft'}
+    )
+
+ss4 = SimSeries(
+    data=[0.0153, 5.1476, 1.1537, 0.1432, 15.1588],
+    index=list('abcde'),
+    units={'a':'yd', 'b':'in', 'c':'ft', 'd':'m', 'e':'cm'}
     )
 
 ss1 + ss2
