@@ -201,7 +201,7 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
             indexName = tuple(sdf.index.names)
         else:
             indexName =(sdf.index.name, )
-        indexUnits = '' if sdf.indexUnits is None else sdf.indexUnits
+        indexUnits = '' if sdf.index_units is None else sdf.index_units
         indexCols = len(sdf.index.names) if type(sdf.index) is pd.core.indexes.multi.MultiIndex else 1
 
     if freeze_panes is None:

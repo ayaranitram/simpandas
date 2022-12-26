@@ -25,8 +25,8 @@ ss2 = SimSeries(
 ss3 = SimSeries(
     data=[0.0153, 5.1476, 1.1537, 0.1432, 15.1588],
     index=range(1,6),
-    indexUnits='m',
-    indexName='metros',
+    index_units='m',
+    index_name='metros',
     units={'length':'ft'}
     )
 

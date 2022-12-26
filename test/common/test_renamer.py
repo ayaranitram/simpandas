@@ -35,7 +35,7 @@ assert list(renameRight(d).columns) == ['abcd:0-3', '1234:a-d']
 assert list(renameLeft(d, ':').columns) == ['abcd', '1234']
 assert list(renameRight(d, ':').columns) == ['0-3', 'a-d']
 
-ss = SimSeries(range(4), index=list('abcd'), name='abcd:0-3', units='m', nameSeparator=':')
+ss = SimSeries(range(4), index=list('abcd'), name='abcd:0-3', units='m', name_separator=':')
 
 assert left(ss) == {'abcd:0-3': 'abcd'}
 assert right(ss) == {'abcd:0-3': '0-3'}
@@ -48,7 +48,7 @@ assert renameRight(ss).name == s.name
 assert renameLeft(ss, ':').name == s.name.split(':')[0]
 assert renameRight(ss, ':').name == s.name.split(':')[1]
 
-sd = SimDataFrame({'abcd:0-3': [0, 1, 2, 3], '1234:a-d': list('abcd')}, index=range(4), units={'abcd:0-3': 'm', '1234:a-d': ''}, nameSeparator=':')
+sd = SimDataFrame({'abcd:0-3': [0, 1, 2, 3], '1234:a-d': list('abcd')}, index=range(4), units={'abcd:0-3': 'm', '1234:a-d': ''}, name_separator=':')
 
 assert left(sd) == {'abcd:0-3': 'abcd', '1234:a-d': '1234'}
 assert right(sd) == {'abcd:0-3': '0-3', '1234:a-d': 'a-d'}

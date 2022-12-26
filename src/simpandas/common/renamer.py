@@ -13,11 +13,11 @@ __all__ = ['left', 'right', 'renameLeft', 'renameRight', 'commonRename']
 from pandas import Series
 
 def right(sdf, name_separator=None):
-    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+    if not hasattr(sdf, 'nameSeparator') or sdf.name_separator in [None, False, '']:
         if name_separator is None:
             return {sdf.name:sdf.name} if type(sdf) is Series else {col: col for col in sdf.columns}
-    if name_separator is None and sdf.nameSeparator not in [None, False, '']:
-        name_separator = sdf.nameSeparator
+    if name_separator is None and sdf.name_separator not in [None, False, '']:
+        name_separator = sdf.name_separator
     if type(sdf) is Series:
         objs = {sdf.name: str(sdf.name).split(name_separator)[-1] if name_separator in sdf.name else sdf.name}
     else:
@@ -26,11 +26,11 @@ def right(sdf, name_separator=None):
 
 
 def left(sdf, name_separator=None):
-    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+    if not hasattr(sdf, 'nameSeparator') or sdf.name_separator in [None, False, '']:
         if name_separator is None:
             return {sdf.name:sdf.name} if type(sdf) is Series else {col: col for col in sdf.columns}
-    if name_separator is None and sdf.nameSeparator not in [None, False, '']:
-        name_separator = sdf.nameSeparator
+    if name_separator is None and sdf.name_separator not in [None, False, '']:
+        name_separator = sdf.name_separator
     if type(sdf) is Series:
         objs = {sdf.name: str(sdf.name).split(name_separator)[0] if name_separator in sdf.name else sdf.name}
     else:
@@ -39,7 +39,7 @@ def left(sdf, name_separator=None):
 
 
 def renameRight(sdf, name_separator=None):
-    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+    if not hasattr(sdf, 'nameSeparator') or sdf.name_separator in [None, False, '']:
         if name_separator is None:
             return sdf
     objs = right(sdf, name_separator=name_separator)
@@ -49,7 +49,7 @@ def renameRight(sdf, name_separator=None):
 
 
 def renameLeft(sdf, name_separator=None):
-    if not hasattr(sdf, 'nameSeparator') or sdf.nameSeparator in [None, False, '']:
+    if not hasattr(sdf, 'nameSeparator') or sdf.name_separator in [None, False, '']:
         if name_separator is None:
             return sdf
     objs = left(sdf, name_separator=name_separator)
@@ -66,9 +66,9 @@ def commonRename(sdf1, sdf2, *,
 
     if intersection_character is None:
         if hasattr(sdf1, 'intersectionCharacter'):
-            ic = sdf1.intersectionCharacter
+            ic = sdf1.intersection_character
         elif hasattr(sdf2, 'intersectionCharacter'):
-            ic = sdf2.intersectionCharacter
+            ic = sdf2.intersection_character
         else:
             ic = '&'
     else:
@@ -84,13 +84,13 @@ def commonRename(sdf1, sdf2, *,
     ns = None
     if name_separator1 is None:
         if hasattr(sdf1, 'nameSeparator'):
-            ns1 = str(sdf1.nameSeparator)
+            ns1 = str(sdf1.name_separator)
             ns = ns1
         else:
             pass
     if name_separator2 is None:
         if hasattr(sdf2, 'nameSeparator'):
-            ns2 = str(sdf2.nameSeparator)
+            ns2 = str(sdf2.name_separator)
             if ns1 is None:
                 ns = ns2
         else:
@@ -109,12 +109,12 @@ def commonRename(sdf1, sdf2, *,
         commonNames = {}
         for col in sdf1_copy.columns:
             if col in sdf2_copy.columns:
-                commonNames[col] = str(sdf1.left[0]) + ic + str(sdf2.left[0]) + str(SDF1.nameSeparator) + str(col)
+                commonNames[col] = str(sdf1.left[0]) + ic + str(sdf2.left[0]) + str(SDF1.name_separator) + str(col)
             else:
-                commonNames[c] = str(SDF1.left[0]) + str(SDF1.nameSeparator) + str(c)
+                commonNames[c] = str(SDF1.left[0]) + str(SDF1.name_separator) + str(c)
         for c in SDF2C.columns:
             if c not in SDF1C.columns:
-                commonNames[c] = str(SDF2.left[0]) + str(SDF1.nameSeparator) + str(c)
+                commonNames[c] = str(SDF2.left[0]) + str(SDF1.name_separator) + str(c)
         if LR is None and len(commonNames) > 1:
             alternative = self._CommonRename(SDF1, SDF2, LR='R')
             if len(alternative[2]) < len(commonNames):
@@ -128,12 +128,12 @@ def commonRename(sdf1, sdf2, *,
         commonNames = {}
         for c in SDF1C.columns:
             if c in SDF2C.columns:
-                commonNames[c] = str(c) + str(SDF1.nameSeparator) + str(SDF1.right[0]) + str(cha) + str(SDF2.right[0])
+                commonNames[c] = str(c) + str(SDF1.name_separator) + str(SDF1.right[0]) + str(cha) + str(SDF2.right[0])
             else:
-                commonNames[c] = str(c) + str(SDF1.nameSeparator) + str(SDF1.right[0])
+                commonNames[c] = str(c) + str(SDF1.name_separator) + str(SDF1.right[0])
         for c in SDF2C.columns:
             if c not in SDF1C.columns:
-                commonNames[c] = str(c) + str(SDF1.nameSeparator) + str(SDF2.right[0])
+                commonNames[c] = str(c) + str(SDF1.name_separator) + str(SDF2.right[0])
         if LR is None and len(commonNames) > 1:
             alternative = self._CommonRename(SDF1, SDF2, LR='L')
             if len(alternative[2]) < len(commonNames):
@@ -145,8 +145,8 @@ def commonRename(sdf1, sdf2, *,
 
     # check if proposed names are not repetitions of original names
     for name in commonNames:
-        if self.nameSeparator is str and len(self.nameSeparator) > 0 and self.nameSeparator in commonNames[name]:
-            if commonNames[name].split(self.nameSeparator)[0] == commonNames[name].split(self.nameSeparator)[1] and commonNames[name].split(self.nameSeparator)[0] == name:
+        if self.name_separator is str and len(self.name_separator) > 0 and self.name_separator in commonNames[name]:
+            if commonNames[name].split(self.name_separator)[0] == commonNames[name].split(self.name_separator)[1] and commonNames[name].split(self.name_separator)[0] == name:
                 commonNames[name] = name
 
     return SDF1C, SDF2C, commonNames

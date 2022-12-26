@@ -51,12 +51,12 @@ def _get_units(data, units, columns=None):
         if type(data.units) is str:
             units = data.units
             if indexUnits is None:
-                indexUnits = data.indexUnits
-                self.indexUnits = indexUnits
+                indexUnits = data.index_units
+                self.index_units = indexUnits
         elif type(data.units) is dict:
             units = data.units.copy()
             if data.index.name not in units:
-                    units[data.index.name] = data.indexUnits
+                    units[data.index.name] = data.index_units
     else:
         self.units = 'unitless'
 
@@ -80,4 +80,4 @@ def _get_index_atts(data=None, index=None, units=None, **kwargs):
 
     elif type(data) in (SimSeries, SimDataFrame) and type(data.index.name) is str and len(data.index.name) > 0:
         indexInput = data.index.name
-        self.indexUnits = data.indexUnits.copy() if type(data.indexUnits) is dict else data.indexUnits
+        self.index_units = data.index_units.copy() if type(data.index_units) is dict else data.index_units

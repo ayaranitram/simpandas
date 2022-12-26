@@ -242,53 +242,53 @@ def merge_SimParameters(left, right=None):
             merged['indexName'] = ( str(left.index.name) if left.index.name is not None else ''
                                    +
                                     str(right.index.name) if right.index.name is not None else '' )
-        if left.indexUnits == right.indexUnits:
-            merged['indexUnits'] = left.indexUnits
+        if left.index_units == right.index_units:
+            merged['indexUnits'] = left.index_units
         else:
             # what to do if index units are different? should convert index if possible...
-            merged['indexUnits'] = left.indexUnits
+            merged['indexUnits'] = left.index_units
 
         renameSeparatorRight = False
         renameSeparatorLeft = False
-        if left.nameSeparator == right.nameSeparator:
-            merged['nameSeparator'] = left.nameSeparator
+        if left.name_separator == right.name_separator:
+            merged['nameSeparator'] = left.name_separator
         else:
-            if left.nameSeparator in ' '.join(list(left.columns)) and right.nameSeparator in ' '.join(list(right.columns)):
-                if left.nameSeparator not in ' '.join(list(right.columns)):
-                    merged['nameSeparator'] = left.nameSeparator
+            if left.name_separator in ' '.join(list(left.columns)) and right.name_separator in ' '.join(list(right.columns)):
+                if left.name_separator not in ' '.join(list(right.columns)):
+                    merged['nameSeparator'] = left.name_separator
                     # must rename right to use left nameSeparator
                     renameSeparatorRight = True
-                elif right.nameSeparator not in ' '.join(list(left.columns)):
-                    merged['nameSeparator'] = right.nameSeparator
+                elif right.name_separator not in ' '.join(list(left.columns)):
+                    merged['nameSeparator'] = right.name_separator
                     # must rename right to use left nameSeparator
                     renameSeparatorLeft = True
                 else:
                     # should look for a new common name separator
-                    merged['nameSeparator'] = left.nameSeparator + right.nameSeparator
+                    merged['nameSeparator'] = left.name_separator + right.name_separator
                     renameSeparatorLeft = True
                     renameSeparatorRight = True
 
         renameIntersectionRight = False
         renameIntersectionLeft = False
-        if left.intersectionCharacter == right.intersectionCharacter:
-            merged['intersectionCharacter'] = left.intersectionCharacter
+        if left.intersection_character == right.intersection_character:
+            merged['intersectionCharacter'] = left.intersection_character
         else:
-            if left.intersectionCharacter in ' '.join(list(left.columns)) and right.intersectionCharacter in ' '.join(list(right.columns)):
-                if left.intersectionCharacter not in ' '.join(list(right.columns)):
-                    merged['intersectionCharacter'] = left.intersectionCharacter
+            if left.intersection_character in ' '.join(list(left.columns)) and right.intersection_character in ' '.join(list(right.columns)):
+                if left.intersection_character not in ' '.join(list(right.columns)):
+                    merged['intersectionCharacter'] = left.intersection_character
                     # must rename right to use left intersectionCharacter
                     renameIntersectionRight = True
-                elif right.intersectionCharacter not in ' '.join(list(left.columns)):
-                    merged['intersectionCharacter'] = right.intersectionCharacter
+                elif right.intersection_character not in ' '.join(list(left.columns)):
+                    merged['intersectionCharacter'] = right.intersection_character
                     # must rename right to use left intersectionCharacter
                     renameIntersectionLeft = True
                 else:
                     # should look for a new common name separator
-                    merged['intersectionCharacter'] = left.intersectionCharacter + right.intersectionCharacter
+                    merged['intersectionCharacter'] = left.intersection_character + right.intersection_character
                     renameIntersectionLeft = True
                     renameIntersectionRight = True
 
-        merged['autoAppend'] = bool(int(left.autoAppend) + int(right.autoAppend))
+        merged['autoAppend'] = bool(int(left.auto_append) + int(right.auto_append))
 
     elif type(left) in [SimDataFrame, SimSeries] and type(right) not in [SimDataFrame, SimSeries]:
         merged = left._SimParameters.copy()

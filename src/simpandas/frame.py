@@ -47,7 +47,7 @@ def Series2Frame(aSimSeries):
     if type(aSimSeries) is SimSeries:
         try:
             from ._simdataframe import SimDataFrame
-            return SimDataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), units=aSimSeries.get_Units(), index=aSimSeries.columns, verbose=aSimSeries.verbose, indexName=aSimSeries.index.name, indexUnits=aSimSeries.indexUnits, nameSeparator=aSimSeries.nameSeparator, intersectionCharacter=aSimSeries.intersectionCharacter, autoAppend=aSimSeries.autoAppend, operatePerName=aSimSeries.operatePerName)
+            return SimDataFrame(data=dict(zip(list(aSimSeries.index), aSimSeries.to_list())), units=aSimSeries.get_Units(), index=aSimSeries.columns, verbose=aSimSeries.verbose, indexName=aSimSeries.index.name, indexUnits=aSimSeries.index_units, nameSeparator=aSimSeries.name_separator, intersectionCharacter=aSimSeries.intersection_character, autoAppend=aSimSeries.auto_append, operatePerName=aSimSeries.operate_per_name)
         except:
             return aSimSeries
     if type(aSimSeries) is Series:
@@ -77,7 +77,6 @@ class SimDataFrame(DataFrame):
 
     """
     _metadata = ['units',
-                 # 'name',
                  'verbose',
                  'indexUnits',
                  'nameSeparator',
@@ -85,7 +84,8 @@ class SimDataFrame(DataFrame):
                  'autoAppend',
                  'spdLocator',
                  'operatePerName',
-                 'transposed',]
+                 'transposed',
+                 'name']
 
     def __init__(self,
                  data=None,
@@ -94,24 +94,24 @@ class SimDataFrame(DataFrame):
                  columns=None,
                  dtype=None,
                  copy=None,
-                 # name=None,
+                 name=None,
                  verbose=False,
-                 indexName=None,
-                 indexUnits=None,
-                 nameSeparator=None,
-                 intersectionCharacter='∩',
-                 autoAppend=False,
-                 operatePerName=False,
+                 index_name=None,
+                 index_units=None,
+                 name_separator=None,
+                 intersection_character='∩',
+                 auto_append=False,
+                 operate_per_name=False,
                  transposed=False,
                  *args, **kwargs):
 
-        self.units = None
+        self.units = {}
         self.verbose = bool(verbose)
-        self.indexUnits = None
-        self.nameSeparator = None
-        self.intersectionCharacter = intersectionCharacter if type(intersectionCharacter) is str else '∩'
-        self.autoAppend = bool(autoAppend)
-        self.operatePerName = bool(operatePerName)
+        self.index_units = None
+        self.name_separator = None
+        self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
+        self.auto_append = bool(auto_append)
+        self.operate_per_name = bool(operate_per_name)
         self.transposed = bool(transposed)
         self.spdLocator = SimLocIndexer("loc", self)
         # self.name = None
@@ -124,15 +124,15 @@ class SimDataFrame(DataFrame):
             units = units.strip()
 
         # get nameSeparator
-        if nameSeparator is None and hasattr(data, 'nameSeparator'):
-            nameSeparator = data.nameSeparator
-        elif nameSeparator is not None and type(nameSeparator) is str and len(nameSeparator.strip()) > 0:
+        if name_separator is None and hasattr(data, 'nameSeparator'):
+            name_separator = data.name_separator
+        elif name_separator is not None and type(name_separator) is str and len(name_separator.strip()) > 0:
             pass
-        elif nameSeparator is False:
-            nameSeparator = ''
+        elif name_separator is False:
+            name_separator = ''
         else:
-            nameSeparator = ':'
-        self.nameSeparator = nameSeparator
+            name_separator = ':'
+        self.name_separator = name_separator
 
         # define default dtype
         if data is None and dtype is None:
@@ -145,17 +145,17 @@ class SimDataFrame(DataFrame):
         self.set_units(units)
 
         # get indexUnits
-        if indexUnits is None:
+        if index_units is None:
             if self.index.name is not None and self.index.name in self.units:
-                self.indexUnits = self.units[self.index.name]
+                self.index_units = self.units[self.index.name]
             elif hasattr(data, 'indexUnits'):
-                self.indexUnits = data.indexUnits.copy() if type(data.indexUnits) is dict else data.indexUnits
+                self.index_units = data.indexUnits.copy() if type(data.indexUnits) is dict else data.indexUnits
 
         # override index.name with indexName
-        if indexName is not None:
+        if index_name is not None:
             if self.index.name in self.units:
-                self.units[indexName] = self.units[self.index.name]
-            self.index.name = indexName
+                self.units[index_name] = self.units[self.index.name]
+            self.index.name = index_name
 
 
     @property
@@ -189,12 +189,12 @@ class SimDataFrame(DataFrame):
         return {'units':self.units.copy() if type(self.units) is dict else self.units,
                 'verbose':self.verbose if hasattr(self,'verbose') else False,
                 'indexName':self.index.name,
-                'indexUnits':self.indexUnits if hasattr(self,'indexUnits') else None,
-                'nameSeparator':self.nameSeparator if hasattr(self,'nameSeparator') else None,
-                'intersectionCharacter':self.intersectionCharacter if hasattr(self,'intersectionCharacter') else '∩',
-                'autoAppend':self.autoAppend if hasattr(self,'autoAppend') else False,
+                'indexUnits':self.index_units if hasattr(self, 'indexUnits') else None,
+                'nameSeparator':self.name_separator if hasattr(self, 'nameSeparator') else None,
+                'intersectionCharacter':self.intersection_character if hasattr(self, 'intersectionCharacter') else '∩',
+                'autoAppend':self.auto_append if hasattr(self, 'autoAppend') else False,
                 'transposed':self.transposed if hasattr(self,'transposed') else False,
-                'operatePerName':self.operatePerName if hasattr(self,'operatedPerName') else False,
+                'operatePerName':self.operate_per_name if hasattr(self, 'operatedPerName') else False,
                 }
 
     def set_indexName(self, Name):
@@ -203,20 +203,20 @@ class SimDataFrame(DataFrame):
 
     def set_indexUnits(self, Units):
         if type(Units) is str and len(Units.strip()) > 0:
-            self.indexUnits = Units.strip()
+            self.index_units = Units.strip()
 
     def set_NameSeparator(self, separator):
         if type(separator) is str and len(separator) > 0:
             if separator in ['=', '-', '+', '&', '*', '/', '!', '%']:
                 print(" the separator '"+separator+"' could be confused with operators.\n it is recommended to use ':' as separator.")
-            self.nameSeparator = separator
+            self.name_separator = separator
 
     def get_NameSeparator(self):
-        if self.nameSeparator in [None, '', False]:
+        if self.name_separator in [None, '', False]:
             warn(" NameSeparator is not defined.")
             return ''
         else:
-            return self.nameSeparator
+            return self.name_separator
 
     def set_index(self, key, drop=False, append=False, inplace=False, verify_integrity=False, **kwargs):
         if type(key) is list:
@@ -398,7 +398,7 @@ Copy of input object, shifted.
 
     def reset_index(self,level=None, drop=False, inplace=False, col_level=0, col_fill=''):
         if inplace:
-            indexUnits, indexName = self.indexUnits, None if drop else self.index.name
+            indexUnits, indexName = self.index_units, None if drop else self.index.name
             super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='')
             if type(indexUnits) in (str, dict) and indexName is not None:
                 self.set_Units(indexUnits,indexName)
@@ -407,8 +407,8 @@ Copy of input object, shifted.
             result = SimDataFrame(
                 data=self.DF.reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill=''),
                 **self._SimParameters)
-            if not drop and type(self.indexUnits) in (str, dict) and self.index.name is not None:
-                result.set_Units(self.indexUnits,item=self.index.name)
+            if not drop and type(self.index_units) in (str, dict) and self.index.name is not None:
+                result.set_Units(self.index_units, item=self.index.name)
             result.index.name = None
             return result
 
@@ -1212,7 +1212,7 @@ Copy of input object, shifted.
             output.index.name = 'YEAR' + '_' + '_'.join(map(str,userby))
         if not datetimeIndex:
             output.set_Units('year','YEAR')
-            output.indexUnits = 'year'
+            output.index_units = 'year'
         return output
 
 
@@ -1402,9 +1402,9 @@ Copy of input object, shifted.
         def _itemColumns(sdf, itemMapper, axis):
             itemsDict = {}
             for item in itemMapper:
-                pattern = '*'+sdf.nameSeparator+str(item)
+                pattern = '*' + sdf.name_separator + str(item)
                 keys = tuple(fnmatch.filter(map(str,tuple(sdf.columns if axis == 1 else sdf.index)), pattern))
-                kMapper = { k:k.replace(sdf.nameSeparator+str(item), sdf.nameSeparator+str(itemMapper[item])) for k in keys }
+                kMapper = {k:k.replace(sdf.name_separator + str(item), sdf.name_separator + str(itemMapper[item])) for k in keys}
                 itemsDict.update(kMapper)
             return itemsDict
 
@@ -1423,12 +1423,12 @@ Copy of input object, shifted.
 
     @property
     def right(self):
-        if self.nameSeparator is None or self.nameSeparator is False or self.nameSeparator in ['']:
+        if self.name_separator is None or self.name_separator is False or self.name_separator in ['']:
             return tuple(self.columns)
         objs = []
         for each in list(self.columns):
-            if self.nameSeparator in each:
-                objs += [each.split(self.nameSeparator)[-1]]
+            if self.name_separator in each:
+                objs += [each.split(self.name_separator)[-1]]
             else:
                 objs += [each]
         return tuple(set(objs))
@@ -1436,24 +1436,24 @@ Copy of input object, shifted.
 
     @property
     def left(self):
-        if self.nameSeparator is None or self.nameSeparator is False or self.nameSeparator in ['']:
+        if self.name_separator is None or self.name_separator is False or self.name_separator in ['']:
             return tuple(self.columns)
         objs = []
         for each in list(self.columns):
-            if self.nameSeparator in each:
-                objs += [each.split(self.nameSeparator)[0]]
+            if self.name_separator in each:
+                objs += [each.split(self.name_separator)[0]]
             else:
                 objs += [each]
         return tuple(set(objs))
 
 
     def renameRight(self, inplace=False):
-        if self.nameSeparator in [None, '', False]:
+        if self.name_separator in [None, '', False]:
             return self  # raise ValueError("name separator must not be None")
         objs = {}
         for each in list(self.columns ):
-            if type(each) is str and self.nameSeparator in each:
-                objs[each] = each.split(self.nameSeparator )[-1]
+            if type(each) is str and self.name_separator in each:
+                objs[each] = each.split(self.name_separator)[-1]
                 # self.units[ each.split(self.nameSeparator )[-1] ] = self.units[ each ]
                 # del(self.units[each])
             else:
@@ -1467,12 +1467,12 @@ Copy of input object, shifted.
 
 
     def renameLeft(self, inplace=False):
-        if self.nameSeparator in [None, '', False]:
+        if self.name_separator in [None, '', False]:
             return self #  raise ValueError("name separator must not be None")
         objs = {}
         for each in list(self.columns ):
-            if type(each) is str and self.nameSeparator in each:
-                objs[each] = each.split(self.nameSeparator )[0]
+            if type(each) is str and self.name_separator in each:
+                objs[each] = each.split(self.name_separator)[0]
                 # self.units[ each.split(self.nameSeparator )[0] ] = self.units[ each ]
                 # del(self.units[each])
             else:
@@ -1486,7 +1486,7 @@ Copy of input object, shifted.
 
 
     def _CommonRename(self, SimDataFrame1, SimDataFrame2=None, LR=None):
-        cha = self.intersectionCharacter
+        cha = self.intersection_character
 
         if LR is not None:
             LR = LR.upper()
@@ -1503,7 +1503,7 @@ Copy of input object, shifted.
         if type(SDF2) is not SimDataFrame:
             raise TypeError("both dataframes to be compared must be SimDataFrames.")
 
-        if SDF1.nameSeparator is None or SDF2.nameSeparator is None:
+        if SDF1.name_separator is None or SDF2.name_separator is None:
             raise ValueError("the 'nameSeparator' must not be empty in both SimDataFrames.")
 
         if LR == 'L' or (LR is None and len(SDF1.left) == 1 and len(SDF2.left) == 1):
@@ -1514,12 +1514,12 @@ Copy of input object, shifted.
             commonNames = {}
             for c in SDF1C.columns:
                 if c in SDF2C.columns:
-                    commonNames[c] = SDF1.left[0] + cha + SDF2.left[0] + SDF1.nameSeparator + c
+                    commonNames[c] = SDF1.left[0] + cha + SDF2.left[0] + SDF1.name_separator + c
                 else:
-                    commonNames[c] = SDF1.left[0] + SDF1.nameSeparator + c
+                    commonNames[c] = SDF1.left[0] + SDF1.name_separator + c
             for c in SDF2C.columns:
                 if c not in SDF1C.columns:
-                    commonNames[c] = SDF2.left[0] + SDF1.nameSeparator + c
+                    commonNames[c] = SDF2.left[0] + SDF1.name_separator + c
             if LR is None and len(commonNames) > 1:
                 alternative = self._CommonRename(SDF1, SDF2, LR='R')
                 if len(alternative[2]) < len(commonNames):
@@ -1533,12 +1533,12 @@ Copy of input object, shifted.
             commonNames = {}
             for c in SDF1C.columns:
                 if c in SDF2C.columns:
-                    commonNames[c] = c + SDF1.nameSeparator + SDF1.right[0] + cha + SDF2.right[0]
+                    commonNames[c] = c + SDF1.name_separator + SDF1.right[0] + cha + SDF2.right[0]
                 else:
-                    commonNames[c] = c + SDF1.nameSeparator + SDF1.right[0]
+                    commonNames[c] = c + SDF1.name_separator + SDF1.right[0]
             for c in SDF2C.columns:
                 if c not in SDF1C.columns:
-                    commonNames[c] = c + SDF1.nameSeparator + SDF2.right[0]
+                    commonNames[c] = c + SDF1.name_separator + SDF2.right[0]
             if LR is None and len(commonNames) > 1:
                 alternative = self._CommonRename(SDF1, SDF2, LR='L')
                 if len(alternative[2]) < len(commonNames):
@@ -1600,14 +1600,14 @@ Copy of input object, shifted.
                     result[col] = otherI[col]
 
             if notFount == len(otherI.columns):
-                if selfI.nameSeparator is not None and otherI.nameSeparator is not None:
+                if selfI.name_separator is not None and otherI.name_separator is not None:
                     selfC, otherC, newNames = selfI._CommonRename(otherI)
 
                     # if no columns has common names
                     if newNames is None:
-                        if len(otherC.columns) == 1 and not self.autoAppend:  # just in case there is only one column in the second operand
+                        if len(otherC.columns) == 1 and not self.auto_append:  # just in case there is only one column in the second operand
                             return selfC + otherC.to_SimSeries()
-                        elif not self.autoAppend:
+                        elif not self.auto_append:
                             raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
                         else:  # self.autoAppend is True
                             for col in otherI.columns:
@@ -1618,7 +1618,7 @@ Copy of input object, shifted.
                             resultX.rename(columns=newNames, inplace=True)
                         else:
                             resultX = result
-                        if self.autoAppend:
+                        if self.auto_append:
                             for col in newNames.values():
                                 result[col] = resultX[col]
                         else:
@@ -1632,9 +1632,9 @@ Copy of input object, shifted.
             selfI, otherI = self._JoinedIndex(other)
             otherI = otherI.to_SimSeries()
             result = selfI.copy()
-            if self.operatePerName and otherI.name in selfI.columns:
+            if self.operate_per_name and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] + otherI
-            elif selfI.autoAppend:
+            elif selfI.auto_append:
                 result[otherI.name] = otherI
             else:
                 for col in selfI.columns:
@@ -1673,10 +1673,10 @@ Copy of input object, shifted.
                     result[col] = selfI[col] - otherI[col]
                 else:
                     notFount += 1
-                    result[col] = otherI[col] if selfI.intersectionCharacter in col else -otherI[col]
+                    result[col] = otherI[col] if selfI.intersection_character in col else -otherI[col]
 
             if notFount == len(otherI.columns):
-                if selfI.nameSeparator is not None and otherI.nameSeparator is not None:
+                if selfI.name_separator is not None and otherI.name_separator is not None:
                     selfC, otherC, newNames = selfI._CommonRename(otherI)
 
                     # if no columns has common names
@@ -1688,7 +1688,7 @@ Copy of input object, shifted.
 
                     resultX = selfC - otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.autoAppend:
+                    if self.auto_append:
                         for col in newNames.values():
                             result[col] = resultX[col]
                     else:
@@ -1701,9 +1701,9 @@ Copy of input object, shifted.
                 other = SimSeries(other, **self._SimParameters)
             selfI, otherI = self._JoinedIndex(other)
             result = selfI.copy()
-            if self.operatePerName and otherI.name in selfI.columns:
+            if self.operate_per_name and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] - otherI
-            if self.autoAppend :  # elif self.autoAppend:
+            if self.auto_append :  # elif self.autoAppend:
                 result[otherI.name] = -otherI
             else:
                 for col in selfI.columns:
@@ -1744,7 +1744,7 @@ Copy of input object, shifted.
                     notFount += 1
 
             if notFount == len(otherI.columns):
-                if selfI.nameSeparator is not None and otherI.nameSeparator is not None:
+                if selfI.name_separator is not None and otherI.name_separator is not None:
                     selfC, otherC, newNames = selfI._CommonRename(otherI)
 
                     # if no columns has common names
@@ -1756,9 +1756,9 @@ Copy of input object, shifted.
 
                     resultX = selfC * otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.autoAppend:
+                    if self.auto_append:
                         for col in newNames.values():
-                            if self.intersectionCharacter in col :  # intersectionCharacter = '∩'
+                            if self.intersection_character in col :  # intersectionCharacter = '∩'
                                 result[col] = resultX[col]
                     else:
                         result = resultX
@@ -1771,7 +1771,7 @@ Copy of input object, shifted.
                 other = SimSeries(other, **self._SimParameters)
             selfI, otherI = self._JoinedIndex(other)
             result = selfI.copy()
-            if self.operatePerName and otherI.name in selfI.columns:
+            if self.operate_per_name and otherI.name in selfI.columns:
                 result[otherI.name] = self[otherI.name] * otherI
             else:
                 for col in selfI.columns:
@@ -1809,7 +1809,7 @@ Copy of input object, shifted.
                     notFount += 1
 
             if notFount == len(otherI.columns):
-                if self.nameSeparator is not None and otherI.nameSeparator is not None:
+                if self.name_separator is not None and otherI.name_separator is not None:
                     selfC, otherC, newNames = selfI._CommonRename(otherI)
 
                     # if no columns has common names
@@ -1821,9 +1821,9 @@ Copy of input object, shifted.
 
                     resultX = selfC / otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.autoAppend:
+                    if self.auto_append:
                         for col in newNames.values():
-                            if self.intersectionCharacter in col :  # intersectionCharacter = '∩'
+                            if self.intersection_character in col :  # intersectionCharacter = '∩'
                                 result[col] = resultX[col]
                     else:
                         result = resultX
@@ -1835,7 +1835,7 @@ Copy of input object, shifted.
                 other = SimSeries(other, **self._SimParameters)
             selfI, otherI = self._JoinedIndex(other)
             result = selfI.copy()
-            if self.operatePerName and otherI.name in selfI.columns:
+            if self.operate_per_name and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] / otherI
             else:
                 for col in selfI.columns:
@@ -1873,7 +1873,7 @@ Copy of input object, shifted.
                     notFount += 1
 
             if notFount == len(otherI.columns):
-                if selfI.nameSeparator is not None and otherI.nameSeparator is not None:
+                if selfI.name_separator is not None and otherI.name_separator is not None:
                     selfC, otherC, newNames = selfI._CommonRename(otherI)
 
                     # if no columns has common names
@@ -1885,9 +1885,9 @@ Copy of input object, shifted.
 
                     resultX = selfC // otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.autoAppend:
+                    if self.auto_append:
                         for col in newNames.values():
-                            if self.intersectionCharacter in col :  # intersectionCharacter = '∩'
+                            if self.intersection_character in col :  # intersectionCharacter = '∩'
                                 result[col] = resultX[col]
                     else:
                         result = resultX
@@ -1899,7 +1899,7 @@ Copy of input object, shifted.
                 other = SimSeries(other, **self._SimParameters)
             selfI, otherI = self._JoinedIndex(other)
             result = selfI.copy()
-            if self.operatePerName and otherI.name in selfI.columns:
+            if self.operate_per_name and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] // otherI
             else:
                 for col in self.columns:
@@ -1937,7 +1937,7 @@ Copy of input object, shifted.
                     notFount += 1
 
             if notFount == len(otherI.columns):
-                if selfI.nameSeparator is not None and otherI.nameSeparator is not None:
+                if selfI.name_separator is not None and otherI.name_separator is not None:
                     selfC, otherC, newNames = selfI._CommonRename(otherI)
 
                     # if no columns has common names
@@ -1949,9 +1949,9 @@ Copy of input object, shifted.
 
                     resultX = selfC % otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.autoAppend:
+                    if self.auto_append:
                         for col in newNames.values():
-                            if self.intersectionCharacter in col :  # intersectionCharacter = '∩'
+                            if self.intersection_character in col :  # intersectionCharacter = '∩'
                                 result[col] = resultX[col]
                     else:
                         result = resultX
@@ -1964,7 +1964,7 @@ Copy of input object, shifted.
                 other = SimSeries(other, **self._SimParameters)
             selfI, otherI = self._JoinedIndex(other)
             result = selfI.copy()
-            if self.operatePerName and otherI.name in selfI.columns:
+            if self.operate_per_name and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[other.name] % otherI
             else:
                 for col in selfI.columns:
@@ -1998,7 +1998,7 @@ Copy of input object, shifted.
                     notFount += 1
 
             if notFount == len(otherI.columns):
-                if selfI.nameSeparator is not None and otherI.nameSeparator is not None:
+                if selfI.name_separator is not None and otherI.name_separator is not None:
                     selfC, otherC, newNames = self._CommonRename(otherI)
 
                     # if no columns has common names
@@ -2010,9 +2010,9 @@ Copy of input object, shifted.
 
                     resultX = selfC ** otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.autoAppend:
+                    if self.auto_append:
                         for col in newNames.values():
-                            if self.intersectionCharacter in col :  # intersectionCharacter = '∩'
+                            if self.intersection_character in col :  # intersectionCharacter = '∩'
                                 result[col] = resultX[col]
                     else:
                         result = resultX
@@ -2025,7 +2025,7 @@ Copy of input object, shifted.
                 other = SimSeries(other, **self._SimParameters)
             selfI, otherI = self._JoinedIndex(other)
             result = selfI.copy()
-            if self.operatePerName and otherI.name in selfI.columns:
+            if self.operate_per_name and otherI.name in selfI.columns:
                 result[otherI.name] = self[otherI.name] ** otherI
             else:
                 for col in selfI.columns:
@@ -2563,8 +2563,8 @@ Copy of input object, shifted.
                     uDic = value.units
                 else:
                     uDic = { str(key) : 'unitless' }
-                if self.indexUnits is None and value.indexUnits is not None:
-                    self.indexUnits = value.indexUnits
+                if self.index_units is None and value.indexUnits is not None:
+                    self.index_units = value.indexUnits
             elif isinstance(value, SimDataFrame):
                 if len(value.columns) == 1:
                     if value.columns[0] in value.units:
@@ -2577,12 +2577,12 @@ Copy of input object, shifted.
                         del uDic[value.index.name]
                     if key not in uDic and len(set(uDic.values())) == 1:
                         uDic[str(key)] = list(set(uDic.values()))[0]
-                    if self.indexUnits is None and value.indexUnits is not None:
-                        self.indexUnits = value.indexUnits
-                    elif self.indexUnits is not None and value.indexUnits is not None and self.indexUnits != value.indexUnits:
-                        if convertible(value.indexUnits, self.indexUnits):
+                    if self.index_units is None and value.index_units is not None:
+                        self.index_units = value.index_units
+                    elif self.index_units is not None and value.index_units is not None and self.index_units != value.index_units:
+                        if convertible(value.index_units, self.index_units):
                             try:
-                                value.index = _convert(value.index, value.indexUnits, self.indexUnits)
+                                value.index = _convert(value.index, value.index_units, self.index_units)
                             except:
                                 print("WARNING: failed to convert the provided index to the units of this SimDataFrame index.")
                         else:
@@ -2960,12 +2960,12 @@ Copy of input object, shifted.
 
     @property
     def wells(self):
-        if self.nameSeparator in [None, '', False]:
+        if self.name_separator in [None, '', False]:
             return []
         objs = []
         for each in list(self.columns):
-            if type(each) is str and self.nameSeparator in each and each[0] == 'W':
-                objs += [each.split(self.nameSeparator )[-1]]
+            if type(each) is str and self.name_separator in each and each[0] == 'W':
+                objs += [each.split(self.name_separator)[-1]]
         return tuple(set(objs))
 
 
@@ -2998,12 +2998,12 @@ Copy of input object, shifted.
 
     @property
     def groups(self):
-        if self.nameSeparator in [None, '', False]:
+        if self.name_separator in [None, '', False]:
             return []
         objs = []
         for each in list(self.columns ):
-            if type(each) is str and self.nameSeparator in each and each[0] == 'G':
-                objs += [each.split(self.nameSeparator )[-1]]
+            if type(each) is str and self.name_separator in each and each[0] == 'G':
+                objs += [each.split(self.name_separator)[-1]]
         return tuple(set(objs))
 
 
@@ -3031,12 +3031,12 @@ Copy of input object, shifted.
 
     @property
     def regions(self):
-        if self.nameSeparator in [None, '', False]:
+        if self.name_separator in [None, '', False]:
             return []
         objs = []
         for each in list(self.columns ):
-            if type(each) is str and self.nameSeparator in each and each[0] == 'R':
-                objs += [each.split(self.nameSeparator )[-1]]
+            if type(each) is str and self.name_separator in each and each[0] == 'R':
+                objs += [each.split(self.name_separator)[-1]]
         return tuple(set(objs))
 
 
@@ -3063,15 +3063,15 @@ Copy of input object, shifted.
 
     @property
     def attributes(self):
-        if self.nameSeparator in [None, '', False]:
+        if self.name_separator in [None, '', False]:
             return { col:[] for col in self.columns }
         atts = {}
         for each in list(self.columns):
-            if type(each) is str and self.nameSeparator in each:
-                if type(each) is str and each.split(self.nameSeparator )[0] in atts:
-                    atts[each.split(self.nameSeparator )[0]] += [each.split(self.nameSeparator )[-1]]
+            if type(each) is str and self.name_separator in each:
+                if type(each) is str and each.split(self.name_separator)[0] in atts:
+                    atts[each.split(self.name_separator)[0]] += [each.split(self.name_separator)[-1]]
                 else:
-                    atts[each.split(self.nameSeparator )[0]] = [each.split(self.nameSeparator )[-1]]
+                    atts[each.split(self.name_separator)[0]] = [each.split(self.name_separator)[-1]]
             else:
                 if each not in atts:
                     atts[each] = []
@@ -3174,7 +3174,7 @@ Copy of input object, shifted.
         for key in criteria:
             if type(key) is str and key not in self.columns:
                 if key in self.wells or key in self.groups or key in self.regions:
-                    keys += list(self.get_Keys('*'+self.nameSeparator+key))
+                    keys += list(self.get_Keys('*' + self.name_separator + key))
                 elif key in self.attributes:
                     keys += list(self.keyGen(key, self.attributes[key]))
                 else:
@@ -3218,7 +3218,7 @@ Copy of input object, shifted.
             if each in self.units:
                 uDic[each] = self.units[each]
             elif each in self.wells or each in self.groups or each in self.regions:
-                for Key in self.get_Keys('*'+self.nameSeparator+each):
+                for Key in self.get_Keys('*' + self.name_separator + each):
                     uDic[each] = self.units[each]
             elif each in self.attributes:
                 for att in self.keyGen(each, self.attributes[each]):
@@ -3340,7 +3340,7 @@ Copy of input object, shifted.
                         else:
                             raise TypeError("units must be a string.")
                     if item == self.index.name:
-                        self.indexUnits = units.strip()
+                        self.index_units = units.strip()
                         self.units[item] = units.strip()
                     if item in self.index.names:
                         self.units[item] = units.strip()
@@ -3358,7 +3358,7 @@ Copy of input object, shifted.
                         else:
                             raise TypeError("units must be a string.")
                     if item == self.index.name:
-                        self.indexUnits = units.strip()
+                        self.index_units = units.strip()
                         self.units[item] = units.strip()
                     if item in self.index.names:
                         self.units[item] = units.strip()
@@ -3415,19 +3415,19 @@ Copy of input object, shifted.
             mainKeys = [mainKeys]
         ListOfKeys = []
         for k in mainKeys:
-            k.strip(self.nameSeparator)
+            k.strip(self.name_separator)
             if self.is_Key(k):
                 ListOfKeys.append(k)
             for i in itemKeys:
-                i = i.strip(self.nameSeparator)
-                if self.is_Key(k+self.nameSeparator+i):
-                    ListOfKeys.append(k+self.nameSeparator+i )
+                i = i.strip(self.name_separator)
+                if self.is_Key(k + self.name_separator + i):
+                    ListOfKeys.append(k + self.name_separator + i)
                 elif k[0].upper() == 'W':
                     wells = self.get_Wells(i)
                     if len(wells) > 0:
                         for w in wells:
-                            if self.is_Key(k+self.nameSeparator+w):
-                                ListOfKeys.append(k+self.nameSeparator+w )
+                            if self.is_Key(k + self.name_separator + w):
+                                ListOfKeys.append(k + self.name_separator + w)
                 elif k[0].upper() == 'R':
                     pass
                 elif k[0].upper() == 'G':
@@ -3760,7 +3760,7 @@ Copy of input object, shifted.
 
         if method[0] in 'tac':
             dt = np.diff(self.index)
-            dtUnits = self.indexUnits
+            dtUnits = self.index_units
             if str(dt.dtype).startswith('timedelta'):
                 dt = dt.astype('timedelta64[s]').astype('float64')/60/60/24
                 dtUnits = 'DAYS'
@@ -3830,7 +3830,7 @@ Copy of input object, shifted.
             return None
 
         dt = np.diff(self.index)
-        dtUnits = self.indexUnits
+        dtUnits = self.index_units
         if str(dt.dtype).startswith('timedelta'):
             dt = dt.astype('timedelta64[s]').astype('float64')/60/60/24
             dtUnits = 'DAYS'
@@ -3867,7 +3867,7 @@ Copy of input object, shifted.
 
         params = self._SimParameters
         params['units'] = newUnits
-        params['indexUnits'] = self.indexUnits
+        params['indexUnits'] = self.index_units
         return SimDataFrame(data=diff, **params)
 
 
@@ -4066,7 +4066,7 @@ Copy of input object, shifted.
         else:
             if self.index.dtype in ('int','int64') and self.index.min() > 0:
                 params['name'] = 'DaysInYear'  # params['indexName'] = 'DaysInYear'
-                params['indexUnits'] = self.indexUnits
+                params['indexUnits'] = self.index_units
                 params['index'] = self.index  # params['index'] = list(daysInYear(self.index.to_numpy()))
                 # params['columns'] = self.columns
                 params['units'] = 'days'  # params['units'] = self.units.copy()
@@ -4074,7 +4074,7 @@ Copy of input object, shifted.
             elif 'datetime' in str(self.index.dtype):
                 params['name'] = 'DaysInYear'
                 params['units'] = 'days'
-                params['indexUnits'] = self.indexUnits
+                params['indexUnits'] = self.index_units
                 params['index'] = self.index
                 return SimSeries( data=list(daysInYear(self.index)), **params ) # self._class( data=self.DF.values, index=list(daysInYear(self.index)), columns=self.columns, **self._SimParameters )
             else:
@@ -4190,9 +4190,9 @@ Copy of input object, shifted.
             if x in self.columns and y in self.columns:
                 xUnits = str(self.get_Units(x)[x])
             elif x in self.columns and y not in self.columns:
-                xUnits = str(self.indexUnits)
+                xUnits = str(self.index_units)
         else:
-            xUnits = str(self.indexUnits)
+            xUnits = str(self.index_units)
         for col in self.columns:
             if col is not None and len(self.get_Units(col)) == 1:
                 params['units']['slope_of_' + str(col)] = str(self.get_Units(col)[col]) + '/' + xUnits
