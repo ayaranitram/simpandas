@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.80.9'
-__release__ = 20221003
+__release__ = 20240104
 __all__ = ['SimDataFrame']
 
 # import warnings
@@ -26,7 +26,7 @@ from unyts.operations import unitPower
 from .common.slope import slope as _slope
 from .common.stringformat import multisplit, is_date, date as strDate
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
-from .indexer import SimLocIndexer
+from .indexer import _SimLocIndexer
 from .series import SimSeries
 from .common.helpers import clean_axis
 from .writters.xlsx import write_excel
@@ -113,7 +113,7 @@ class SimDataFrame(DataFrame):
         self.auto_append = bool(auto_append)
         self.operate_per_name = bool(operate_per_name)
         self.transposed = bool(transposed)
-        self.spdLocator = SimLocIndexer("loc", self)
+        self.spdLocator = _SimLocIndexer("loc", self)
         # self.name = None
 
         # get units from data if it is SimDataFrame or SimSeries
@@ -167,7 +167,7 @@ class SimDataFrame(DataFrame):
         return SimSeries
 
     @property
-    def loc(self) -> SimLocIndexer:
+    def loc(self) -> _SimLocIndexer:
         """
         wrapper for .loc indexing
         """
@@ -1308,11 +1308,11 @@ Copy of input object, shifted.
                 newUnits[cAfter[i]] = self.units[cBefore[i]]
         if inplace:
             self.units = newUnits
-            self.spdLocator = SimLocIndexer("loc", self)
+            self.spdLocator = _SimLocIndexer("loc", self)
             return None
         else:
             catch.units = newUnits
-            catch.spdLocator = SimLocIndexer("loc", catch)
+            catch.spdLocator = _SimLocIndexer("loc", catch)
             return catch
 
 

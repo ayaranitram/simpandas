@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.80.8'
-__release__ = 20221116
+__release__ = 20230104
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -23,7 +23,7 @@ from warnings import warn
 from .common.helpers import clean_axis, stringNewName
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.slope import slope as _slope
-from .indexer import SimLocIndexer
+from .indexer import _SimLocIndexer
 
 _SERIES_WARNING_MSG = """\
     You are passing unitless data to the SimSeries constructor. Currently,
@@ -117,7 +117,7 @@ class SimSeries(Series):
         self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
         self.auto_append = bool(auto_append)
         self.operate_per_name = bool(operate_per_name)
-        self.spdLocator = SimLocIndexer("loc", self)
+        self.spdLocator = _SimLocIndexer("loc", self)
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -255,14 +255,14 @@ class SimSeries(Series):
             return result
 
     @property
-    def loc(self) -> SimLocIndexer:
+    def loc(self) -> _SimLocIndexer:
         """
         wrapper for .loc indexing
         """
         return self.spdLocator
 
     # @property
-    # def iloc(self) -> iSimLocIndexer:
+    # def iloc(self) -> _iSimLocIndexer:
     #     """
     #     wrapper for .iloc indexing
     #     """
@@ -728,21 +728,21 @@ class SimSeries(Series):
                 newUnits[cAfter[i]] = self.units[cBefore[i]]
             if inplace:
                 self.units = newUnits
-                self.spdLocator = SimLocIndexer("loc", self)
+                self.spdLocator = _SimLocIndexer("loc", self)
                 return None
             else:
                 catch.units = newUnits
-                catch.spdLocator = SimLocIndexer("loc", catch)
+                catch.spdLocator = _SimLocIndexer("loc", catch)
                 return catch
         elif type(index) is str:
             if inplace:
                 self.name = index.strip()
-                self.spdLocator = SimLocIndexer("loc", self)
+                self.spdLocator = _SimLocIndexer("loc", self)
                 return None
             else:
                 catch = self.copy()
                 catch.name = index
-                catch.spdLocator = SimLocIndexer("loc", catch)
+                catch.spdLocator = _SimLocIndexer("loc", catch)
                 return catch
 
     def to(self, units):

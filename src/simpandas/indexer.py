@@ -6,10 +6,10 @@ Created on Mon Aug 22 23:11:38 2022
 """
 
 __version__ = '0.80.5'
-__release__ = 20220924
+__release__ = 20230104
 __all__ = []
 
-from pandas.core import indexing
+from pandas.core.indexing import _LocIndexer  #, _iLocIndexer
 import pandas as pd
 from warnings import warn
 from unyts.convert import convertible, convertUnit as convert
@@ -17,7 +17,7 @@ from unyts import units
 from unyts.unit_class import unit
 
 
-class SimLocIndexer(indexing._LocIndexer):
+class _SimLocIndexer(_LocIndexer):
 
 
     def __init__(self, *args):
@@ -85,7 +85,7 @@ class SimLocIndexer(indexing._LocIndexer):
             self.spd.set_Units({key[1]:units})
 
 
-# class iSimLocIndexer(indexing._iLocIndexer):
+# class _iSimLocIndexer(_iLocIndexer):
 #     def __init__(self, *args):
 #         self.spd = args[1]
 #         super().__init__(*args)
