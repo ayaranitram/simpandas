@@ -5,7 +5,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.80.8'
+__version__ = '0.80.10'
 __release__ = 20230104
 __all__ = ['SimSeries']
 
@@ -18,12 +18,18 @@ import numpy as np
 import warnings
 from warnings import warn
 
-#from unyts.convert import convertible, convertUnit_for_SimPandas as _convert
-#from unyts.operations import unitProduct, unitDivision, unitBase as _unitBase, unitPower as _unitPower
-from .common.helpers import clean_axis, stringNewName
-from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
-from .common.slope import slope as _slope
-from .indexer import _SimLocIndexer
+from unyts.converter import convertible, convert_for_SimPandas as _converter
+from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
+    unit_power as _unit_power
+from unyts import units
+
+from simpandas.basics import SimBasics
+from simpandas.common._internal_processes import _set_index_name, _describe, _parameters2dict, _contains, \
+    _set_name_separator, _get_name_separator
+from simpandas.common.helpers import clean_axis, string_new_name
+from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
+from simpandas.common.slope import slope as _slope
+from simpandas.indexer import _SimLocIndexer
 
 _SERIES_WARNING_MSG = """\
     You are passing unitless data to the SimSeries constructor. Currently,
@@ -55,7 +61,7 @@ def _simseries_constructor_with_fallback(data=None, index=None, units=None, **kw
                       **kwargs)
 
 
-class SimSeries(Series):
+class SimSeries(SimBasics, Series):
     """
     A Series object designed to store data with units.
 
@@ -82,24 +88,24 @@ class SimSeries(Series):
     """
     _metadata = ['units',
                  'verbose',
-                 'indexUnits',
-                 'nameSeparator',
-                 'intersectionCharacter',
-                 'autoAppend',
+                 'index_units',
+                 'name_separator',
+                 'intersection_character',
+                 'auto_append',
                  'spdLocator',
-                 'operatePerName',
+                 'operate_per_name',
                  'transposed',
                  'columns']
 
     def __init__(self,
                  data=None,
                  index=None,
+                 columns=None,
                  units=None,
                  dtype=None,
                  name=None,
                  copy=False,
                  fastpath=False,
-                 columns=None,
                  verbose=False,
                  index_name=None,
                  index_units=None,
@@ -118,6 +124,8 @@ class SimSeries(Series):
         self.auto_append = bool(auto_append)
         self.operate_per_name = bool(operate_per_name)
         self.spdLocator = _SimLocIndexer("loc", self)
+        self.transposed = bool(transposed)
+        self.columns = name if columns is None else columns
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -181,21 +189,12 @@ class SimSeries(Series):
 
     @property
     def _constructor_expanddim(self):
-        from ._simdataframe import SimDataFrame
+        from simpandas.frame import SimDataFrame
         return SimDataFrame
 
     @property
-    def _SimParameters(self):
-        return {'units': self.units.copy() if type(self.units) is dict else self.units,
-                'name': self.name,
-                'verbose': self.verbose if hasattr(self, 'verbose') else False,
-                'indexName': self.index.name,
-                'indexUnits': self.index_units if hasattr(self, 'indexUnits') else None,
-                'nameSeparator': self.name_separator if hasattr(self, 'nameSeparator') else None,
-                'intersectionCharacter': self.intersection_character if hasattr(self, 'intersectionCharacter') else '∩',
-                'autoAppend': self.auto_append if hasattr(self, 'autoAppend') else False,
-                'operatePerName': self.operate_per_name if hasattr(self, 'operatedPerName') else False,
-                }
+    def _class(self):
+        return SimSeries
 
     def __repr__(self) -> str:
         """
@@ -254,23 +253,11 @@ class SimSeries(Series):
         else:
             return result
 
-    @property
-    def loc(self) -> _SimLocIndexer:
-        """
-        wrapper for .loc indexing
-        """
-        return self.spdLocator
-
-    # @property
-    # def iloc(self) -> _iSimLocIndexer:
-    #     """
-    #     wrapper for .iloc indexing
-    #     """
-    #     return self.spdiLocator
-
-    @property
-    def _class(self):
-        return SimSeries
+    def __call__(self):
+        if len(self.get_units()) == 1:
+            return units(self.values, self.get_UnitsString())
+        else:
+            return self.values
 
     def __getitem__(self, key=None):
         if key is None:
@@ -280,100 +267,391 @@ class SimSeries(Series):
         else:
             try:
                 return self.loc[key]
-            except:
+            except KeyError:
                 try:
                     return self.iloc[key]
-                except:
+                except IndexError:
                     raise KeyError("the requested Key is not a valid index or name: " + str(key))
 
-    def __contains__(self, item):
-        if item in self.columns:
-            return True
-        elif item in self.index:
-            return True
-        else:
-            return False
+    def __add__(self, other):
+        params_ = self.params_
+        # both SimSeries
+        if isinstance(other, SimSeries):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+            if type(self.units) is str and type(other.units) is str:
+                new_name = string_new_name(self._common_rename(other)[2])
+                if self.units == other.units:
+                    result = self.S.add(other.S, fill_value=0)
+                elif convertible(other.units, self.units):
+                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    result = self.S.add(other_c.S, fill_value=0)
+                elif convertible(self.units, other.units):
+                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    result = other.S.add(self_c.S, fill_value=0)
+                    params_['units'] = other.units
+                else:
+                    result = self.S.add(other.S, fill_value=0)
+                    params_['units'] = self.units + '+' + other.units
+                try:
+                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+                except ValueError:
+                    params_['dtype'] = result.dtype
+                except TypeError:
+                    params_['dtype'] = result.dtype
+                params_['name'] = new_name
+                return SimSeries(data=result, **params_)
+            else:
+                raise NotImplementedError
+
+        # other is Pandas Series
+        elif isinstance(other, Series):
+            return 'series'
+            result = self.S.add(other, fill_value=0)
+            new_name = string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            try:
+                params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+            except ValueError:
+                params_['dtype'] = result.dtype
+            params_['name'] = new_name
+            return SimSeries(data=result, **params_)
+
+        return 'other'
+        # lets Pandas deal with other types, maintain units, dtype and name
+        result = self.as_Series() + other
+        try:
+            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+        except ValueError:
+            params_['dtype'] = result.dtype
+        return SimSeries(data=result, **params_)
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        params_ = self.params_
+        # both SimSeries
+        if isinstance(other, SimSeries):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+            if type(self.units) is str and type(other.units) is str:
+                new_name = string_new_name(self._common_rename(other)[2])
+                if self.units == other.units:
+                    result = self.sub(other, fill_value=0)
+                elif convertible(other.units, self.units):
+                    otherC = _convert(other, other.units, self.units, self.verbose)
+                    result = self.sub(otherC, fill_value=0)
+                elif convertible(self.units, other.units):
+                    selfC = _convert(self, self.units, other.units, self.verbose)
+                    result = selfC.sub(other, fill_value=0)
+                    params_['units'] = other.units
+                else:
+                    result = self.sub(other, fill_value=0)
+                    params_['units'] = self.units + '-' + other.units
+                try:
+                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+                except ValueError:
+                    params_['dtype'] = result.dtype
+                except TypeError:
+                    params_['dtype'] = result.dtype
+                params_['name'] = new_name
+                return SimSeries(data=result, **params_)
+            else:
+                raise NotImplementedError
+
+        # other is Pandas Series
+        elif isinstance(other, Series):
+            result = self.S.sub(other, fill_value=0)
+            new_name = string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            try:
+                params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+            except ValueError:
+                params_['dtype'] = result.dtype
+            params_['name'] = new_name
+            return SimSeries(data=result, **params_)
+
+        # lets Pandas deal with other types, maintain units and dtype
+        result = self.as_Series() - other
+        try:
+            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+        except ValueError:
+            params_['dtype'] = result.dtype
+        return SimSeries(data=result, **params_)
+
+    def __rsub__(self, other):
+        return self.__neg__().__add__(other)
+
+    def __mul__(self, other):
+        params_ = self.params_
+        # both SimSeries
+        if isinstance(other, SimSeries):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+            if type(self.units) is str and type(other.units) is str:
+                params_['units'] = _unit_product(self.units, other.units)
+                new_name = string_new_name(self._common_rename(other)[2])
+                if self.units == other.units:
+                    result = self.mul(other)
+                elif convertible(other.units, self.units):
+                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    result = self.mul(other_c)
+                elif convertible(self.units, other.units):
+                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    result = other.mul(self_c)
+                    params_['units'] = _unit_product(other.units, self.units)
+                elif convertible(other.units, _unit_base(self.units)):
+                    other_c = _convert(other, other.units, _unit_base(self.units), self.verbose)
+                    result = self.mul(other_c)
+                elif convertible(self.units, _unit_base(other.units)):
+                    self_c = _convert(self, self.units, _unit_base(other.units), self.verbose)
+                    result = other.mul(self_c)
+                    params_['units'] = _unit_product(other.units, self.units)
+                else:
+                    result = self.mul(other)
+                    params_['units'] = self.units + '*' + other.units
+                try:
+                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+                except ValueError:
+                    params_['dtype'] = result.dtype
+                except TypeError:
+                    params_['dtype'] = result.dtype
+                params_['name'] = new_name
+                return SimSeries(data=result, **params_)
+            else:
+                raise NotImplementedError
+
+        # lets Pandas deal with other types(types with no units), maintain units and dtype
+        result = self.as_Series() * other
+        params_['dtype'] = self.dtype if (result.astype(self.dtype).equals(result)) else result.dtype
+        return SimSeries(data=result, **params_)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        params_ = self.params_
+        # both SimSeries
+        if isinstance(other, SimSeries):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+            if type(self.units) is str and type(other.units) is str:
+                new_name = string_new_name(self._common_rename(other)[2])
+                params_['units'] = _unit_division(self.units, other.units)
+                if self.units == other.units:
+                    result = self.truediv(other)
+                elif convertible(other.units, self.units):
+                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    result = self.truediv(other_c)
+                elif convertible(self.units, other.units):
+                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    result = self_c.truediv(other)
+                    params_['units'] = _unit_division(other.units, self.units)
+                elif convertible(other.units, _unit_base(self.units)):
+                    other_c = _convert(other, other.units, _unit_base(self.units), self.verbose)
+                    result = self.truediv(other_c)
+                elif convertible(self.units, _unit_base(other.units)):
+                    self_c = _convert(self, self.units, _unit_base(other.units), self.verbose)
+                    result = self_c.truediv(other)
+                    params_['units'] = _unit_division(other.units, self.units)
+                else:
+                    result = self.truediv(other)
+                    params_['units'] = self.units + '/' + other.units
+                try:
+                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+                except ValueError:
+                    params_['dtype'] = result.dtype
+                except TypeError:
+                    params_['dtype'] = result.dtype
+                params_['name'] = new_name
+                return SimSeries(data=result, **params_)
+            else:
+                raise NotImplementedError
+
+        # lets Pandas deal with other types(types with no units), maintain units and dtype
+        result = self.as_Series() / other
+        try:
+            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+        except ValueError:
+            params_['dtype'] = result.dtype
+        return SimSeries(data=result, **params_)
+
+    def __rtruediv__(self, other):
+        return self.__pow__(-1).__mul__(other)
+
+    def __floordiv__(self, other):
+        params_ = self.params_
+        # both SimSeries
+        if isinstance(other, SimSeries):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+            if type(self.units) is str and type(other.units) is str:
+                params_['units'] = _unit_division(self.units, other.units)
+                new_name = string_new_name(self._common_rename(other)[2])
+                if self.units == other.units:
+                    result = self.floordiv(other)
+                elif convertible(other.units, self.units):
+                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    result = self.floordiv(other_c)
+                elif convertible(self.units, other.units):
+                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    result = other.floordiv(self_c)
+                    params_['units'] = _unit_division(other.units, self.units)
+                elif convertible(other.units, _unit_base(self.units)):
+                    other_c = _convert(other, other.units, _unit_base(self.units), self.verbose)
+                    result = self.floordiv(other_c)
+                elif convertible(self.units, _unit_base(other.units)):
+                    self_c = _convert(self, self.units, _unit_base(other.units), self.verbose)
+                    result = other.floordiv(self_c)
+                    params_['units'] = _unit_division(other.units, self.units)
+                else:
+                    result = self.floordiv(other)
+                    params_['units'] = self.units + '/' + other.units
+                params_[
+                    'dtype'] = result.dtype  # self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+                params_['name'] = new_name
+                return SimSeries(data=result, **params_)
+            else:
+                raise NotImplementedError
+
+        # let's Pandas deal with other types(types with no units), maintain units and dtype
+        result = self.as_Series() // other
+        params_['dtype'] = result.dtype
+        return SimSeries(data=result, **params_)
+
+    def __rfloordiv__(self, other):
+        return self.__pow__(-1).__mul__(other).__int__()
+
+    def __mod__(self, other):
+        params_ = self.params_
+        # both are SimSeries
+        if isinstance(other, SimSeries):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+            if type(self.units) is str and type(other.units) is str:
+                newName = string_new_name(self._common_rename(other)[2])
+                if self.units == other.units:
+                    result = self.mod(other)
+                elif convertible(other.units, self.units):
+                    otherC = _convert(other, other.units, self.units, self.verbose)
+                    result = self.mod(otherC)
+                elif convertible(self.units, other.units):
+                    selfC = _convert(self, self.units, other.units, self.verbose)
+                    result = other.mod(selfC)
+                    params_['units'] = other.units
+                else:
+                    result = self.mod(other)
+                try:
+                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+                except ValueError:
+                    params_['dtype'] = result.dtype
+                except TypeError:
+                    params_['dtype'] = result.dtype
+                params_['name'] = newName
+                return SimSeries(data=result, **params_)
+            else:
+                raise NotImplementedError
+
+        # let's Pandas deal with other types, maintain units and dtype
+        result = self.as_Series() % other
+        try:
+            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+        except ValueError:
+            params_['dtype'] = result.dtype
+        return SimSeries(data=result, **params_)
+
+    def __pow__(self, other):
+        params_ = self.params_
+        # both SimSeries
+        if isinstance(other, SimSeries):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+            if type(self.units) is str and type(other.units) is str:
+                params_['units'] = self.units + '^' + other.units
+                newName = string_new_name(self._common_rename(other)[2])
+                if self.units == other.units:
+                    result = self.pow(other)
+                elif convertible(other.units, self.units):
+                    otherC = _convert(other, other.units, self.units, self.verbose)
+                    result = self.pow(otherC)
+                    params_['units'] = self.units + '^' + self.units
+                elif convertible(self.units, other.units):
+                    selfC = _convert(self, self.units, other.units, self.verbose)
+                    result = other.pow(selfC)
+                    params_['units'] = other.units + '^' + other.units
+                else:
+                    result = self.pow(other)
+                try:
+                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+                except ValueError:
+                    params_['dtype'] = result.dtype
+                except TypeError:
+                    params_['dtype'] = result.dtype
+                params_['name'] = newName
+                return SimSeries(data=result, **params_)
+            else:
+                raise NotImplementedError
+
+        # if other is integer or float
+        elif type(other) in (int, float):
+            result = self.as_Series() ** other
+            params_ = self.params_
+            params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
+            return SimSeries(data=result, **params_)
+
+        # let's Pandas deal with other types(types with no units), maintain units and dtype
+        result = self.as_Series() ** other
+        try:
+            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+        except ValueError:
+            params_['dtype'] = result.dtype
+        return SimSeries(data=result, **params_)
 
     def set_index(self, name):
-        self.set_indexName(name)
+        self.set_index_name(name)
 
-    def describe(self, *args, **kwargs):
-        return self._class(
-            data=self.to_Pandas().describe(*args, **kwargs),
-            **self._SimParameters)
-
-    def set_indexName(self, name):
-        if type(name) is str and len(name.strip()) > 0:
-            self.index.name = name.strip()
-
-    def set_indexUnits(self, units):
+    def set_index_units(self, units):
         if type(units) is str and len(units.strip()) > 0:
             self.index_units = units.strip()
-        elif type(units) is dict and len(units) > 0:
+        elif type(units) is dict and len(units) == len(self.index):
             self.index_units = units
-
-    def set_NameSeparator(self, separator):
-        if type(separator) is str and len(separator) > 0:
-            self.name_separator = separator
-
-    def get_NameSeparator(self):
-        if self.name_separator in [None, '', False]:
-            warn(" NameSeparator is not defined.")
-            return ''
         else:
-            return self.name_separator
+            raise TypeError("`units` must be a string or a dictionary with pair key: units for each item in the index.")
 
     def transpose(self):
         return self
 
-    @property
-    def T(self):
-        return self.transpose()
-
-    def as_Pandas(self):
-        return self.as_Series()
-
-    def to_Pandas(self):
-        return self.to_Series()
-
     def to_pandas(self):
-        return self.to_Series()
+        return self.to_series()
 
-    def to_Series(self):
+    def as_pandas(self):
+        return self.as_series()
+
+    def to_series(self):
         return Series(self.copy())
 
-    def as_Series(self):
+    def as_series(self):
         return Series(self)
 
-    @property
-    def sdf(self):
-        return self.to_SimDataFrame()
+    def to_simseries(self):
+        return self
 
-    @property
-    def SDF(self):
-        return self.to_SimDataFrame()
+    def as_simseries(self):
+        return self
 
-    @property
-    def df(self):
-        return self.to_SimDataFrame().to_DataFrame()
+    def to_dataframe(self):
+        return self.to_simdataframe().to_dataframe()
 
-    @property
-    def DF(self):
-        return self.to_SimDataFrame().to_DataFrame()
+    def as_dataframe(self):
+        return self.as_simdataframe().as_dataframe()
 
-    @property
-    def Series(self):
-        return self.as_Series()
-
-    @property
-    def s(self):
-        return self.as_Series()
-
-    @property
-    def S(self):
-        return self.as_Series()
-
-    def to_SimDataFrame(self):
+    def to_simdataframe(self):
         from .frame import SimDataFrame
         if type(self.units) is str:
             return SimDataFrame(data=self)
@@ -382,73 +660,65 @@ class SimSeries(Series):
                 data=self.values.reshape(1, self.values.size),
                 index=[self.name],
                 columns=self.index,
-                **self._SimParameters)
+                **self.params_)
 
-    def squeeze(self, axis=None):
+    def as_simdataframe(self):
+        return self.to_simdataframe()
+
+    def convert(self, units):
         """
-        wrapper of pandas.squeeze
-
-        SimSeries with a single element and no units (or unitless) are squeezed to a scalar.
-        SimSeries without units or unitless are squeezed to a Series.
-
-        Parameters
-        ----------
-        axis : {0 or ‘index’, 1 or ‘columns’, None}, default None
-            A specific axis to squeeze. By default, all length-1 axes are squeezed., optional
-
-        Returns
-        -------
-        SimSeries, Series, or scalar
-            The projection after squeezing axis or all the axes. and units
-
+        returns the series converted to the requested units if possible,
+        else returns None
         """
-        if len(self) == 1:
-            if len(self.get_Units()) == 0 or np.array(
-                    [(u is None or str(u).lower().strip() in ['unitless', 'dimensionless']) for u in
-                     self.get_Units().values()]).all():
-                return self.iloc[0]
-        elif len(self.get_Units()) == 0 or np.array(
-                [(u is None or str(u).lower().strip() in ['unitless', 'dimensionless']) for u in
-                 self.get_Units().values()]).all():
-            return self.as_Series()
-        elif type(self.get_Units()) is dict and len(set(self.get_Units(self.index).values())) == 1:
-            params = self._SimParameters.copy()
-            params['units'] = list(set(self.get_Units(self.index).values()))[0]
-            return SimSeries(self.as_Series(), **params)
-        else:
-            return self
+        if type(units) is str and type(self.units) is str:
+            if convertible(self.units, units):
+                params_ = self.params_
+                params_['units'] = units
+                return SimSeries(data=_converter(self.S, self.units, units, self.verbose), **params_)
+        if type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
+            params_ = self.params_
+            params_['units'] = units
+            return SimSeries(data=_converter(self.S, list(set(self.units.values()))[0], units, self.verbose), **params_)
+        if type(units) is dict:
+            return self.to_simdataframe().convert(units).to_simseries()
 
+    def reindex(self, index=None, **kwargs):
+        """
+        wrapper for pandas.Series.reindex
+
+        index : array-like, optional
+            New labels / index to conform to, should be specified using keywords.
+            Preferably an Index object to avoid duplicating data.
+        """
+        return SimSeries(data=self.to_pandas().reindex(index=index, **kwargs), **self.params_)
+
+    # not shared methods
     @property
     def columns(self):
         return Index([self.name])
 
-    @property
-    def right(self):
-        if self.name_separator is None or self.name_separator is False or self.name_separator in ['']:
-            return tuple(self.columns)
-        objs = []
-        for each in list(self.columns):
-            if each is None:
-                objs.append(each)
-            elif self.name_separator in each:
-                objs.append(each.split(self.name_separator)[-1])
-            else:
-                objs.append(each)
-        return tuple(set(objs))
+    def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
+        axis = clean_axis(axis)
+        if inplace:
+            super().drop(labels=labels, axis=axis, index=index, columns=columns,
+                         level=level, inplace=inplace, errors='errors')
+        else:
+            return SimSeries(data=self.as_pandas().drop(labels=labels, axis=axis, index=index, columns=columns,
+                                                        level=level, inplace=inplace, errors='errors'),
+                             **self.params_)
 
-    @property
-    def left(self):
-        if self.name_separator is None or self.name_separator is False or self.name_separator in ['']:
-            return tuple(self.columns)
-        objs = []
-        for each in list(self.columns):
-            if each is None:
-                objs.append(each)
-            elif self.name_separator in each:
-                objs.append(each.split(self.name_separator)[0])
-            else:
-                objs.append(each)
-        return tuple(set(objs))
+    def dropna(self, axis=0, inplace=False, how=None):
+        axis = clean_axis(axis)
+        if inplace:
+            super().dropna(axis=axis, inplace=inplace, how=how)
+        else:
+            return SimSeries(
+                data=self.as_pandas().dropna(axis=axis, inplace=inplace, how=how),
+                **self.params_)
+
+
+
+
 
     def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
                  float_format=None, columns=None, header=True, units=True, index=True,
@@ -561,49 +831,7 @@ class SimSeries(Series):
                                                freeze_panes=freeze_panes,
                                                sort=sort)
 
-    def rename_right(self, inplace=False):
-        return self.renameRight(inplace=inplace)
-
-    def renameRight(self, inplace=False):
-        if self.name_separator in [None, '', False]:
-            return self  # raise ValueError("name separator must not be None or empty")
-        objs = {}
-        for each in list(self.columns):
-            if each is None:
-                objs[each] = each
-            elif self.name_separator in each:
-                objs[each] = each.split(self.name_separator)[-1]
-            else:
-                objs[each] = each
-        if len(self.columns) == 1:
-            objs = list(objs.values())[0]
-        if inplace:
-            self.rename(objs, inplace=True)
-        else:
-            return self.rename(objs, inplace=False)
-
-    def rename_left(self, inplace=False):
-        return self.renameLeft(inplace=inplace)
-
-    def renameLeft(self, inplace=False):
-        if self.name_separator in [None, '', False]:
-            return self  # raise ValueError("name separator must not be None or empty")
-        objs = {}
-        for each in list(self.columns):
-            if each is None:
-                objs[each] = each
-            elif self.name_separator in each:
-                objs[each] = each.split(self.name_separator)[0]
-            else:
-                objs[each] = each
-        if len(self.columns) == 1:
-            objs = list(objs.values())[0]
-        if inplace:
-            self.rename(objs, inplace=True)
-        else:
-            return self.rename(objs, inplace=False)
-
-    def _CommonRename(self, SimSeries1, SimSeries2=None, LR=None):
+    def _common_rename(self, SimSeries1, SimSeries2=None, LR=None):
         cha = self.intersection_character
 
         if LR is not None:
@@ -632,20 +860,21 @@ class SimSeries(Series):
             commonNames = {}
             for c in SDF1C.columns:
                 if c in SDF2C.columns:
-                    commonNames[c] = str(SDF1.left[0]) + str(cha) + str(SDF2.left[0]) + str(SDF1.name_separator) + str(c)
+                    commonNames[c] = str(SDF1.left[0]) + str(cha) + str(SDF2.left[0]) + str(SDF1.name_separator) + str(
+                        c)
                 else:
                     commonNames[c] = str(SDF1.left[0]) + str(SDF1.name_separator) + str(c)
             for c in SDF2C.columns:
                 if c not in SDF1C.columns:
                     commonNames[c] = str(SDF2.left[0]) + str(SDF1.name_separator) + str(c)
             if LR is None and len(commonNames) > 1:
-                alternative = self._CommonRename(SDF1, SDF2, LR='R')
+                alternative = self._common_rename(SDF1, SDF2, LR='R')
                 if len(alternative[2]) < len(commonNames):
                     return alternative
 
         elif LR == 'R' or (LR is None and len(SDF1.right) == 1 and len(SDF2.right) == 1):
             SDF2C = SDF2.copy()
-            SDF2C.renameLeft(inplace=True)
+            SDF2C.rename_left(inplace=True)
             SDF1C = SDF1.copy()
             SDF1C.renameLeft(inplace=True)
             commonNames = {}
@@ -659,7 +888,7 @@ class SimSeries(Series):
                 if c not in SDF1C.columns:
                     commonNames[c] = str(c) + str(SDF1.name_separator) + str(SDF2.right[0])
             if LR is None and len(commonNames) > 1:
-                alternative = self._CommonRename(SDF1, SDF2, LR='L')
+                alternative = self._common_rename(SDF1, SDF2, LR='L')
                 if len(alternative[2]) < len(commonNames):
                     return alternative
 
@@ -670,7 +899,8 @@ class SimSeries(Series):
         # check if proposed names are not repetitions of original names
         for name in commonNames:
             if self.name_separator is str and len(self.name_separator) > 0 and self.name_separator in commonNames[name]:
-                if commonNames[name].split(self.name_separator)[0] == commonNames[name].split(self.name_separator)[1] and \
+                if commonNames[name].split(self.name_separator)[0] == commonNames[name].split(self.name_separator)[
+                    1] and \
                         commonNames[name].split(self.name_separator)[0] == name:
                     commonNames[name] = name
 
@@ -745,67 +975,14 @@ class SimSeries(Series):
                 catch.spdLocator = _SimLocIndexer("loc", catch)
                 return catch
 
-    def to(self, units):
-        """
-        returns the series converted to the requested units if possible,
-        else returns None
-        """
-        return self.convert(units)
-
-    def convert(self, units):
-        """
-        returns the series converted to the requested units if possible,
-        else returns None
-        """
-        if type(units) is str and type(self.units) is str:
-            if convertible(self.units, units):
-                params = self._SimParameters
-                params['units'] = units
-                return SimSeries(data=_convert(self.S, self.units, units, self.verbose), **params)
-        if type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
-            params = self._SimParameters
-            params['units'] = units
-            return SimSeries(data=_convert(self.S, list(set(self.units.values()))[0], units, self.verbose), **params)
-        if type(units) is dict:  # and type(self.units) is dict:
-            return self.to_SimDataFrame()._convert(units).to_SimSeries()
 
     # def resample(self, rule, axis=0, closed=None, label=None, convention='start', kind=None, loffset=None, base=None, on=None, level=None, origin='start_day', offset=None):
     #     axis = clean_axis(axis)
-    #     return SimSeries(data=self.S.resample(rule, axis=axis, closed=closed, label=label, convention=convention, kind=kind, loffset=loffset, base=base, on=on, level=level, origin=origin, offset=offset), **self._SimParameters )
+    #     return SimSeries(data=self.S.resample(rule, axis=axis, closed=closed, label=label, convention=convention, kind=kind, loffset=loffset, base=base, on=on, level=level, origin=origin, offset=offset), **self.params_ )
 
-    def reindex(self, index=None, **kwargs):
-        """
-        wrapper for pandas.Series.reindex
 
-        index : array-like, optional
-            New labels / index to conform to, should be specified using keywords.
-            Preferably an Index object to avoid duplicating data.
-        """
-        return SimSeries(data=self.S.reindex(index=index, **kwargs), **self._SimParameters)
 
-    def dropna(self, axis=0, inplace=False, how=None):
-        axis = clean_axis(axis)
-        if inplace:
-            super().dropna(axis=axis, inplace=inplace, how=how)
-            return None
-        else:
-            return SimSeries(
-                data=self.as_Series().dropna(axis=axis, inplace=inplace, how=how),
-                **self._SimParameters)
 
-    def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
-        axis = clean_axis(axis)
-        if inplace:
-            super().drop(
-                labels=labels, axis=axis, index=index, columns=columns,
-                level=level, inplace=inplace, errors='errors')
-            return None
-        else:
-            return SimSeries(
-                data=self.as_Series().drop(
-                    labels=labels, axis=axis, index=index, columns=columns,
-                    level=level, inplace=inplace, errors='errors'),
-                **self._SimParameters)
 
     @property
     def wells(self):
@@ -823,26 +1000,6 @@ class SimSeries(Series):
     # def items(self):
     #     return self.left
 
-    def get_wells(self, pattern=None):
-        """
-        Will return a tuple of all the well names in case.
-
-        If the pattern variable is different from None only wells
-        matching the pattern will be returned; the matching is based
-        on fnmatch():
-            Pattern     Meaning
-            *           matches everything
-            ?           matches any single character
-            [seq]       matches any character in seq
-            [!seq]      matches any character not in seq
-
-        """
-        if pattern is not None and type(pattern) is not str:
-            raise TypeError('pattern argument must be a string.')
-        if pattern is None:
-            return tuple(self.wells)
-        else:
-            return tuple(fnmatch.filter(self.wells, pattern))
 
     @property
     def groups(self):
@@ -858,27 +1015,6 @@ class SimSeries(Series):
                     objs.append(each.split(self.name_separator)[-1])
         return tuple(set(objs))
 
-    def get_groups(self, pattern=None):
-        """
-        Will return a tuple of all the group names in case.
-
-        If the pattern variable is different from None only groups
-        matching the pattern will be returned; the matching is based
-        on fnmatch():
-            Pattern     Meaning
-            *           matches everything
-            ?           matches any single character
-            [seq]       matches any character in seq
-            [!seq]      matches any character not in seq
-
-        """
-        if pattern is not None and type(pattern) is not str:
-            raise TypeError('pattern argument must be a string.')
-        if pattern is None:
-            return self.groups
-        else:
-            return tuple(fnmatch.filter(self.groups, pattern))
-
     @property
     def regions(self):
         if self.name_separator in [None, '', False]:
@@ -893,32 +1029,12 @@ class SimSeries(Series):
                     objs.append(each.split(self.name_separator)[-1])
         return tuple(set(objs))
 
-    def get_regions(self, pattern=None):
-        """
-        Will return a tuple of all the region names in case.
-
-        If the pattern variable is different from None only regions
-        matching the pattern will be returned; the matching is based
-        on fnmatch():
-            Pattern     Meaning
-            *           matches everything
-            ?           matches any single character
-            [seq]       matches any character in seq
-            [!seq]      matches any character not in seq
-        """
-        if pattern is not None and type(pattern) is not str:
-            raise TypeError('pattern argument must be a string.')
-        if pattern is None:
-            return self.regions
-        else:
-            return tuple(fnmatch.filter(self.regions, pattern))
-
     @property
     def attributes(self):
         if self.name_separator in [None, '', False]:
             return {col: [] for col in self.columns}
         atts = {}
-        for each in list(self.get_Keys()):
+        for each in list(self.get_keys()):
             if self.name_separator in each:
                 if each.split(self.name_separator)[0] in atts:
                     atts[each.split(self.name_separator)[0]] += [each.split(self.name_separator)[-1]]
@@ -938,26 +1054,7 @@ class SimSeries(Series):
         else:
             return tuple()
 
-    def get_Attributes(self, pattern=None):
-        """
-        Will return a dictionary of all the attributes names in case as keys
-        and their related items as values.
-
-        If the pattern variable is different from None only attributes
-        matching the pattern will be returned; the matching is based
-        on fnmatch():
-            Pattern     Meaning
-            *           matches everything
-            ?           matches any single character
-            [seq]       matches any character in seq
-            [!seq]      matches any character not in seq
-        """
-        if pattern is None:
-            return tuple(self.attributes.keys())
-        else:
-            return tuple(fnmatch.filter(tuple(self.attributes.keys()), pattern))
-
-    def get_Keys(self, pattern=None):
+    def get_keys(self, pattern=None):
         """
         Will return a tuple of all the key names in case.
 
@@ -975,13 +1072,13 @@ class SimSeries(Series):
             raise TypeError(
                 'pattern argument must be a string.\nreceived ' + str(type(pattern)) + ' with value ' + str(pattern))
         if type(self.name) is str:
-            keys = (self.name,)
+            keys = [self.name]
         else:
-            keys = tuple(self.index)
+            keys = list(self.index)
         if pattern is None:
             return keys
         else:
-            return tuple(fnmatch.filter(keys, pattern))
+            return list(fnmatch.filter(keys, pattern))
 
     def diff(self, periods=1, forward=False):
         if type(periods) is bool:
@@ -989,366 +1086,13 @@ class SimSeries(Series):
         if forward:
             return SimSeries(
                 data=-1 * self.as_Series().diff(periods=-1 * periods),
-                **self._SimParameters)
+                **self.params_)
         else:
             return SimSeries(
                 data=self.as_Series().diff(periods=periods),
-                **self._SimParameters)
+                **self.params_)
 
-    def __neg__(self):
-        result = -self.as_Series()
-        return SimSeries(data=result, **self._SimParameters)
 
-    def __add__(self, other):
-        params = self._SimParameters
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                newName = stringNewName(self._CommonRename(other)[2])
-                if self.units == other.units:
-                    result = self.S.add(other.S, fill_value=0)
-                elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
-                    result = self.S.add(otherC.S, fill_value=0)
-                elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
-                    result = other.S.add(selfC.S, fill_value=0)
-                    params['units'] = other.units
-                else:
-                    result = self.S.add(other.S, fill_value=0)
-                    params['units'] = self.units + '+' + other.units
-                try:
-                    params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params['dtype'] = result.dtype
-                except TypeError:
-                    params['dtype'] = result.dtype
-                params['name'] = newName
-                return SimSeries(data=result, **params)
-            else:
-                raise NotImplementedError
-
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            return 'series'
-            result = self.S.add(other, fill_value=0)
-            newName = stringNewName(self._CommonRename(SimSeries(other, **self._SimParameters))[2])
-            try:
-                params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-            except ValueError:
-                params['dtype'] = result.dtype
-            params['name'] = newName
-            return SimSeries(data=result, **params)
-
-        return 'other'
-        # let's Pandas deal with other types, maintain units, dtype and name
-        result = self.as_Series() + other
-        try:
-            params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params['dtype'] = result.dtype
-        return SimSeries(data=result, **params)
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, other):
-        params = self._SimParameters
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                newName = stringNewName(self._CommonRename(other)[2])
-                if self.units == other.units:
-                    result = self.sub(other, fill_value=0)
-                elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
-                    result = self.sub(otherC, fill_value=0)
-                elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
-                    result = selfC.sub(other, fill_value=0)
-                    params['units'] = other.units
-                else:
-                    result = self.sub(other, fill_value=0)
-                    params['units'] = self.units + '-' + other.units
-                try:
-                    params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params['dtype'] = result.dtype
-                except TypeError:
-                    params['dtype'] = result.dtype
-                params['name'] = newName
-                return SimSeries(data=result, **params)
-            else:
-                raise NotImplementedError
-
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            result = self.S.sub(other, fill_value=0)
-            newName = stringNewName(self._CommonRename(SimSeries(other, **self._SimParameters))[2])
-            try:
-                params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-            except ValueError:
-                params['dtype'] = result.dtype
-            params['name'] = newName
-            return SimSeries(data=result, **params)
-
-        # let's Pandas deal with other types, maintain units and dtype
-        result = self.as_Series() - other
-        try:
-            params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params['dtype'] = result.dtype
-        return SimSeries(data=result, **params)
-
-    def __rsub__(self, other):
-        return self.__neg__().__add__(other)
-
-    def __mul__(self, other):
-        params = self._SimParameters
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                params['units'] = unitProduct(self.units, other.units)
-                newName = stringNewName(self._CommonRename(other)[2])
-                if self.units == other.units:
-                    result = self.mul(other)
-                elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
-                    result = self.mul(otherC)
-                elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
-                    result = other.mul(selfC)
-                    params['units'] = unitProduct(other.units, self.units)
-                elif convertible(other.units, _unitBase(self.units)):
-                    otherC = _convert(other, other.units, _unitBase(self.units), self.verbose)
-                    result = self.mul(otherC)
-                elif convertible(self.units, _unitBase(other.units)):
-                    selfC = _convert(self, self.units, _unitBase(other.units), self.verbose)
-                    result = other.mul(selfC)
-                    params['units'] = unitProduct(other.units, self.units)
-                else:
-                    result = self.mul(other)
-                    params['units'] = self.units + '*' + other.units
-                try:
-                    params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params['dtype'] = result.dtype
-                except TypeError:
-                    params['dtype'] = result.dtype
-                params['name'] = newName
-                return SimSeries(data=result, **params)
-            else:
-                raise NotImplementedError
-
-        # let's Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() * other
-        params['dtype'] = self.dtype if (result.astype(self.dtype).equals(result)) else result.dtype
-        return SimSeries(data=result, **params)
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        params = self._SimParameters
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                newName = stringNewName(self._CommonRename(other)[2])
-                params['units'] = unitDivision(self.units, other.units)
-                if self.units == other.units:
-                    result = self.truediv(other)
-                elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
-                    result = self.truediv(otherC)
-                elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
-                    result = selfC.truediv(other)
-                    params['units'] = unitDivision(other.units, self.units)
-                elif convertible(other.units, _unitBase(self.units)):
-                    otherC = _convert(other, other.units, _unitBase(self.units), self.verbose)
-                    result = self.truediv(otherC)
-                elif convertible(self.units, _unitBase(other.units)):
-                    selfC = _convert(self, self.units, _unitBase(other.units), self.verbose)
-                    result = selfC.truediv(other)
-                    params['units'] = unitDivision(other.units, self.units)
-                else:
-                    result = self.truediv(other)
-                    params['units'] = self.units + '/' + other.units
-                try:
-                    params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params['dtype'] = result.dtype
-                except TypeError:
-                    params['dtype'] = result.dtype
-                params['name'] = newName
-                return SimSeries(data=result, **params)
-            else:
-                raise NotImplementedError
-
-        # let's Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() / other
-        try:
-            params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params['dtype'] = result.dtype
-        return SimSeries(data=result, **params)
-
-    def __rtruediv__(self, other):
-        return self.__pow__(-1).__mul__(other)
-
-    def __floordiv__(self, other):
-        params = self._SimParameters
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                params['units'] = unitDivision(self.units, other.units)
-                newName = stringNewName(self._CommonRename(other)[2])
-                if self.units == other.units:
-                    result = self.floordiv(other)
-                elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
-                    result = self.floordiv(otherC)
-                elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
-                    result = other.floordiv(selfC)
-                    params['units'] = unitDivision(other.units, self.units)
-                elif convertible(other.units, _unitBase(self.units)):
-                    otherC = _convert(other, other.units, _unitBase(self.units), self.verbose)
-                    result = self.floordiv(otherC)
-                elif convertible(self.units, _unitBase(other.units)):
-                    selfC = _convert(self, self.units, _unitBase(other.units), self.verbose)
-                    result = other.floordiv(selfC)
-                    params['units'] = unitDivision(other.units, self.units)
-                else:
-                    result = self.floordiv(other)
-                    params['units'] = self.units + '/' + other.units
-                params[
-                    'dtype'] = result.dtype  # self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                params['name'] = newName
-                return SimSeries(data=result, **params)
-            else:
-                raise NotImplementedError
-
-        # let's Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() // other
-        params['dtype'] = result.dtype
-        return SimSeries(data=result, **params)
-
-    def __rfloordiv__(self, other):
-        return self.__pow__(-1).__mul__(other).__int__()
-
-    def __mod__(self, other):
-        params = self._SimParameters
-        # both are SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                newName = stringNewName(self._CommonRename(other)[2])
-                if self.units == other.units:
-                    result = self.mod(other)
-                elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
-                    result = self.mod(otherC)
-                elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
-                    result = other.mod(selfC)
-                    params['units'] = other.units
-                else:
-                    result = self.mod(other)
-                try:
-                    params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params['dtype'] = result.dtype
-                except TypeError:
-                    params['dtype'] = result.dtype
-                params['name'] = newName
-                return SimSeries(data=result, **params)
-            else:
-                raise NotImplementedError
-
-        # let's Pandas deal with other types, maintain units and dtype
-        result = self.as_Series() % other
-        try:
-            params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params['dtype'] = result.dtype
-        return SimSeries(data=result, **params)
-
-    def __pow__(self, other):
-        params = self._SimParameters
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                params['units'] = self.units + '^' + other.units
-                newName = stringNewName(self._CommonRename(other)[2])
-                if self.units == other.units:
-                    result = self.pow(other)
-                elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
-                    result = self.pow(otherC)
-                    params['units'] = self.units + '^' + self.units
-                elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
-                    result = other.pow(selfC)
-                    params['units'] = other.units + '^' + other.units
-                else:
-                    result = self.pow(other)
-                try:
-                    params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params['dtype'] = result.dtype
-                except TypeError:
-                    params['dtype'] = result.dtype
-                params['name'] = newName
-                return SimSeries(data=result, **params)
-            else:
-                raise NotImplementedError
-
-        # if other is integer or float
-        elif type(other) in (int, float):
-            result = self.as_Series() ** other
-            params = self._SimParameters
-            params['units'] = {c: _unitPower(self.get_Units(c)[c], other) for c in self.columns}
-            return SimSeries(data=result, **params)
-
-        # let's Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() ** other
-        try:
-            params['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params['dtype'] = result.dtype
-        return SimSeries(data=result, **params)
-
-    def __int__(self):
-        if self.isna().any():
-            notNA = ~self.isna()
-            NA = self.isna()
-            return (self[notNA].append(self[NA])).sort_index()
-        else:
-            return SimSeries(data=self.as_Series().astype(int), **self._SimParameters)
-
-    def __abs__(self):
-        return SimSeries(data=abs(self.as_Series()), **self._SimParameters)
 
     def avg(self, axis=0, **kwargs):
         return self.mean(axis=axis, **kwargs)
@@ -1427,10 +1171,10 @@ class SimSeries(Series):
         """
         return _minmaxnorm(self.replace(0, np.nan))
 
-    def get_units(self, items=None):
-        return self.get_Units()
-
     def get_Units(self, items=None):
+        return self.get_units()
+
+    def get_units(self, items=None):
         """
         returns the units for the selected 'items' or for all the columns in the SimDataFrame.
 
@@ -1580,17 +1324,17 @@ class SimSeries(Series):
                     self.units[item] = units.strip()
 
     def get_UnitsString(self, items=None):
-        if len(self.get_Units(items)) == 1:
-            return list(self.get_Units(items).values())[0]
-        elif len(set(self.get_Units(items).values())) == 1:
-            return list(set(self.get_Units(items).values()))[0]
+        if len(self.get_units(items)) == 1:
+            return list(self.get_units(items).values())[0]
+        elif len(set(self.get_units(items).values())) == 1:
+            return list(set(self.get_units(items).values()))[0]
 
     def copy(self):
         if type(self.units) is dict:
-            params = self._SimParameters
-            params['units'] = self.units.copy()
-            return SimSeries(data=self.to_Series().copy(True), **params)
-        return SimSeries(data=self.to_Series().copy(True), **self._SimParameters)
+            params_ = self.params_
+            params_['units'] = self.units.copy()
+            return SimSeries(data=self.to_Series().copy(True), **params_)
+        return SimSeries(data=self.to_Series().copy(True), **self.params_)
 
     def filter(self, conditions=None, **kwargs):
         """
@@ -1842,7 +1586,7 @@ class SimSeries(Series):
                                                   na_position=na_position,
                                                   ignore_index=ignore_index,
                                                   key=key),
-                **self._SimParameters)
+                **self.params_)
 
     def head(self, n=5):
         """
@@ -1863,7 +1607,7 @@ class SimSeries(Series):
             The first n rows of the caller object.
         """
         return SimSeries(data=self.as_Series().head(n),
-                         **self._SimParameters)
+                         **self.params_)
 
     def tail(self, n=5):
         """
@@ -1884,7 +1628,7 @@ class SimSeries(Series):
             The last n rows of the caller object.
         """
         return SimSeries(data=self.as_Series().tail(n),
-                         **self._SimParameters)
+                         **self.params_)
 
     def concat(self, objs, axis=0, join='outer', ignore_index=False,
                keys=None, levels=None, names=None, verify_integrity=False,
@@ -1920,7 +1664,7 @@ class SimSeries(Series):
             SimSeries or SimDataFrame
             Return cumulative sum of Series or DataFrame.
         """
-        return SimSeries(data=self.as_Series().cumsum(skipna=skipna, *args, **kwargs), **self._SimParameters)
+        return SimSeries(data=self.as_Series().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
 
     def jitter(self, std=0.10):
         """
@@ -1944,7 +1688,7 @@ class SimSeries(Series):
             sum : returns the summation of all the values per year
             count : returns the number of rows per year
         """
-        return self.to_SimDataFrame().daily(outBy=outBy, datetimeIndex=datetimeIndex).to_SimSeries()
+        return self.to_SimDataFrame().daily(outBy=outBy, datetimeIndex=datetimeIndex).to_simseries()
 
     def monthly(self, outBy='mean', datetimeIndex=False):
         """
@@ -1966,7 +1710,7 @@ class SimSeries(Series):
             if True the index will converted to DateTimeIndex with Day=1 for each month
             if False the index will be a MultiIndex (Year,Month)
         """
-        return self.to_SimDataFrame().monthly(outBy=outBy, datetimeIndex=datetimeIndex).to_SimSeries()
+        return self.to_SimDataFrame().monthly(outBy=outBy, datetimeIndex=datetimeIndex).to_simseries()
 
     def yearly(self, outBy='mean', datetimeIndex=False):
         """
@@ -1988,7 +1732,7 @@ class SimSeries(Series):
             if True the index will converted to DateTimeIndex with Day=1 and Month=1 for each year
             if False the index will be a MultiIndex (Year,Month)
         """
-        return self.to_SimDataFrame().yearly(outBy=outBy, datetimeIndex=datetimeIndex).to_SimSeries()
+        return self.to_SimDataFrame().yearly(outBy=outBy, datetimeIndex=datetimeIndex).to_simseries()
 
     def DaysInYear(self, column=None):
         """
@@ -2037,20 +1781,20 @@ class SimSeries(Series):
         a new SimSeries with the resulting array and same index as the input.
         """
         from .._helpers.daterelated import daysInYear
-        params = self._SimParameters
-        if 'units' in params:
-            if type(params['units']) is str:
-                params['units'] = 'days'
+        params_ = self.params_
+        if 'units' in params_:
+            if type(params_['units']) is str:
+                params_['units'] = 'days'
             else:
-                params['units']['DaysInYear'] = 'days'
+                params_['units']['DaysInYear'] = 'days'
         else:
-            params['units'] = 'days'
-        params['name'] = 'DaysInYear'
-        params['index'] = self.index
+            params_['units'] = 'days'
+        params_['name'] = 'DaysInYear'
+        params_['index'] = self.index
         if column is not None:
             if type(column) is str and column in self.columns:
                 if self[column].dtype in ('int', 'int64') and self[column].min() > 0:
-                    return SimSeries(data=daysInYear(self[column].values), **params)
+                    return SimSeries(data=daysInYear(self[column].values), **params_)
                 elif 'datetime' in str(self[column].dtype):
                     return daysInYear(self[column])
                 else:
@@ -2058,28 +1802,28 @@ class SimSeries(Series):
             elif type(column) is str and column not in self.columns:
                 raise ValueError('the selected column is not in this SimDataFrame')
             elif hasattr(column, '__iter__'):
-                result = self.SimDataFrame(data={}, index=self.index, **self._SimParameters)
+                result = self.SimDataFrame(data={}, index=self.index, **self.params_)
                 for col in column:
                     if col in self.columns:
                         result[col] = daysInYear(self[col])
                 return result
         else:
             if self.dtype in ('int', 'int64') and self.min() > 0:
-                return SimSeries(data=list(daysInYear(self.values)), **params)
+                return SimSeries(data=list(daysInYear(self.values)), **params_)
             elif 'datetime' in str(self.dtype):
                 return daysInYear(self)
             elif self.index.dtype in ('int', 'int64') and self.index.min() > 0:
-                # params['units'] = self.units.copy() if type(self.units) is dict else self.units
-                # params['name'] = self.name
-                # params['indexName'] = 'DaysInYear'
-                # params['indexUnits'] = 'days'
-                return SimSeries(data=list(daysInYear(self.index.to_numpy())), **params)
+                # params_['units'] = self.units.copy() if type(self.units) is dict else self.units
+                # params_['name'] = self.name
+                # params_['indexName'] = 'DaysInYear'
+                # params_['indexUnits'] = 'days'
+                return SimSeries(data=list(daysInYear(self.index.to_numpy())), **params_)
             elif 'datetime' in str(self.index.dtype):
-                # params['units'] = self.units.copy() if type(self.units) is dict else self.units
-                # params['name'] = self.name
-                # params['indexName'] = 'DaysInYear'
-                # params['indexUnits'] = 'days'
-                return SimSeries(data=list(daysInYear(self.index)), **params)
+                # params_['units'] = self.units.copy() if type(self.units) is dict else self.units
+                # params_['name'] = self.name
+                # params_['indexName'] = 'DaysInYear'
+                # params_['indexUnits'] = 'days'
+                return SimSeries(data=list(daysInYear(self.index)), **params_)
             else:
                 raise ValueError('index is not a valid date or year integer')
 
@@ -2104,10 +1848,10 @@ class SimSeries(Series):
         """
         from .._helpers.daterelated import realYear, daysInYear
         from .frame import SimDataFrame
-        params = self._SimParameters
-        params['index'] = self.index
-        params['name'] = 'realYear'
-        params['units'] = 'Years'
+        params_ = self.params_
+        params_['index'] = self.index
+        params_['name'] = 'realYear'
+        params_['units'] = 'Years'
         if column is not None:
             if type(column) is str and column in self.columns:
                 if 'datetime' in str(self[column].dtype):
@@ -2117,14 +1861,14 @@ class SimSeries(Series):
             elif type(column) is str and column not in self.columns:
                 raise ValueError('the selected column is not in this SimDataFrame')
             elif hasattr(column, '__iter__'):
-                result = SimDataFrame(data={}, index=self.index, **self._SimParameters)
+                result = SimDataFrame(data={}, index=self.index, **self.params_)
                 for col in column:
                     if col in self.columns:
                         result[col] = daysInYear(self[col])
                 return result
         else:
             if 'datetime' in str(self.index.dtype):
-                return SimSeries(data=list(realYear(self.index)), **params)
+                return SimSeries(data=list(realYear(self.index)), **params_)
             else:
                 raise ValueError('index is not a valid date or year integer')
 
@@ -2139,7 +1883,7 @@ class SimSeries(Series):
 
         Returns a new SimSeries
         """
-        return self.to_SimDataFrame().integrate(method=method, at=at).to_SimSeries()
+        return self.to_SimDataFrame().integrate(method=method, at=at).to_simseries()
 
     def differenciate(self, na_position='last'):
         """
@@ -2147,7 +1891,7 @@ class SimSeries(Series):
 
         Returns a new SimDataFrame
         """
-        return self.to_SimDataFrame().differenciate(na_position=na_position).to_SimSeries()
+        return self.to_SimDataFrame().differenciate(na_position=na_position).to_simseries()
 
     def plot(self, y=None, x=None, others=None, **kwargs):
         """
@@ -2208,12 +1952,12 @@ class SimSeries(Series):
         """
         if window is None and x is not None and y is None:
             window, x = x, None
-        params = self._SimParameters
-        if self.name is not None and len(self.get_Units(self.name)) == 1 and self.index_units is not None:
-            if type(params['units']) is dict:
-                params['units'][self.name] = str(self.get_Units(self.name)[self.name]) + '/' + str(self.index_units)
+        params_ = self.params_
+        if self.name is not None and len(self.get_units(self.name)) == 1 and self.index_units is not None:
+            if type(params_['units']) is dict:
+                params_['units'][self.name] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)
             else:
-                params['units'] = str(self.get_Units(self.name)[self.name]) + '/' + str(self.index_units)
-        params['name'] = 'slope_of_' + (self.name)
+                params_['units'] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)
+        params_['name'] = 'slope_of_' + (self.name)
         slopeS = _slope(df=self, x=x, y=y, window=window, slope=slope, intercept=intercept)
-        return SimSeries(data=slopeS, index=self.index, **params)
+        return SimSeries(data=slopeS, index=self.index, **params_)

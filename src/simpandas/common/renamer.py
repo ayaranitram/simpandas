@@ -116,15 +116,15 @@ def commonRename(sdf1, sdf2, *,
             if c not in SDF1C.columns:
                 commonNames[c] = str(SDF2.left[0]) + str(SDF1.name_separator) + str(c)
         if LR is None and len(commonNames) > 1:
-            alternative = self._CommonRename(SDF1, SDF2, LR='R')
+            alternative = self._common_rename(SDF1, SDF2, LR='R')
             if len(alternative[2]) < len(commonNames):
                 return alternative
 
     elif left_right == 'r' or (LR is None and len(SDF1.right) == 1 and len(SDF2.right) == 1 ):
         SDF2C = SDF2.copy()
-        SDF2C.renameLeft(inplace=True)
+        SDF2C.rename_left(inplace=True)
         SDF1C = SDF1.copy()
-        SDF1C.renameLeft(inplace=True)
+        SDF1C.rename_left(inplace=True)
         commonNames = {}
         for c in SDF1C.columns:
             if c in SDF2C.columns:
@@ -135,7 +135,7 @@ def commonRename(sdf1, sdf2, *,
             if c not in SDF1C.columns:
                 commonNames[c] = str(c) + str(SDF1.name_separator) + str(SDF2.right[0])
         if LR is None and len(commonNames) > 1:
-            alternative = self._CommonRename(SDF1, SDF2, LR='L')
+            alternative = self._common_rename(SDF1, SDF2, LR='L')
             if len(alternative[2]) < len(commonNames):
                 return alternative
 

@@ -6,4 +6,4 @@ Created on Wed Aug  3 20:24:36 2022
 """
 
 __version__ = '0.0.0'
-__release__ = 20220921
+__release__ = 20230104

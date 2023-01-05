@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.80.2'
-__release__ = 20220919
+__release__ = 20230104
 __all__ = ['concat', 'merge']
 
 from simpandas import SimDataFrame, SimSeries
@@ -15,7 +15,7 @@ import pandas as pd
 
 def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=None, names=None, verify_integrity=False, sort=False, copy=True, squeeze=True):
     """
-    wrapper of pandas.concat enhaced with units support
+    wrapper of pandas.concat enhanced with units support
 
     Return:
         SimDataFrame

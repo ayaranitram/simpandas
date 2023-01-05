@@ -8,4 +8,4 @@ Created on Wed Aug  3 20:24:36 2022
 __version__ = '0.1.2'
 __release__ = 20220920
 
-from .xlsx import read_excel
+from simpandas.readers.xlsx import read_excel

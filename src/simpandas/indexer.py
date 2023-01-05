@@ -5,7 +5,7 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.5'
+__version__ = '0.80.10'
 __release__ = 20230104
 __all__ = []
 
@@ -46,22 +46,22 @@ class _SimLocIndexer(_LocIndexer):
                 result.set_units(self.spd.get_units(self.spd[[args[0][-1]]].columns))
                 return result
         else:
-            return units(result, self.spd.get_UnitsString(args[0][1]))
+            return units(result, self.spd.get_units_string(args[0][1]))
 
 
     def __setitem__(self, key, value):  #, units=None):
         from .frame import SimDataFrame
         from .series import SimSeries
         if isinstance(value, unit):
-            if key[1] in self.spd.columns and self.spd.get_UnitsString(key[1]) is not None:
-                value = value.to(self.spd.get_UnitsString(key[1])).value
-            elif key[1] in self.spd.columns and self.spd.get_UnitsString(key[1]) is None:
+            if key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is not None:
+                value = value.to(self.spd.get_units_string(key[1])).value
+            elif key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is None:
                 value = value.value
             else:  # if key[1] not in self.spd.columns:
                 value = (value.value, value.unit)
 
         elif type(value) in (SimSeries, SimDataFrame):
-            value = value.to(self.spd.get_Units())
+            value = value.to(self.spd.get_units())
         if type(value) is SimDataFrame and len(value.index) == 1:
             value = value.to_SimSeries()
 
@@ -71,18 +71,18 @@ class _SimLocIndexer(_LocIndexer):
             if key[1] not in self.spd.columns or not isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) or (
                     isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) and type(value[0]) is not str and hasattr(value[0],'__iter__') and len(self.spd.loc[key]) == len(value[0])):
                 value, units = value[0], value[1]
-                if key[1] not in self.spd.columns or self.spd.get_Units(key[1])[key[1]] is None or self.spd.get_Units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
+                if key[1] not in self.spd.columns or self.spd.get_units(key[1])[key[1]] is None or self.spd.get_units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
                     newUnits = True
                 else:
-                    if units == self.spd.get_Units(key[1])[key[1]]:
+                    if units == self.spd.get_units(key[1])[key[1]]:
                         pass
-                    elif convertible(units, self.spd.get_Units(key[1])[key[1]]):
-                        value = convert(value, units, self.spd.get_Units(key[1])[key[1]], self.spd.verbose)
+                    elif convertible(units, self.spd.get_units(key[1])[key[1]]):
+                        value = convert(value, units, self.spd.get_units(key[1])[key[1]], self.spd.verbose)
                     else:
-                        warn(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_Units(key[1])[key[1]]))
+                        warn(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_units(key[1])[key[1]]))
         super().__setitem__(key, value)
         if newUnits:
-            self.spd.set_Units({key[1]:units})
+            self.spd.set_units({key[1]:units})
 
 
 # class _iSimLocIndexer(_iLocIndexer):
@@ -135,7 +135,7 @@ class _SimLocIndexer(_LocIndexer):
 # class SimRolling(Rolling):
 #     def __init__(self, df, window, min_periods=None, center=False, win_type=None, on=None, axis=0, closed=None, method='single', SimParameters=None):
 #         super().__init__(window, min_periods=min_periods, center=center, win_type=win_type, on=on, axis=axis, closed=closed, method=method)
-#         self.params =  SimParameters
+#         self.params_ =  SimParameters
 
 #     def _resolve_output(self, out: DataFrame, obj: DataFrame) -> DataFrame:
 #         from pandas.core.base import DataError
@@ -146,6 +146,6 @@ class _SimLocIndexer(_LocIndexer):
 #             return obj.astype("float64")
 
 #         self._insert_on_column(out, obj)
-#         if self.params is not None:
-#             out =  SimDataFrame(out, **self.params)
+#         if self.params__ is not None:
+#             out =  SimDataFrame(out, **self.params_)
 #         return out

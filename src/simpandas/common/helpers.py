@@ -6,8 +6,8 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.80.2'
-__release__ = 20220919
-__all__ = ['clean_axis', 'stringNewName', 'typeOfFrame']
+__release__ = 20230104
+__all__ = ['clean_axis', 'string_new_name', 'type_of_frame']
 
 
 def clean_axis(axis=None):
@@ -24,14 +24,14 @@ def clean_axis(axis=None):
     return axis
 
 
-def stringNewName(newName):
+def string_new_name(newName):
     if len(newName) == 1:
         return list(newName.values())[0]
     else:
         return '∩'.join(map(str,set(newName.values())))
 
 
-def typeOfFrame(frame):
+def type_of_frame(frame):
     from simpandas import SimSeries, SimDataFrame
     from pandas import Series, DataFrame
     try:

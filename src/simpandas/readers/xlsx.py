@@ -8,7 +8,7 @@ Created on Wed Aug  3 20:24:36 2022
 __version__ = '0.1.4'
 __release__ = 20221116
 
-from ..frame import SimDataFrame
+from simpandas.frame import SimDataFrame
 
 __all__ = ['read_excel']
 

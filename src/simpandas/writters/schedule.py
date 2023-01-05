@@ -6,10 +6,10 @@ Created on Wed Sep 21 11:08:06 2022
 """
 
 __version__ = '0.1.2'
-__release__ = 20220927
+__release__ = 20230104
 __all__ = ['write_schedule']
 
-from ..errors import OverwrittingError
+from simpandas.errors import OverwrittingError
 import os
 # from .._common.stringformat import date as strDate
 from pandas import DataFrame
@@ -94,7 +94,7 @@ def write_schedule(self, path, units='FIELD', ControlMode=None, ShutStop=None):
         units = { X+each+H.strip():eclipseUnits0[units][each] for each in eclipseUnits0[units] for X in 'FGW' for H in ' H' }
         del eclipseUnits0
 
-    data = self.to(units).wellStatus().melt()
+    data = self.to(units).well_status().melt()
 
     indexName = data.index.name
     itemName = data.columns[2]
