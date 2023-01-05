@@ -9,11 +9,13 @@ __version__ = '0.80.2'
 __release__ = 20230104
 __all__ = ['concat', 'merge']
 
-from simpandas import SimDataFrame, SimSeries
+from simpandas.frame import SimDataFrame
+from simpandas.series import SimSeries
 import pandas as pd
 
 
-def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=None, names=None, verify_integrity=False, sort=False, copy=True, squeeze=True):
+def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=None, names=None, verify_integrity=False,
+           sort=False, copy=True, squeeze=True):
     """
     wrapper of pandas.concat enhanced with units support
 
@@ -26,16 +28,17 @@ def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=Non
         print("WARNING: only 1 DataFrame received.")
         return [objs][0]
 
-    merged_units = merge_units([ob for ob in objs if type(ob) in (SimDataFrame,SimSeries)])
-    merged_SimParameters = merge_SimParameters([ob for ob in objs if type(ob) in (SimDataFrame,SimSeries)])
+    merged_units = merge_units([ob for ob in objs if type(ob) in (SimDataFrame, SimSeries)])
+    merged_SimParameters = merge_SimParameters([ob for ob in objs if type(ob) in (SimDataFrame, SimSeries)])
 
-    dfobjs = [ (ob.to(merged_units).as_Pandas() if type(ob) in (SimSeries, SimDataFrame) else ob) for ob in objs ]
+    df_objs = [(ob.to(merged_units).as_Pandas() if type(ob) in (SimSeries, SimDataFrame) else ob) for ob in objs]
 
     if 'units' in merged_SimParameters:
         del merged_SimParameters['units']
 
-    df = pd.concat(dfobjs, axis=axis, join=join, ignore_index=ignore_index, keys=keys, levels=levels, names=names, verify_integrity=verify_integrity, sort=sort, copy=copy)
-    sdf = SimDataFrame(data=df , units=merged_units, **merged_SimParameters )
+    df = pd.concat(df_objs, axis=axis, join=join, ignore_index=ignore_index, keys=keys, levels=levels, names=names,
+                   verify_integrity=verify_integrity, sort=sort, copy=copy)
+    sdf = SimDataFrame(data=df, units=merged_units, **merged_SimParameters)
 
     if squeeze:
         return sdf.squeeze()
@@ -43,9 +46,9 @@ def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=Non
         return sdf
 
 
-def merge_Index(left, right, how='outer', *, drop_duplicates=True, keep='first'):
+def merge_index(left, right, how='outer', *, drop_duplicates=True, keep='first'):
     """
-    returns an left and right Frames or Series reindexed with a common index.
+    returns an left and right Frames or Series reindex with a common index.
 
     Parameters
     ----------
@@ -73,65 +76,63 @@ def merge_Index(left, right, how='outer', *, drop_duplicates=True, keep='first')
 
     """
 
-
-    def mergeAppend(frame, newIndex):
+    def merge_append(frame, new_index):
         if type(frame) is SimSeries:
             frame = frame.sdf
         elif type(frame) is pd.Series:
             frame = SimDataFrame(frame)
         if frame.index.duplicated('first').sum() > 0:
-            dupframe = frame[frame.index.duplicated('first')]
-            temp = frame[~frame.index.duplicated('first')].reindex(index=newIndex)
-            newframe = None
-            for dup in range(len(dupframe.index)):
-                if newframe is None:
-                    newframe = temp.iloc[0:list(temp.index).index(dupframe.index[dup])+1].append(dupframe.iloc[dup])
+            dup_frame = frame[frame.index.duplicated('first')]
+            temp = frame[~frame.index.duplicated('first')].reindex(index=new_index)
+            new_frame = None
+            for dup in range(len(dup_frame.index)):
+                if new_frame is None:
+                    new_frame = temp.iloc[0:list(temp.index).index(dup_frame.index[dup]) + 1].append(dup_frame.iloc[dup])
                 else:
-                    newframe = newframe.append([ temp.iloc[list(temp.index).index(dup-1):list(temp.index).index(dup)] , dupframe.iloc[dup] ])
-            newframe = newframe.append( temp.iloc[list(temp.index).index(dupframe.index[dup])+1: ] )
+                    new_frame = new_frame.append(
+                        [temp.iloc[list(temp.index).index(dup - 1):list(temp.index).index(dup)], dup_frame.iloc[dup]])
+            new_frame = new_frame.append(temp.iloc[list(temp.index).index(dup_frame.index[dup]) + 1:])
         else:
-            newframe = frame.reindex(index=newIndex)
-        return SimDataFrame(newframe, **frame._SimParameters)
+            new_frame = frame.reindex(index=new_index)
+        return SimDataFrame(new_frame, **frame.params_)
 
-    if how not in ('outer','inner','left','right','cross'):
+    if how not in ('outer', 'inner', 'left', 'right', 'cross'):
         raise ValueError("how must be 'outer', 'iner', 'left', 'right' or 'cross'")
 
     # if both indexes are equal
     if len(left.index) == len(right.index) and (left.index == right.index).all():
         return left, right
 
-    # if are different, extract a Series accoring to the type of input
+    # if are different, extract a Series according to the type of input
     else:
-        # from datafiletoolbox import SimSeries, SimDataFrame
-        # from pandas import Series, DataFrame
-        # checking left
         if type(left) is SimDataFrame:
-            ileft = left.DF.iloc[:,0]
+            ileft = left.to_pandas().iloc[:, 0]
         elif type(left) is SimSeries:
-            ileft = left.S
+            ileft = left.to_pandas()
         elif type(left) is pd.DataFrame:
-            ileft = left.iloc[:,0]
+            ileft = left.iloc[:, 0]
         elif type(left) is pd.Series:
             ileft = left
 
         # checking right
         if type(right) is SimDataFrame:
-            iright = right.DF.iloc[:,0]
+            iright = right.to_pandas().iloc[:, 0]
         elif type(right) is SimSeries:
-            iright = right.S
+            iright = right.to_pandas()
         elif type(right) is pd.DataFrame:
-            iright = right.iloc[:,0]
+            iright = right.iloc[:, 0]
         elif type(right) is pd.Series:
             iright = right
 
         # merge the indexes
-        newIndex= pd.merge(ileft,iright,how=how,left_index=True,right_index=True).index
-        # return original dataframes reindexed to the merged index
+        new_index = pd.merge(ileft, iright, how=how, left_index=True, right_index=True).index
+        # return original dataframes reindex to the merged index
         if bool(drop_duplicates):
-            return left[~left.index.duplicated(keep)].reindex(index=newIndex), right[~right.index.duplicated(keep)].reindex(index=newIndex)
-            # return left.drop_duplicates().reindex(index=newIndex), right.drop_duplicates().reindex(index=newIndex)
+            return left[~left.index.duplicated(keep)].reindex(index=new_index), right[
+                ~right.index.duplicated(keep)].reindex(index=new_index)
+            # return left.drop_duplicates().reindex(index=new_index), right.drop_duplicates().reindex(index=new_index)
         else:
-            return mergeAppend(left, newIndex), mergeAppend(right, newIndex)
+            return merge_append(left, new_index), merge_append(right, new_index)
 
 
 def merge_units(left, right=None, suffixes=('_x', '_y')):
@@ -151,8 +152,8 @@ def merge_units(left, right=None, suffixes=('_x', '_y')):
     """
     if type(left) in (list, tuple) and len(left) > 1 and right is None:
         merged = left[0]
-        for i in range(1,len(left)):
-            merged = merge_units(merged,left[i])
+        for i in range(1, len(left)):
+            merged = merge_units(merged, left[i])
         return merged
 
     merged = {}
@@ -229,8 +230,8 @@ def merge_SimParameters(left, right=None):
     """
     if type(left) in (list, tuple) and len(left) > 1 and right is None:
         merged = left[0]
-        for i in range(1,len(left)):
-            merged = merge_SimParameters(merged,left[i])
+        for i in range(1, len(left)):
+            merged = merge_SimParameters(merged, left[i])
         return merged
 
     merged = {}
@@ -239,9 +240,9 @@ def merge_SimParameters(left, right=None):
         if left.index.name == right.index.name:
             merged['indexName'] = left.index.name
         else:
-            merged['indexName'] = ( str(left.index.name) if left.index.name is not None else ''
-                                   +
-                                    str(right.index.name) if right.index.name is not None else '' )
+            merged['indexName'] = (str(left.index.name) if left.index.name is not None else ''
+                                                                                            +
+                                                                                            str(right.index.name) if right.index.name is not None else '')
         if left.index_units == right.index_units:
             merged['indexUnits'] = left.index_units
         else:
@@ -253,7 +254,8 @@ def merge_SimParameters(left, right=None):
         if left.name_separator == right.name_separator:
             merged['nameSeparator'] = left.name_separator
         else:
-            if left.name_separator in ' '.join(list(left.columns)) and right.name_separator in ' '.join(list(right.columns)):
+            if left.name_separator in ' '.join(list(left.columns)) and right.name_separator in ' '.join(
+                    list(right.columns)):
                 if left.name_separator not in ' '.join(list(right.columns)):
                     merged['nameSeparator'] = left.name_separator
                     # must rename right to use left nameSeparator
@@ -273,7 +275,8 @@ def merge_SimParameters(left, right=None):
         if left.intersection_character == right.intersection_character:
             merged['intersectionCharacter'] = left.intersection_character
         else:
-            if left.intersection_character in ' '.join(list(left.columns)) and right.intersection_character in ' '.join(list(right.columns)):
+            if left.intersection_character in ' '.join(list(left.columns)) and right.intersection_character in ' '.join(
+                    list(right.columns)):
                 if left.intersection_character not in ' '.join(list(right.columns)):
                     merged['intersectionCharacter'] = left.intersection_character
                     # must rename right to use left intersectionCharacter
@@ -374,7 +377,7 @@ def merge(left, right, how='inner', on=None,
     # checking left
     if type(left) is SimDataFrame:
         ileft = left.DF
-        if type(right) in [SimDataFrame,SimSeries]:
+        if type(right) in [SimDataFrame, SimSeries]:
             params = merge_SimParameters(left, right)
         else:
             params = left._SimParameters
@@ -386,6 +389,8 @@ def merge(left, right, how='inner', on=None,
     elif type(left) is pd.Series:
         ileft = left
 
-    mergeddata = pd.merge(ileft, iright, how=how, on=on, left_on=left_on, right_on=right_on, left_index=left_index, right_index=right_index, sort=sort, suffixes=suffixes, copy=copy, indicator=indicator, validate=validate)
+    mergeddata = pd.merge(ileft, iright, how=how, on=on, left_on=left_on, right_on=right_on, left_index=left_index,
+                          right_index=right_index, sort=sort, suffixes=suffixes, copy=copy, indicator=indicator,
+                          validate=validate)
     params['units'] = merge_units(left, right, suffixes=suffixes)
-    return SimDataFrame(data=mergeddata,**params)
+    return SimDataFrame(data=mergeddata, **params)

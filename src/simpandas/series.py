@@ -24,8 +24,6 @@ from unyts.operations import unit_product as _unit_product, unit_division as _un
 from unyts import units
 
 from simpandas.basics import SimBasics
-from simpandas.common._internal_processes import _set_index_name, _describe, _parameters2dict, _contains, \
-    _set_name_separator, _get_name_separator
 from simpandas.common.helpers import clean_axis, string_new_name
 from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from simpandas.common.slope import slope as _slope
@@ -285,10 +283,10 @@ class SimSeries(SimBasics, Series):
                 if self.units == other.units:
                     result = self.S.add(other.S, fill_value=0)
                 elif convertible(other.units, self.units):
-                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    other_c = _converter(other, other.units, self.units, self.verbose)
                     result = self.S.add(other_c.S, fill_value=0)
                 elif convertible(self.units, other.units):
-                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    self_c = _converter(self, self.units, other.units, self.verbose)
                     result = other.S.add(self_c.S, fill_value=0)
                     params_['units'] = other.units
                 else:
@@ -326,9 +324,6 @@ class SimSeries(SimBasics, Series):
             params_['dtype'] = result.dtype
         return SimSeries(data=result, **params_)
 
-    def __radd__(self, other):
-        return self.__add__(other)
-
     def __sub__(self, other):
         params_ = self.params_
         # both SimSeries
@@ -341,10 +336,10 @@ class SimSeries(SimBasics, Series):
                 if self.units == other.units:
                     result = self.sub(other, fill_value=0)
                 elif convertible(other.units, self.units):
-                    otherC = _convert(other, other.units, self.units, self.verbose)
+                    otherC = _converter(other, other.units, self.units, self.verbose)
                     result = self.sub(otherC, fill_value=0)
                 elif convertible(self.units, other.units):
-                    selfC = _convert(self, self.units, other.units, self.verbose)
+                    selfC = _converter(self, self.units, other.units, self.verbose)
                     result = selfC.sub(other, fill_value=0)
                     params_['units'] = other.units
                 else:
@@ -380,9 +375,6 @@ class SimSeries(SimBasics, Series):
             params_['dtype'] = result.dtype
         return SimSeries(data=result, **params_)
 
-    def __rsub__(self, other):
-        return self.__neg__().__add__(other)
-
     def __mul__(self, other):
         params_ = self.params_
         # both SimSeries
@@ -396,17 +388,17 @@ class SimSeries(SimBasics, Series):
                 if self.units == other.units:
                     result = self.mul(other)
                 elif convertible(other.units, self.units):
-                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    other_c = _converter(other, other.units, self.units, self.verbose)
                     result = self.mul(other_c)
                 elif convertible(self.units, other.units):
-                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    self_c = _converter(self, self.units, other.units, self.verbose)
                     result = other.mul(self_c)
                     params_['units'] = _unit_product(other.units, self.units)
                 elif convertible(other.units, _unit_base(self.units)):
-                    other_c = _convert(other, other.units, _unit_base(self.units), self.verbose)
+                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
                     result = self.mul(other_c)
                 elif convertible(self.units, _unit_base(other.units)):
-                    self_c = _convert(self, self.units, _unit_base(other.units), self.verbose)
+                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
                     result = other.mul(self_c)
                     params_['units'] = _unit_product(other.units, self.units)
                 else:
@@ -428,9 +420,6 @@ class SimSeries(SimBasics, Series):
         params_['dtype'] = self.dtype if (result.astype(self.dtype).equals(result)) else result.dtype
         return SimSeries(data=result, **params_)
 
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
     def __truediv__(self, other):
         params_ = self.params_
         # both SimSeries
@@ -444,17 +433,17 @@ class SimSeries(SimBasics, Series):
                 if self.units == other.units:
                     result = self.truediv(other)
                 elif convertible(other.units, self.units):
-                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    other_c = _converter(other, other.units, self.units, self.verbose)
                     result = self.truediv(other_c)
                 elif convertible(self.units, other.units):
-                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    self_c = _converter(self, self.units, other.units, self.verbose)
                     result = self_c.truediv(other)
                     params_['units'] = _unit_division(other.units, self.units)
                 elif convertible(other.units, _unit_base(self.units)):
-                    other_c = _convert(other, other.units, _unit_base(self.units), self.verbose)
+                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
                     result = self.truediv(other_c)
                 elif convertible(self.units, _unit_base(other.units)):
-                    self_c = _convert(self, self.units, _unit_base(other.units), self.verbose)
+                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
                     result = self_c.truediv(other)
                     params_['units'] = _unit_division(other.units, self.units)
                 else:
@@ -479,9 +468,6 @@ class SimSeries(SimBasics, Series):
             params_['dtype'] = result.dtype
         return SimSeries(data=result, **params_)
 
-    def __rtruediv__(self, other):
-        return self.__pow__(-1).__mul__(other)
-
     def __floordiv__(self, other):
         params_ = self.params_
         # both SimSeries
@@ -495,17 +481,17 @@ class SimSeries(SimBasics, Series):
                 if self.units == other.units:
                     result = self.floordiv(other)
                 elif convertible(other.units, self.units):
-                    other_c = _convert(other, other.units, self.units, self.verbose)
+                    other_c = _converter(other, other.units, self.units, self.verbose)
                     result = self.floordiv(other_c)
                 elif convertible(self.units, other.units):
-                    self_c = _convert(self, self.units, other.units, self.verbose)
+                    self_c = _converter(self, self.units, other.units, self.verbose)
                     result = other.floordiv(self_c)
                     params_['units'] = _unit_division(other.units, self.units)
                 elif convertible(other.units, _unit_base(self.units)):
-                    other_c = _convert(other, other.units, _unit_base(self.units), self.verbose)
+                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
                     result = self.floordiv(other_c)
                 elif convertible(self.units, _unit_base(other.units)):
-                    self_c = _convert(self, self.units, _unit_base(other.units), self.verbose)
+                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
                     result = other.floordiv(self_c)
                     params_['units'] = _unit_division(other.units, self.units)
                 else:
@@ -522,9 +508,6 @@ class SimSeries(SimBasics, Series):
         result = self.as_Series() // other
         params_['dtype'] = result.dtype
         return SimSeries(data=result, **params_)
-
-    def __rfloordiv__(self, other):
-        return self.__pow__(-1).__mul__(other).__int__()
 
     def __mod__(self, other):
         params_ = self.params_
@@ -557,7 +540,7 @@ class SimSeries(SimBasics, Series):
             else:
                 raise NotImplementedError
 
-        # let's Pandas deal with other types, maintain units and dtype
+        # lets Pandas deal with other types, maintain units and dtype
         result = self.as_Series() % other
         try:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
@@ -605,7 +588,7 @@ class SimSeries(SimBasics, Series):
             params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
             return SimSeries(data=result, **params_)
 
-        # let's Pandas deal with other types(types with no units), maintain units and dtype
+        # lets Pandas deal with other types(types with no units), maintain units and dtype
         result = self.as_Series() ** other
         try:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
@@ -720,116 +703,6 @@ class SimSeries(SimBasics, Series):
 
 
 
-    def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
-                 float_format=None, columns=None, header=True, units=True, index=True,
-                 index_label=None, startrow=0, startcol=0, engine=None,
-                 merge_cells=True, encoding=None, inf_rep='inf', verbose=True,
-                 freeze_panes=None, sort=None):
-        """
-        Wrapper of .to_excel method from Pandas.
-        On top of Pandas method this method is able to split the data into different
-        sheets based on the column names. See paramenters `split_by´ and `sheet_name´.
-
-        Write {klass} to an Excel sheet.
-        To write a single {klass} to an Excel .xlsx file it is only necessary to
-        specify a target file name. To write to multiple sheets it is necessary to
-        create an `ExcelWriter` object with a target file name, and specify a sheet
-        in the file to write to.
-        Multiple sheets may be written to by specifying unique `sheet_name`.
-        With all data written to the file it is necessary to save the changes.
-        Note that creating an `ExcelWriter` object with a file name that already
-        exists will result in the contents of the existing file being erased.
-
-        Parameters
-        ----------
-        excel_writer : str or ExcelWriter object from Pandas.
-            File path or existing ExcelWriter.
-        split_by: None, positive or negative integer or str 'left', 'right' or 'first'. Default is None
-            If is string 'left' or 'right', creates a sheet grouping the columns by
-            the corresponding left:right part of the column name.
-            If is string 'first', creates a sheet grouping the columns by
-            the first character of the column name.
-            If None, all the columns will go into the same sheet.
-            if integer i > 0, creates a sheet grouping the columns by the 'i' firsts
-            characters of the column name indicated by the integer.
-            if integer i < 0, creates a sheet grouping the columns by the 'i' last
-            the number characters of the column name indicated by the integer.
-        sheet_name : None or str, default None
-            Name of sheet which will contain DataFrame.
-            If None:
-                the `left` or `right` part of the name will be used if is unique,
-                or 'FIELD', 'WELLS', 'GROUPS' or 'REGIONS' if all the column names
-                start with 'F', 'W', 'G' or 'R'.
-            else 'Sheet1' will be used.
-        na_rep : str, default ''
-            Missing data representation.
-        float_format : str, optional
-            Format string for floating point numbers. For example
-            ``float_format="%.2f"`` will format 0.1234 to 0.12.
-        columns : sequence or list of str, optional
-            Columns to write.
-        header : bool or list of str, default True
-            Write out the column names. If a list of string is given it is
-            assumed to be aliases for the column names.
-        units : bool, default True
-            Write the units of the column under the header name.
-        index : bool, default True
-            Write row names(index).
-        index_label : str or sequence, optional
-            Column label for index column(s) if desired. If not specified, and
-            `header` and `index` are True, then the index names are used. A
-            sequence should be given if the DataFrame uses MultiIndex.
-        startrow : int, default 0
-            Upper left cell row to dump data frame.
-        startcol : int, default 0
-            Upper left cell column to dump data frame.
-        engine : str, optional
-            Write engine to use, 'openpyxl' or 'xlsxwriter'. You can also set this
-            via the options ``io.excel.xlsx.writer``, ``io.excel.xls.writer``, and
-            ``io.excel.xlsm.writer``.
-        merge_cells : bool, default True
-            Write MultiIndex and Hierarchical Rows as merged cells.
-        encoding : str, optional
-            Encoding of the resulting excel file. Only necessary for xlwt,
-            other writers support unicode natively.
-        inf_rep : str, default 'inf'
-            Representation for infinity(there is no native representation for
-            infinity in Excel).
-        verbose : bool, default True
-            Display more information in the error logs.
-        freeze_panes : tuple of int(length 2), optional
-            Specifies the one-based bottommost row and rightmost column that
-            is to be frozen.
-        sort: None, bool or int
-            if None, default behaviour depends on split_by parameter:
-                if split_by is None will keep the current order of the columns in the SimDataFrame.
-                if split_by is not None will sort alphabetically ascending the names of the columns.
-            if True (bool) will sort the columns alphabetically ascending.
-            if False (bool) will maintain the current order.
-            if int > 0 will sort the columns alphabetically ascending.
-            if int < 0 will sort the columns alphabetically descending.
-            if int == 0 will keep the current order of the columns.
-
-        """
-        return self.to_SimDataFrame().to_excel(excel_writer,
-                                               split_by=split_by,
-                                               sheet_name=sheet_name,
-                                               na_rep=na_rep,
-                                               float_format=float_format,
-                                               columns=columns,
-                                               header=header,
-                                               units=units,
-                                               index=index,
-                                               index_label=index_label,
-                                               startrow=startrow,
-                                               startcol=startcol,
-                                               engine=engine,
-                                               merge_cells=merge_cells,
-                                               encoding=encoding,
-                                               inf_rep=inf_rep,
-                                               verbose=verbose,
-                                               freeze_panes=freeze_panes,
-                                               sort=sort)
 
     def _common_rename(self, SimSeries1, SimSeries2=None, LR=None):
         cha = self.intersection_character
@@ -1588,97 +1461,15 @@ class SimSeries(SimBasics, Series):
                                                   key=key),
                 **self.params_)
 
-    def head(self, n=5):
-        """
-        Return the first n rows.
 
-        This function returns first n rows from the object based on position. It is useful for quickly verifying data, for example, after sorting or appending rows.
-
-        For negative values of n, this function returns all rows except the last n rows, equivalent to df[n:].
-
-        Parameters:
-        ----------
-            n : int, default 5
-            Number of rows to select.
-
-        Returns
-        -------
-            type of caller
-            The first n rows of the caller object.
-        """
-        return SimSeries(data=self.as_Series().head(n),
-                         **self.params_)
-
-    def tail(self, n=5):
-        """
-        Return the last n rows.
-
-        This function returns last n rows from the object based on position. It is useful for quickly verifying data, for example, after sorting or appending rows.
-
-        For negative values of n, this function returns all rows except the first n rows, equivalent to df[n:].
-
-        Parameters:
-        ----------
-            n : int, default 5
-            Number of rows to select.
-
-        Returns
-        -------
-            type of caller
-            The last n rows of the caller object.
-        """
-        return SimSeries(data=self.as_Series().tail(n),
-                         **self.params_)
-
-    def concat(self, objs, axis=0, join='outer', ignore_index=False,
-               keys=None, levels=None, names=None, verify_integrity=False,
-               sort=False, copy=True, squeeze=True):
-        """
-        wrapper of pandas.concat enhaced with units support
-
-        Return:
-            SimDataFrame
-        """
-        return self.to_SimDataFrame().concat(
-            objs, axis=axis, join=join, ignore_index=ignore_index, keys=keys,
-            levels=levels, names=names, verify_integrity=verify_integrity,
-            sort=sort, copy=copy, squeeze=squeeze)
-
-    def cumsum(self, skipna=True, *args, **kwargs):
-        """
-        Return cumulative sum over a SimDataFrame.
-
-        Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
-
-        Parameters:
-            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
-                The index or the name of the axis. 0 is equivalent to None or ‘index’.
-
-        skipna: bool, default True
-            Exclude NA/null values. If an entire row/column is NA, the result will be NA.
-
-        *args, **kwargs
-            Additional keywords have no effect but might be accepted for compatibility with NumPy.
-
-        Returns
-            SimSeries or SimDataFrame
-            Return cumulative sum of Series or DataFrame.
-        """
-        return SimSeries(data=self.as_Series().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
-
-    def jitter(self, std=0.10):
-        """
-        add jitter the values of the SimSeries
-        """
-        return _jitter(self, std)
 
     def daily(self, outBy='mean', datetimeIndex=False):
         """
         return a Series with a single row per day.
         index must be a date type.
 
-        available gropuing calculations are:
-            first : keeps the fisrt row per day
+        available grouping calculations are:
+            first : keeps the first row per day
             last : keeps the last row per day
             max : returns the maximum value per year
             min : returns the minimum value per year
@@ -1707,7 +1498,7 @@ class SimSeries(SimBasics, Series):
             count : returns the number of rows per month
 
         datetimeIndex : bool
-            if True the index will converted to DateTimeIndex with Day=1 for each month
+            if True the index will be converted to DateTimeIndex with Day=1 for each month
             if False the index will be a MultiIndex (Year,Month)
         """
         return self.to_SimDataFrame().monthly(outBy=outBy, datetimeIndex=datetimeIndex).to_simseries()
@@ -1717,8 +1508,8 @@ class SimSeries(SimBasics, Series):
         return a dataframe with a single row per year.
         index must be a date type.
 
-        available gropuing calculations are:
-            first : keeps the fisrt row
+        available grouping calculations are:
+            first : keeps the first row
             last : keeps the last row
             max : returns the maximum value per year
             min : returns the minimum value per year
@@ -1729,148 +1520,10 @@ class SimSeries(SimBasics, Series):
             count : returns the number of rows per year
 
         datetimeIndex : bool
-            if True the index will converted to DateTimeIndex with Day=1 and Month=1 for each year
+            if True the index will be converted to DateTimeIndex with Day=1 and Month=1 for each year
             if False the index will be a MultiIndex (Year,Month)
         """
         return self.to_SimDataFrame().yearly(outBy=outBy, datetimeIndex=datetimeIndex).to_simseries()
-
-    def DaysInYear(self, column=None):
-        """
-        returns a SimSeries with the number of days in a particular year
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be an of dtype integer, date, datetime containing
-            the year to calculate the number of day.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.daysInYear(column=column)
-
-    def daysinyear(self, column=None):
-        """
-        returns a SimSeries with the number of days in a particular year
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be an of dtype integer, date, datetime containing
-            the year to calculate the number of day.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.daysInYear(column=column)
-
-    def daysInYear(self, column=None):
-        """
-        returns a SimSeries with the number of days in a particular year
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be an of dtype integer, date, datetime containing
-            the year to calculate the number of day.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        from .._helpers.daterelated import daysInYear
-        params_ = self.params_
-        if 'units' in params_:
-            if type(params_['units']) is str:
-                params_['units'] = 'days'
-            else:
-                params_['units']['DaysInYear'] = 'days'
-        else:
-            params_['units'] = 'days'
-        params_['name'] = 'DaysInYear'
-        params_['index'] = self.index
-        if column is not None:
-            if type(column) is str and column in self.columns:
-                if self[column].dtype in ('int', 'int64') and self[column].min() > 0:
-                    return SimSeries(data=daysInYear(self[column].values), **params_)
-                elif 'datetime' in str(self[column].dtype):
-                    return daysInYear(self[column])
-                else:
-                    raise ValueError('selected column is not a valid date or year integer')
-            elif type(column) is str and column not in self.columns:
-                raise ValueError('the selected column is not in this SimDataFrame')
-            elif hasattr(column, '__iter__'):
-                result = self.SimDataFrame(data={}, index=self.index, **self.params_)
-                for col in column:
-                    if col in self.columns:
-                        result[col] = daysInYear(self[col])
-                return result
-        else:
-            if self.dtype in ('int', 'int64') and self.min() > 0:
-                return SimSeries(data=list(daysInYear(self.values)), **params_)
-            elif 'datetime' in str(self.dtype):
-                return daysInYear(self)
-            elif self.index.dtype in ('int', 'int64') and self.index.min() > 0:
-                # params_['units'] = self.units.copy() if type(self.units) is dict else self.units
-                # params_['name'] = self.name
-                # params_['indexName'] = 'DaysInYear'
-                # params_['indexUnits'] = 'days'
-                return SimSeries(data=list(daysInYear(self.index.to_numpy())), **params_)
-            elif 'datetime' in str(self.index.dtype):
-                # params_['units'] = self.units.copy() if type(self.units) is dict else self.units
-                # params_['name'] = self.name
-                # params_['indexName'] = 'DaysInYear'
-                # params_['indexUnits'] = 'days'
-                return SimSeries(data=list(daysInYear(self.index)), **params_)
-            else:
-                raise ValueError('index is not a valid date or year integer')
-
-    def RealYear(self, column=None):
-        return self.realYear(column)
-
-    def realyear(self, column=None):
-        return self.realYear(column)
-
-    def realYear(self, column=None):
-        """
-        returns a SimSeries with the year and cumulative days as fraction
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be a datetime array.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        from .._helpers.daterelated import realYear, daysInYear
-        from .frame import SimDataFrame
-        params_ = self.params_
-        params_['index'] = self.index
-        params_['name'] = 'realYear'
-        params_['units'] = 'Years'
-        if column is not None:
-            if type(column) is str and column in self.columns:
-                if 'datetime' in str(self[column].dtype):
-                    return realYear(self[column])
-                else:
-                    raise ValueError('selected column is not a valid date format')
-            elif type(column) is str and column not in self.columns:
-                raise ValueError('the selected column is not in this SimDataFrame')
-            elif hasattr(column, '__iter__'):
-                result = SimDataFrame(data={}, index=self.index, **self.params_)
-                for col in column:
-                    if col in self.columns:
-                        result[col] = daysInYear(self[col])
-                return result
-        else:
-            if 'datetime' in str(self.index.dtype):
-                return SimSeries(data=list(realYear(self.index)), **params_)
-            else:
-                raise ValueError('index is not a valid date or year integer')
 
     def integrate(self, method='trapz', at=None):
         """

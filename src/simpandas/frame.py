@@ -19,11 +19,9 @@ from pandas import Series, DataFrame, DatetimeIndex, Timestamp, Index
 import numpy as np
 import datetime as dt
 import matplotlib.pyplot as plt
-from unyts.converter import convertible, convert_for_SimPandas as _converter
+from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_power as _unit_power
 
-from simpandas.common._internal_processes import _parameters2dict, _set_index_name, _describe, _contains, \
-    _set_name_separator
 from simpandas.common.slope import slope as _slope
 from simpandas.common.stringformat import multisplit, is_date, date as strDate
 from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
@@ -268,7 +266,7 @@ class SimDataFrame(DataFrame):
                     if bool(self.find_keys(each)):  # catch the column names this key represent
                         key += list(self.find_keys(each))
                     else:  # key is not a column name, might be a filter or index
-                        try:  # to evalue as a filter
+                        try:  # to evaluate as a filter
                             _ = self.filter(each, returnFilter=True)
                             filters += [each]
                         except:
@@ -397,7 +395,7 @@ class SimDataFrame(DataFrame):
                     if self.index_units is None and value.index_units is not None:
                         self.index_units = value.index_units
                     elif self.index_units is not None and value.index_units is not None and self.index_units != value.index_units:
-                        if convertible(value.index_units, self.index_units):
+                        if _convertible(value.index_units, self.index_units):
                             try:
                                 value.index = _converter(value.index, value.index_units, self.index_units)
                             except:
@@ -457,28 +455,28 @@ class SimDataFrame(DataFrame):
 
             if not_fount == len(other_i.columns):
                 if self_i.name_separator is not None and other_i.name_separator is not None:
-                    selfC, otherC, newNames = self_i._common_rename(other_i)
+                    self_c, other_c, new_names = self_i._common_rename(other_i)
 
                     # if no columns has common names
-                    if newNames is None:
-                        if len(otherC.columns) == 1 and not self.auto_append:  # just in case there is only one column in the second operand
-                            return selfC + otherC.to_simseries()
+                    if new_names is None:
+                        if len(other_c.columns) == 1 and not self.auto_append:  # just in case there is only one column in the second operand
+                            return self_c + other_c.to_simseries()
                         elif not self.auto_append:
                             raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
                         else:  # self.autoAppend is True
                             for col in other_i.columns:
                                 result[col] = other_i[col]
                     else:
-                        if (self_i.columns != selfC.columns).any() or (other_i.columns != otherC.columns).any():
-                            resultX = selfC + otherC
-                            resultX.rename(columns=newNames, inplace=True)
+                        if (self_i.columns != self_c.columns).any() or (other_i.columns != other_c.columns).any():
+                            result_x = self_c + other_c
+                            result_x.rename(columns=new_names, inplace=True)
                         else:
-                            resultX = result
+                            result_x = result
                         if self.auto_append:
-                            for col in newNames.values():
-                                result[col] = resultX[col]
+                            for col in new_names.values():
+                                result[col] = result_x[col]
                         else:
-                            result = resultX
+                            result = result_x
             return result
 
         # other is SimSeries
@@ -500,17 +498,14 @@ class SimDataFrame(DataFrame):
         # other is Pandas DataFrame
         elif isinstance(other, DataFrame):
             # result = self.DF.add(other, fill_value=0)
-            selfC, otherC, newNames = self._common_rename(SimDataFrame(other, **self.params_))
-            result = selfC + otherC
-            return result if newNames is None else result.rename(columns=newNames)
+            self_c, other_c, new_names = self._common_rename(SimDataFrame(other, **self.params_))
+            result = self_c + other_c
+            return result if new_names is None else result.rename(columns=new_names)
 
-        # let's Pandas deal with other types, maintain units and dtype
+        # lets Pandas deal with other types, maintain units and dtype
         else:
             result = self.as_DataFrame() + other
             return SimDataFrame(data=result, **self.params_)
-
-    def __radd__(self, other):
-        return self.__add__(other)
 
     def __sub__(self, other):
         # both are SimDataFrame
@@ -577,9 +572,6 @@ class SimDataFrame(DataFrame):
             result = self.as_DataFrame() - other
             return SimDataFrame(data=result, **self.params_)
 
-    def __rsub__(self, other):
-        return self.__neg__().__add__(other)
-
     def __mul__(self, other):
         # both are SimDataFrame
         if isinstance(other, SimDataFrame):
@@ -587,35 +579,35 @@ class SimDataFrame(DataFrame):
                 Warning(
                     "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
 
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
+            self_i, other_i = self._joined_index(other)
+            result = self_i.copy()
 
-            notFount = 0
-            for col in otherI.columns:
-                if col in selfI.columns:
-                    result[col] = selfI[col] * otherI[col]
+            not_fount = 0
+            for col in other_i.columns:
+                if col in self_i.columns:
+                    result[col] = self_i[col] * other_i[col]
                 else:
-                    notFount += 1
+                    not_fount += 1
 
-            if notFount == len(otherI.columns):
-                if selfI.name_separator is not None and otherI.name_separator is not None:
-                    selfC, otherC, newNames = selfI._common_rename(otherI)
+            if not_fount == len(other_i.columns):
+                if self_i.name_separator is not None and other_i.name_separator is not None:
+                    self_c, other_c, new_names = self_i._common_rename(other_i)
 
                     # if no columns has common names
-                    if newNames is None:
-                        if len(otherC.columns) == 1:  # just in case there is only one column in the second operand
-                            return selfC * otherC.to_simseries()
+                    if new_names is None:
+                        if len(other_c.columns) == 1:  # just in case there is only one column in the second operand
+                            return self_c * other_c.to_simseries()
                         else:
                             raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
 
-                    resultX = selfC * otherC
-                    resultX.rename(columns=newNames, inplace=True)
+                    result_x = self_c * other_c
+                    result_x.rename(columns=new_names, inplace=True)
                     if self.auto_append:
-                        for col in newNames.values():
+                        for col in new_names.values():
                             if self.intersection_character in col:  # intersectionCharacter = '∩'
-                                result[col] = resultX[col]
+                                result[col] = result_x[col]
                     else:
-                        result = resultX
+                        result = result_x
 
             return result
 
@@ -623,13 +615,13 @@ class SimDataFrame(DataFrame):
         elif isinstance(other, (SimSeries, Series)):
             if type(other) is Series:
                 other = SimSeries(other, **self.params_)
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-            if self.operate_per_name and otherI.name in selfI.columns:
-                result[otherI.name] = self[otherI.name] * otherI
+            self_i, other_i = self._joined_index(other)
+            result = self_i.copy()
+            if self.operate_per_name and other_i.name in self_i.columns:
+                result[other_i.name] = self[other_i.name] * other_i
             else:
-                for col in selfI.columns:
-                    result[col] = selfI[col] * otherI
+                for col in self_i.columns:
+                    result[col] = self_i[col] * other_i
             return result
 
         # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
@@ -641,8 +633,7 @@ class SimDataFrame(DataFrame):
             result = self.as_DataFrame() * other
             return SimDataFrame(data=result, **self.params_)
 
-    def __rmul__(self, other):
-        return self.__mul__(other)
+
 
     def __truediv__(self, other):
         # both are SimDataFrame
@@ -704,9 +695,6 @@ class SimDataFrame(DataFrame):
             result = self.as_DataFrame() / other
             return SimDataFrame(data=result, **self.params_)
 
-    def __rtruediv__(self, other):
-        return self.__pow__(-1).__mul__(other)
-
     def __floordiv__(self, other):
         # both are SimDataFrame
         if isinstance(other, SimDataFrame):
@@ -762,13 +750,10 @@ class SimDataFrame(DataFrame):
         elif isinstance(other, DataFrame):
             return self.__floordiv__(SimDataFrame(data=other, **self.params_))
 
-        # let's Pandas deal with other types, maintain units and dtype
+        # lets Pandas deal with other types, maintain units and dtype
         else:
             result = self.as_DataFrame() // other
             return SimDataFrame(data=result, **self.params_)
-
-    def __rfloordiv__(self, other):
-        return self.__pow__(-1).__mul__(other).__int__()
 
     def __mod__(self, other):
         # both are SimDataFrame
@@ -894,7 +879,7 @@ class SimDataFrame(DataFrame):
             params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
             return SimDataFrame(data=result, **params_)
 
-        # let's Pandas deal with other types, maintain units and dtype
+        # lets Pandas deal with other types, maintain units and dtype
         else:
             result = self.as_DataFrame() ** other
             return SimDataFrame(data=result, **self.params_)
@@ -976,7 +961,7 @@ class SimDataFrame(DataFrame):
             return self.transpose().convert(units).transpose()
         elif type(units) is str:
             if len(set(self.units.values())) == 1:
-                if convertible(list(set(self.units.values()))[0], units):
+                if _convertible(list(set(self.units.values()))[0], units):
                     params_ = self.params_
                     params_['units'] = units
                     params_['columns'] = self.columns
@@ -988,8 +973,8 @@ class SimDataFrame(DataFrame):
                 result = SimDataFrame(index=self.index, columns=self.columns, **self.params_)
                 valid = False
                 for col in self.columns:
-                    if convertible(self.get_units(col)[col], units):
-                        print(col, units, convertible(self.get_units(col)[col], units))
+                    if _convertible(self.get_units(col)[col], units):
+                        print(col, units, _convertible(self.get_units(col)[col], units))
                         print(self[col].to(units))
                         result[col] = self[col].to(units)
                         valid = True
@@ -1002,7 +987,7 @@ class SimDataFrame(DataFrame):
             valid = False
             for col in self.columns:
                 for ThisUnits in units:
-                    if convertible(self.get_units(col)[col], ThisUnits):
+                    if _convertible(self.get_units(col)[col], ThisUnits):
                         result[col] = self[col].to(ThisUnits)
                         valid = True
                         break
@@ -1015,7 +1000,7 @@ class SimDataFrame(DataFrame):
             units_dict = {i: v for k, v in units.items() for i in self.find_keys(k)}
             result = self.copy()
             for col in self.columns:
-                if col in units_dict and convertible(self.get_units(col)[col], units_dict[col]):
+                if col in units_dict and _convertible(self.get_units(col)[col], units_dict[col]):
                     result[col] = self[col].to(units_dict[col])
             return result
 
@@ -1100,7 +1085,7 @@ class SimDataFrame(DataFrame):
             for col, units in self.get_units(self.columns).items():
                 if col in otherC.columns:
                     if units != otherC.get_units(col)[col]:
-                        if convertible(otherC.get_units(col)[col], units):
+                        if _convertible(otherC.get_units(col)[col], units):
                             otherC[col] = otherC[col].to(units)
                         else:
                             newUnits[col + '_2nd'] = otherC.get_units(col)[col]
@@ -1844,9 +1829,6 @@ class SimDataFrame(DataFrame):
         axis = clean_axis(axis)
         return SimDataFrame(data=self.DF.aggregate(func=func, axis=axis, *args, **kwargs), **self.params_)
 
-    # def resample(self, rule, axis=0, closed=None, label=None, convention='start', kind=None, loffset=None, base=None, on=None, level=None, origin='start_day', offset=None):
-    #     axis = clean_axis(axis)
-    #     return SimDataFrame(data=self.DF.resample(rule, axis=axis, closed=closed, label=label, convention=convention, kind=kind, loffset=loffset, base=base, on=on, level=level, origin=origin, offset=offset), **self.params_ )
    def rename(self, mapper=None, index=None, columns=None, axis=None, copy=True,
                inplace=False, level=None, errors='ignore'):
         """
@@ -3362,7 +3344,7 @@ class SimDataFrame(DataFrame):
 
         Returns a new SimDataFrame
         """
-        from .._helpers.daterelated import daysInMonth, daysInYear
+        from .common.daterelated import days_in_month, days_in_year
 
         method = method.lower().strip()
 
@@ -3393,64 +3375,58 @@ class SimDataFrame(DataFrame):
 
         if method[0] in 'tac':
             dt = np.diff(self.index)
-            dtUnits = self.index_units
+            dt_units = self.index_units
             if str(dt.dtype).startswith('timedelta'):
                 dt = dt.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
-                dtUnits = 'DAYS'
+                dt_units = 'DAYS'
         elif method[0] in 'm':
-            dt = daysInMonth(self.index)
-            dtUnits = 'DAYS'
+            dt = days_in_month(self.index)
+            dt_units = 'DAYS'
         elif method[0] in 'y':
-            dt = daysInYear(self.index)
-            dtUnits = 'DAYS'
+            dt = days_in_year(self.index)
+            dt_units = 'DAYS'
 
-        # if method in ['trapz', 'trapeziod']:
-        #     Vmin = np.minimum(self.DF[:-1].set_index(self.index[1:]), self.DF[1:] )
-        #     Vmax = np.maximum(self.DF[:-1].set_index(self.index[1:]), self.DF[1:] )
-        #     Cumulative =(dt * Vmin.transpose() ).transpose() +(dt *(Vmax - Vmin ).transpose() / 2.0 ).transpose()
-        # elif method in ['const', 'constant']:
-        #     Cumulative = (dt *(self.DF[:-1]).transpose() ).transpose()[1:]
         if method[0] in 't':
-            Vmin = np.minimum(self.DF[sl1].set_index(self.index[sl2]), self.DF[sl2])
-            Vmax = np.maximum(self.DF[sl1].set_index(self.index[sl2]), self.DF[sl2])
-            Cumulative = (dt * Vmin.transpose()).transpose() + (dt * (Vmax - Vmin).transpose() / 2.0).transpose()
+            v_min = np.minimum(self.DF[sl1].set_index(self.index[sl2]), self.DF[sl2])
+            v_max = np.maximum(self.DF[sl1].set_index(self.index[sl2]), self.DF[sl2])
+            cumulative = (dt * v_min.transpose()).transpose() + (dt * (v_max - v_min).transpose() / 2.0).transpose()
         elif method[0] in 'ac':
             if at == 'same':
-                Cumulative = (dt * (self.DF[sl1]).transpose()).transpose()  # [sl2]
+                cumulative = (dt * (self.DF[sl1]).transpose()).transpose()  # [sl2]
             if at == 'next':
-                Cumulative = (dt * (self.DF[sl1].set_index(self.index[sl2])).transpose()).transpose()
+                cumulative = (dt * (self.DF[sl1].set_index(self.index[sl2])).transpose()).transpose()
         elif method[0] in 'm':
-            Cumulative = (dt * self.DF.transpose()).transpose()
+            cumulative = (dt * self.DF.transpose()).transpose()
 
-        newUnits = {}
+        new_units = {}
         for C, U in self.units.items():
             if U is None:
-                newUnits[C] = None
-            elif len(U.split('/')) == 2 and (U.split('/')[-1].upper() == dtUnits.upper() or (
-                    U.split('/')[-1].upper() in ['DAY', 'DAYS'] and dtUnits.upper() == 'DAYS')):
-                newUnits[C] = U.split('/')[0]
+                new_units[C] = None
+            elif len(U.split('/')) == 2 and (U.split('/')[-1].upper() == dt_units.upper() or (
+                    U.split('/')[-1].upper() in ['DAY', 'DAYS'] and dt_units.upper() == 'DAYS')):
+                new_units[C] = U.split('/')[0]
             else:
-                newUnits[C] = U + '*' + dtUnits
+                new_units[C] = U + '*' + dt_units
 
         params_ = self.params_
-        params_['units'] = newUnits
+        params_['units'] = new_units
 
         if method[0] in 't' or (method[0] in 'ac' and at == 'next'):
             if str(dt.dtype).startswith('timedelta'):
-                firstRow = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=['0']).set_index(
+                first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=['0']).set_index(
                     DatetimeIndex([self.index[0]]))
             else:
-                firstRow = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
-            return SimDataFrame(data=np.cumsum(firstRow.append(Cumulative)), **params_)
+                first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
+            return SimDataFrame(data=np.cumsum(first_row.append(cumulative)), **params_)
         elif method[0] in 'ac' and at == 'same':
             if str(dt.dtype).startswith('timedelta'):
-                lastRow = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
+                last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
                                     index=[str(len(self) - 1)]).set_index(DatetimeIndex([self.index[-1]]))
             else:
-                lastRow = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
-            return SimDataFrame(data=np.cumsum(Cumulative.append(lastRow)), **params_)
+                last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
+            return SimDataFrame(data=np.cumsum(cumulative.append(last_row)), **params_)
         else:
-            return SimDataFrame(data=np.cumsum(Cumulative), **params_)
+            return SimDataFrame(data=np.cumsum(cumulative), **params_)
 
     def differenciate(self, na_position='last'):
         """
@@ -3561,77 +3537,14 @@ class SimDataFrame(DataFrame):
                                              na_position=na_position, ignore_index=ignore_index, key=key),
                     **self.params_)
 
-    def head(self, n=5):
-        """
-        Return the first n rows.
 
-        This function returns first n rows from the object based on position. It is useful for quickly verifying data, for example, after sorting or appending rows.
 
-        For negative values of n, this function returns all rows except the last n rows, equivalent to df[n:].
 
-        Parameters:
-        ----------
-            n : int, default 5
-            Number of rows to select.
 
-        Returns
-        -------
-            type of caller
-            The first n rows of the caller object.
-        """
-        return SimDataFrame(data=self.DF.head(n), **self.params_)
-
-    def tail(self, n=5):
-        """
-        Return the last n rows.
-
-        This function returns last n rows from the object based on position. It is useful for quickly verifying data, for example, after sorting or appending rows.
-
-        For negative values of n, this function returns all rows except the first n rows, equivalent to df[n:].
-
-        Parameters:
-        ----------
-            n : int, default 5
-            Number of rows to select.
-
-        Returns
-        -------
-            type of caller
-            The last n rows of the caller object.
-        """
-        return SimDataFrame(data=self.DF.tail(n), **self.params_)
-
-    def cumsum(self, skipna=True, *args, **kwargs):
-        """
-        Return cumulative sum over a SimDataFrame.
-
-        Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
-
-        Parameters:
-            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
-                The index or the name of the axis. 0 is equivalent to None or ‘index’.
-
-        skipna: bool, default True
-            Exclude NA/null values. If an entire row/column is NA, the result will be NA.
-
-        *args, **kwargs
-            Additional keywords have no effect but might be accepted for compatibility with NumPy.
-
-        Returns
-            SimSeries or SimDataFrame
-            Return cumulative sum of Series or DataFrame.
-        """
-        return SimDataFrame(data=self.as_Pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
-
-    def jitter(self, std=0.10):
-        """
-        add jitter the values of the SimDataFrame
-        """
-        return _jitter(self, std)
 
     def melt(self, **kwargs):
-        from .._common.functions import _meltDF
-        melted = _meltDF(self, FullOutput=False)
+        from .common.shape import melt
+        melted = melt(self, full_output=False)
         if len(melted[melted.columns[-1]].unique()) == 1:
             params_ = self.params_
             params_['units'] = {melted.columns[0]: melted[melted.columns[-1]].unique()[0]}
@@ -3639,191 +3552,9 @@ class SimDataFrame(DataFrame):
         else:
             return melted
 
-    def DaysInYear(self, column=None):
-        """
-        returns a SimSeries with the number of days in a particular year
 
-        Parameters
-        ----------
-        column : str
-            The selected column must be an array of dtype integer, date, datetime containing
-            the year to calculate the number of day.
 
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.days_in_year(column=column)
 
-    def daysinyear(self, column=None):
-        """
-        returns a SimSeries with the number of days in a particular year
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be an array of dtype integer, date, datetime containing
-            the year to calculate the number of day.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.days_in_year(column=column)
-
-    def daysInYear(self, column=None):
-        """
-        returns a SimSeries with the number of days in a particular year
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be an array of dtype integer, date, datetime containing
-            the year to calculate the number of day.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.days_in_year(column=column)
-
-    def days_in_year(self, column=None):
-        """
-        returns a SimSeries with the number of days in a particular year
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be an array of dtype integer, date, datetime containing
-            the year to calculate the number of day.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        from .._helpers.daterelated import daysInYear
-        params_ = self.params_
-        params_['index'] = self.index
-        if column is not None:
-            if type(column) is str and column in self.columns:
-                if self[column].dtype in ('int', 'int64') and self[column].min() > 0:
-                    params_['name'] = 'DaysInYear'
-                    params_['units'] = 'days'
-                    return SimSeries(data=daysInYear(self[column].to_numpy()), **params_)
-                elif 'datetime' in str(self[column].dtype):
-                    return daysInYear(self[column])
-                else:
-                    raise ValueError('selected column is not a valid date or year integer')
-            elif type(column) is str and column not in self.columns:
-                raise ValueError('the selected column is not in this SimDataFrame')
-            elif type(column) is not str and hasattr(column, '__iter__'):
-                result = self._class(data={}, index=self.index, **self.params_)
-                for col in column:
-                    if col in self.columns:
-                        result[col] = daysInYear(self[col])
-                        result.set_units('days', col)
-                return result
-        else:
-            if self.index.dtype in ('int', 'int64') and self.index.min() > 0:
-                params_['name'] = 'DaysInYear'  # params_['indexName'] = 'DaysInYear'
-                params_['indexUnits'] = self.index_units
-                params_['index'] = self.index  # params_['index'] = list(daysInYear(self.index.to_numpy()))
-                # params_['columns'] = self.columns
-                params_['units'] = 'days'  # params_['units'] = self.units.copy()
-                return SimSeries(data=list(daysInYear(self.index.to_numpy())),
-                                 **params_)  # self._class( data=self.DF.values, **params_ )
-            elif 'datetime' in str(self.index.dtype):
-                params_['name'] = 'DaysInYear'
-                params_['units'] = 'days'
-                params_['indexUnits'] = self.index_units
-                params_['index'] = self.index
-                return SimSeries(data=list(daysInYear(self.index)),
-                                 **params_)  # self._class( data=self.DF.values, index=list(daysInYear(self.index)), columns=self.columns, **self.params_ )
-            else:
-                raise ValueError('index is not a valid date or year integer')
-
-    def real_year(self, column=None):
-        """
-        returns a SimSeries with the year and cumulative days as fraction
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be a datetime array.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        from .._helpers.daterelated import realYear, daysInYear
-        params_ = self.params_
-        params_['index'] = self.index
-        params_['name'] = 'realYear'
-        params_['units'] = 'Years'
-        if column is not None:
-            if type(column) is str and column in self.columns:
-                if 'datetime' in str(self[column].dtype):
-                    return SimSeries(data=realYear(self[column]), **params_)
-                else:
-                    raise ValueError('selected column is not a valid date format')
-            elif type(column) is str and column not in self.columns:
-                raise ValueError('the selected column is not in this SimDataFrame')
-            elif type(column) is not str and hasattr(column, '__iter__'):
-                result = self._class(data={}, index=self.index, **self.params_)
-                for col in column:
-                    if col in self.columns:
-                        result[col] = daysInYear(self[col])
-                return result
-        else:
-            if 'datetime' in str(self.index.dtype):
-                return SimSeries(data=list(realYear(self.index)), **params_)
-            else:
-                raise ValueError('index is not a valid date or year integer')
-
-    def RealYear(self, column=None):
-        """
-        returns a SimSeries with the year and cumulative days as fraction
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be a datetime array.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.real_year(column)
-
-    def realyear(self, column=None):
-        """
-        returns a SimSeries with the year and cumulative days as fraction
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be a datetime array.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.real_year(column)
-
-    def realYear(self, column=None):
-        """
-        returns a SimSeries with the year and cumulative days as fraction
-
-        Parameters
-        ----------
-        column : str
-            The selected column must be a datetime array.
-
-        Returns
-        -------
-        a new SimSeries with the resulting array and same index as the input.
-        """
-        return self.real_year(column)
 
     def slope(self, x=None, y=None, window=None, slope=True, intercept=False):
         """
@@ -4028,28 +3759,6 @@ class SimDataFrame(DataFrame):
                     raise TypeError("others must be SimDataFrame, DataFrame, SimSeries or Series")
             return kwargs['ax']
 
-    def concat(self, objs, axis=0, join='outer', ignore_index=False,
-               keys=None, levels=None, names=None, verify_integrity=False,
-               sort=False, copy=True, squeeze=True):
-        """
-        wrapper of pandas.concat enhaced with units support
-
-        Return:
-            SimDataFrame
-        """
-        from ..common.merger import concat as _concat
-        if type(objs) not in [list, SimDataFrame, DataFrame, SimSeries, Series]:
-            raise TypeError("objs must be a list of DataFrames or SimDataFrames")
-        if len(objs) == 1:
-            print("WARNING: only 1 DataFrame received.")
-            return [objs][0]
-        if type(objs) is not list:
-            objs = [objs]
-        return _concat([self] + objs, axis=axis, join=join,
-                       ignore_index=ignore_index, keys=keys, levels=levels,
-                       names=names, verify_integrity=verify_integrity,
-                       sort=sort, copy=copy, squeeze=squeeze)
-
     def to_SimationResults(self):
         """
         loads the current frame into a SimulationResults excelObject.
@@ -4157,103 +3866,3 @@ class SimDataFrame(DataFrame):
     #     return SimRolling(self.df, window, min_periods=min_periods, center=center, win_type=win_type, on=on, axis=axis, closed=closed, method=method,
     #         SimParameters=self.params_,
     #         )
-
-    def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
-                 float_format=None, columns=None, header=True, units=True, index=True,
-                 index_label=None, startrow=0, startcol=0, engine=None,
-                 merge_cells=True, encoding=None, inf_rep='inf', verbose=True,
-                 freeze_panes=None, sort=None):
-        """
-        Wrapper of .to_excel method from Pandas.
-        On top of Pandas method this method is able to split the data into different
-        sheets based on the column names. See paramenters `split_by´ and `sheet_name´.
-
-        Write {klass} to an Excel sheet.
-        To write a single {klass} to an Excel .xlsx file it is only necessary to
-        specify a target file name. To write to multiple sheets it is necessary to
-        create an `ExcelWriter` object with a target file name, and specify a sheet
-        in the file to write to.
-        Multiple sheets may be written to by specifying unique `sheet_name`.
-        With all data written to the file it is necessary to save the changes.
-        Note that creating an `ExcelWriter` object with a file name that already
-        exists will result in the contents of the existing file being erased.
-
-        Parameters
-        ----------
-        excel_writer : str or ExcelWriter object from Pandas.
-            File path or existing ExcelWriter.
-        split_by: None, positive or negative integer or str 'left', 'right' or 'first'. Default is None
-            If is string 'left' or 'right', creates a sheet grouping the columns by
-            the corresponding left:right part of the column name.
-            If is string 'first', creates a sheet grouping the columns by
-            the first character of the column name.
-            If None, all the columns will go into the same sheet.
-            if integer i > 0, creates a sheet grouping the columns by the 'i' firsts
-            characters of the column name indicated by the integer.
-            if integer i < 0, creates a sheet grouping the columns by the 'i' last
-            the number characters of the column name indicated by the integer.
-        sheet_name : None or str, default None
-            Name of sheet which will contain DataFrame.
-            If None:
-                the `left` or `right` part of the name will be used if is unique,
-                or 'FIELD', 'WELLS', 'GROUPS' or 'REGIONS' if all the column names
-                start with 'F', 'W', 'G' or 'R'.
-            else 'Sheet1' will be used.
-        na_rep : str, default ''
-            Missing data representation.
-        float_format : str, optional
-            Format string for floating point numbers. For example
-            ``float_format="%.2f"`` will format 0.1234 to 0.12.
-        columns : sequence or list of str, optional
-            Columns to write.
-        header : bool or list of str, default True
-            Write out the column names. If a list of string is given it is
-            assumed to be aliases for the column names.
-        units : bool, default True
-            Write the units of the column under the header name.
-        index : bool, default True
-            Write row names(index).
-        index_label : str or sequence, optional
-            Column label for index column(s) if desired. If not specified, and
-            `header` and `index` are True, then the index names are used. A
-            sequence should be given if the DataFrame uses MultiIndex.
-        startrow : int, default 0
-            Upper left cell row to dump data frame.
-        startcol : int, default 0
-            Upper left cell column to dump data frame.
-        engine : str, optional
-            Write engine to use, 'openpyxl' or 'xlsxwriter'. You can also set this
-            via the options ``io.excel.xlsx.writer``, ``io.excel.xls.writer``, and
-            ``io.excel.xlsm.writer``.
-        merge_cells : bool, default True
-            Write MultiIndex and Hierarchical Rows as merged cells.
-        encoding : str, optional
-            Encoding of the resulting excel file. Only necessary for xlwt,
-            other writers support unicode natively.
-        inf_rep : str, default 'inf'
-            Representation for infinity(there is no native representation for
-            infinity in Excel).
-        verbose : bool, default True
-            Display more information in the error logs.
-        freeze_panes : tuple of int(length 2), optional
-            Specifies the one-based bottommost row and rightmost column that
-            is to be frozen.
-        sort: None, bool or int
-            if None, default behaviour depends on split_by parameter:
-                if split_by is None will keep the current order of the columns in the SimDataFrame.
-                if split_by is not None will sort alphabetically ascending the names of the columns.
-            if True (bool) will sort the columns alphabetically ascending.
-            if False (bool) will maintain the current order.
-            if int > 0 will sort the columns alphabetically ascending.
-            if int < 0 will sort the columns alphabetically descending.
-            if int == 0 will keep the current order of the columns.
-
-        """
-        write_excel(self, excel_writer,
-                    split_by=split_by, sheet_name=sheet_name, na_rep=na_rep,
-                    float_format=float_format, columns=columns, header=header,
-                    units=units, index=index, index_label=index_label,
-                    startrow=startrow, startcol=startcol, engine=engine,
-                    merge_cells=merge_cells, encoding=encoding,
-                    inf_rep=inf_rep, verbose=verbose, freeze_panes=freeze_panes,
-                    sort=sort)
