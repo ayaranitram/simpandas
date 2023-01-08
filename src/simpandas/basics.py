@@ -168,13 +168,10 @@ class SimBasics(object):
             return False
 
     def __neg__(self):
-        return self._class(data=self.as_Pandas().__neg__(), **self.params_)
-
-    def __int__(self):
-        return self._class(data=self.as_Pandas().astype(int), **self.params_)
+        return self._class(data=self.as_pandas().__neg__(), **self.params_)
 
     def __abs__(self):
-        return self._class(data=abs(self.as_Pandas()), **self.params_)
+        return self._class(data=abs(self.as_pandas()), **self.params_)
 
     def __radd__(self, other):
         return self.__add__(other)
