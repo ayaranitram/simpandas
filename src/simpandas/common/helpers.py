@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.2'
-__release__ = 20230104
+__version__ = '0.80.3'
+__release__ = 20230107
 __all__ = ['clean_axis', 'string_new_name', 'type_of_frame', 'main_key', 'item_key']
 
 
@@ -17,6 +17,8 @@ def clean_axis(axis=None):
         return 0
     if type(axis) is str and axis.lower() in ['col', 'cols', 'column', 'columns']:
         return 1
+    if type(axis) is str and axis.lower() in ['both', 'rows&cols', 'cols&rows', 'all']:
+        return 2
     if type(axis) is bool:
         return int(axis)
     if type(axis) is float:

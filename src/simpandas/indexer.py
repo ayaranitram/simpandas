@@ -7,14 +7,14 @@ Created on Mon Aug 22 23:11:38 2022
 
 __version__ = '0.80.10'
 __release__ = 20230104
-__all__ = []
+__all__ = ['_SimLocIndexer']
 
 from pandas.core.indexing import _LocIndexer  #, _iLocIndexer
 import pandas as pd
 from warnings import warn
-from unyts.convert import convertible, convertUnit as convert
+from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts import units
-from unyts.unit_class import unit
+from unyts.unit_class import Unit
 
 
 class _SimLocIndexer(_LocIndexer):
@@ -76,8 +76,8 @@ class _SimLocIndexer(_LocIndexer):
                 else:
                     if units == self.spd.get_units(key[1])[key[1]]:
                         pass
-                    elif convertible(units, self.spd.get_units(key[1])[key[1]]):
-                        value = convert(value, units, self.spd.get_units(key[1])[key[1]], self.spd.verbose)
+                    elif _convertible(units, self.spd.get_units(key[1])[key[1]]):
+                        value = _converter(value, units, self.spd.get_units(key[1])[key[1]], self.spd.verbose)
                     else:
                         warn(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_units(key[1])[key[1]]))
         super().__setitem__(key, value)
@@ -125,7 +125,7 @@ class _SimLocIndexer(_LocIndexer):
 #                     newUnits = True
 #                 else:
 #                     newUnits = False
-#                     if convertibleUnits(units, self.spd.get_Units(key[1])):
+#                     if _convertibleUnits(units, self.spd.get_Units(key[1])):
 #                         value = convertUnits(value,units,self.spd.get_Units(key[1]))
 #         super().__setitem__(key, value)
 #         if newUnits:

@@ -30,10 +30,10 @@ ss3 = SimSeries(
     units={'length':'ft'}
     )
 
-ss4 = SimSeries(
-    data=[0.0153, 5.1476, 1.1537, 0.1432, 15.1588],
-    index=list('abcde'),
-    units={'a':'yd', 'b':'in', 'c':'ft', 'd':'m', 'e':'cm'}
-    )
+# ss4 = SimSeries(
+#     data=[0.0153, 5.1476, 1.1537, 0.1432, 15.1588],
+#     index=list('abcde'),
+#     units={'a':'yd', 'b':'in', 'c':'ft', 'd':'m', 'e':'cm'}
+#     )
 
 ss1 + ss2

@@ -5,36 +5,26 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.9'
-__release__ = 20221003
+__version__ = '0.81.0'
+__release__ = 20230108
 __all__ = ['SimBasics']
 
 import fnmatch
-
 import numpy as np
-from simpandas.indexer import _SimLocIndexer
-from simpandas.common.daterelated import days_in_year, real_year, days_in_month
-from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
+import pandas as pd
+from sys import getsizeof
 from warnings import warn
+from simpandas.indexer import _SimLocIndexer
+from simpandas.common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
+from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
+from simpandas.common.renamer import right as _right, left as _left, common_rename as _common_rename
+from simpandas.common.helpers import clean_axis as _clean_axis
 
 
 class SimBasics(object):
     """
 
     """
-
-    def __init__(self):
-        self.units = {}
-        self.verbose = False
-        self.index_units = None
-        self.name_separator = ':'
-        self.intersection_character = '∩'
-        self.auto_append = False
-        self.operate_per_name = False
-        self.transposed = False
-        self.spdLocator = None
-        self.name = None
-
     @property
     def loc(self) -> _SimLocIndexer:
         """
@@ -49,6 +39,38 @@ class SimBasics(object):
     #     """
     #     return self.spdiLocator
 
+    def concat(self, objs, axis=0, join='outer', ignore_index=False,
+               keys=None, levels=None, names=None, verify_integrity=False,
+               sort=False, copy=True, squeeze=True):
+        """
+        wrapper of pandas.concat enhanced with units support
+
+        Return:
+            SimDataFrame
+        """
+        from simpandas.common.merger import concat as _concat
+        from simpandas import SimDataFrame, SimSeries
+        from pandas import DataFrame, Series
+        
+        if type(objs) is list:
+            for each in objs:
+                if not isinstance(each, (SimDataFrame, DataFrame, SimSeries, Series)):
+                    raise TypeError("`objs` must be a list of Series, DataFrames, SimSeries or SimDataFrames")
+        elif not isinstance(objs, (SimDataFrame, DataFrame, SimSeries, Series)):
+            raise TypeError("objs must be a list of DataFrames or SimDataFrames")
+        else:
+            objs = [objs]
+        
+        if len(objs) == 1:
+            warn("WARNING: only 1 DataFrame received, nothing to concatenate!")
+            return [objs][0]
+        
+        return _concat([self] + objs, axis=axis, join=join,
+                       ignore_index=ignore_index, keys=keys, levels=levels,
+                       names=names, verify_integrity=verify_integrity,
+                       sort=sort, copy=copy, squeeze=squeeze)
+
+    @property
     def params_(self):
         return {'units': self.units.copy() if type(self.units) is dict else self.units,
                 'name': self.name,
@@ -62,28 +84,6 @@ class SimBasics(object):
                 'operate_per_name': self.operate_per_name if hasattr(self, 'operate_per_name') else False,
                 'transposed': self.transposed if hasattr(self, 'transposed') else False,
                 }
-
-    def concat(self, objs, axis=0, join='outer', ignore_index=False,
-               keys=None, levels=None, names=None, verify_integrity=False,
-               sort=False, copy=True, squeeze=True):
-        """
-        wrapper of pandas.concat enhanced with units support
-
-        Return:
-            SimDataFrame
-        """
-        from .common.merger import concat as _concat
-        if type(objs) not in [list, SimDataFrame, DataFrame, SimSeries, Series]:
-            raise TypeError("objs must be a list of DataFrames or SimDataFrames")
-        if len(objs) == 1:
-            print("WARNING: only 1 DataFrame received.")
-            return [objs][0]
-        if type(objs) is not list:
-            objs = [objs]
-        return _concat([self] + objs, axis=axis, join=join,
-                       ignore_index=ignore_index, keys=keys, levels=levels,
-                       names=names, verify_integrity=verify_integrity,
-                       sort=sort, copy=copy, squeeze=squeeze)
 
     @property
     def _SimParameters(self):
@@ -191,6 +191,167 @@ class SimBasics(object):
     def __rfloordiv__(self, other):
         return self.__pow__(-1).__mul__(other).__int__()
 
+    def avg(self, axis=0, **kwargs):
+        return self.mean(axis=axis, **kwargs)
+
+    def avg0(self, axis=0, **kwargs):
+        return self.mean0(axis=axis, **kwargs)
+
+    def average(self, axis=0, **kwargs):
+        return self.mean(axis=axis, **kwargs)
+
+    def average0(self, axis=0, **kwargs):
+        return self.mean0(axis=axis, **kwargs)
+
+    def mean0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).mean(axis=axis, **kwargs)
+
+    def median0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).median(axis=axis, **kwargs)
+
+    def mode0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).mode(axis=axis, **kwargs)
+
+    def count0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).count(axis=axis, **kwargs)
+
+    def min0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).min(axis=axis, **kwargs)
+
+    def max0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).max(axis=axis, **kwargs)
+
+    def prod0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).prod(axis=axis, **kwargs)
+
+    def quantile0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).quantile(axis=axis, **kwargs)
+
+    def rms0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).rms(axis=axis, **kwargs)
+
+    def std0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).std(axis=axis, **kwargs)
+
+    def sum0(self, axis=0, **kwargs):
+        return self.sum(axis=axis, **kwargs)
+
+    def var0(self, axis=0, **kwargs):
+        return self.replace(0, np.nan).var(axis=axis, **kwargs)
+
+    def diff(self, periods=1, axis=0, forward=False):
+        axis = _clean_axis(axis)
+        if type(periods) is bool:
+            periods, forward = 1, periods
+        if axis == 0:
+            if forward:
+                return self._class(data=-1 * self.as_pandas().diff(periods=-1 * periods, axis=axis), **self.params_)
+            else:
+                return self._class(data=self.as_pandas().diff(periods=periods, axis=axis), **self.params_)
+        if axis == 1:
+            if len(set(self.get_units(self.columns).values())) == 1:
+                units = list(set(self.get_units(self.columns).values()))[0]
+            else:
+                units = 'dimensionless'
+            if forward:
+                data = -1 * self.as_pandas().diff(periods=-1 * periods, axis=axis)
+            else:
+                data = self.as_pandas().diff(periods=periods, axis=axis)
+            params_ = self.params_
+            params_['units'] = units
+            return self._class(data=data, **params_)
+
+    def znorm(self):
+        """
+        return standard normalization
+
+        """
+        return _znorm(self)
+
+    def znorm0(self):
+        """
+        return standard normalization ignoring zeroes
+
+        """
+        return _znorm(self.replace(0, np.nan))
+
+    def minmaxnorm(self):
+        """
+        return min-max normalization
+        """
+        return _minmaxnorm(self)
+
+    def minmaxnorm0(self):
+        """
+        return min-max normalization
+        """
+        return _minmaxnorm(self.replace(0, np.nan))
+
+    def jitter(self, std=0.10):
+        """
+        add jitter the values of the SimSeries or SimDataFrame
+        """
+        return _jitter(self, std)
+
+    def _extract_keys_initial(self, initial):
+        if self.name_separator in [None, False, '']:
+            raise ValueError("`.name_separator` must not be a not empty string.")
+        if len(self.columns) == 1 and type(self.columns[0]) is not str:
+            if type(self.name) is str:
+                if self.name.split(self.name_separator)[0] == initial:
+                    objs = [self.name.split(self.name_separator)[-1]]
+                else:
+                    objs = []
+            else:
+                objs = [each.split(self.name_separator)[-1] for each in self.index if
+                        self.name_separator in each and each[0] == initial]
+        else:
+            objs = [each.split(self.name_separator)[-1] for each in self.columns if
+                    self.name_separator in each and each[0] == initial]
+        return list(set(objs))
+
+    @property
+    def wells(self):
+        if self.name_separator in [None, '', False]:
+            return []
+        return self._extract_keys_initial('W')
+
+    @property
+    def groups(self):
+        if self.name_separator in [None, '', False]:
+            return []
+        return self._extract_keys_initial('G')
+
+    @property
+    def regions(self):
+        if self.name_separator in [None, '', False]:
+            return []
+        return self._extract_keys_initial('R')
+
+    @property
+    def attributes(self):
+        if self.name_separator in [None, '', False]:
+            return {col: [] for col in self.columns}
+        atts = {}
+        for each in list(self.columns):
+            if type(each) is str and self.name_separator in each:
+                if each.split(self.name_separator)[0] in atts:
+                    atts[each.split(self.name_separator)[0]].append(each.split(self.name_separator)[-1])
+                else:
+                    atts[each.split(self.name_separator)[0]] = [each.split(self.name_separator)[-1]]
+            else:
+                if each not in atts:
+                    atts[each] = []
+        atts = {att: list(set(atts[att])) for att in atts}
+        return atts
+
+    @property
+    def properties(self):
+        if len(self.attributes.keys()) > 0:
+            return list(self.attributes.keys())
+        else:
+            return []
+
     def set_name_separator(self, separator):
         if type(separator) is str and len(separator) > 0:
             if separator in '=-+&*/!%':
@@ -202,10 +363,39 @@ class SimBasics(object):
 
     def get_name_separator(self):
         if self.name_separator in [None, '', False]:
-            warn(" NameSeparator is not defined.")
+            warn("`name_separator` is not defined.")
             return ''
         else:
             return self.name_separator
+
+    def interpolate(self, method='slinear', axis='index', limit=None, inplace=False,
+                    limit_direction=None, limit_area=None, downcast=None, **kwargs):
+        axis = _clean_axis(axis)
+        if inplace:
+            super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace, limit_direction=limit_direction,
+                                limit_area=limit_area, downcast=downcast, **kwargs)
+        else:
+            return self._class(data=self.as_pandas().interpolate(method=method, axis=axis, limit=limit, inplace=inplace,
+                                                         limit_direction=limit_direction, limit_area=limit_area,
+                                                         downcast=downcast, **kwargs), **self.params_)
+
+    def fillna(self, value=None, method=None, axis='index', inplace=False,
+               limit=None, downcast=None):
+        axis = _clean_axis(axis)
+        if inplace:
+            super().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast)
+        else:
+            return self._class(data=self.as_pandas().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit,
+                                                    downcast=downcast), **self.params_)
+
+    def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method='pad'):
+        if inplace:
+            super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex,
+                            method=method)
+        else:
+            return self._class(
+                data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex,
+                                     method=method), **self.params_)
 
     def to_Pandas(self):
         return self.to_pandas()
@@ -303,6 +493,44 @@ class SimBasics(object):
     def SDF(self):
         return self.as_simdataframe()
 
+    def zeros(self, axis=None, value=0):
+        """
+        Finds the columns or rows where all its values are equal to `value` (by default is 0).
+        Returns a Series with bool indicating True at the columns or rows that match the condition.
+
+        Parameters
+        ----------
+        axis = int or str
+            0 for rows,
+            1 for columns
+
+        Returns
+        -------
+            Series
+        """
+        axis = 1 if axis is None and len(self.columns) == 1 else 0
+        axis = _clean_axis(axis)
+        if axis == 2:
+            return self.zeros(axis=0, value=value) + self.zero(axis=1, value=value)
+        limit = len(self) if axis == 0 else len(self.columns)
+        return (self==value).sum(axis=axis) == limit
+
+    def dropzeros(self, axis=None):
+        """
+        alias for .drop_zeros() method
+        """
+        return self.drop_zeros(axis=axis)
+
+    def dropZeros(self, axis=None):
+        """
+        alias for .drop_zeros() method
+        """
+        return self.drop_zeros(axis=axis)
+
+    def aggregate(self, func=None, axis=0, *args, **kwargs):
+        axis = _clean_axis(axis)
+        return self._class(data=self.to_pandas().aggregate(func=func, axis=axis, *args, **kwargs), **self.params_)
+
     def squeeze(self, axis=None):
         """
         wrapper of pandas.squeeze
@@ -359,45 +587,92 @@ class SimBasics(object):
     def T(self):
         return self.transpose()
 
+    @property
+    def right(self):
+        return list(set(_right(self, self.name_separator).values()))
+
+    @property
+    def left(self):
+        return list(set(_left(self, self.name_separator).values()))
+
     def rename_right(self, inplace=False):
         from simpandas.frame import SimDataFrame
         from simpandas.series import SimSeries
         if self.name_separator in [None, '', False]:
+            warn("`name_separator` is not defined. Set it using `.set_name_separator('string')`")
             return self
-        objs = {each: None if each is None else each.split(self.name_separator)[-1] for each in self.columns}
+        new_names = _right(self, self.name_separator)
         if self._class is SimDataFrame:
-            if len(set(objs.keys())) != len(set(objs.values())):
-                objs = dict(zip(objs.keys(), objs.keys()))
+            if len(set(new_names.keys())) != len(set(new_names.values())):
+                new_names = dict(zip(new_names.keys(), new_names.keys()))
         elif self._class is SimSeries:
             if len(self.columns) == 1:
-                objs = list(objs.values())[0]
+                new_names = list(new_names.values())[0]
         if inplace:
-            self.rename(columns=objs, inplace=inplace)
+            self.rename(columns=new_names, inplace=True)
         else:
-            return self.rename(columns=objs, inplace=inplace)
+            return self.rename(columns=new_names, inplace=False)
 
     def rename_left(self, inplace=False):
         from simpandas.frame import SimDataFrame
         from simpandas.series import SimSeries
         if self.name_separator in [None, '', False]:
+            warn("`name_separator` is not defined. Set it using `.set_name_separator('string')`")
             return self
-        objs = {each: None if each is None else each.split(self.name_separator)[0] for each in self.columns}
+        new_names = _left(self, self.name_separator)
         if self._class is SimDataFrame:
-            if len(set(objs.keys())) != len(set(objs.values())):
-                objs = dict(zip(objs.keys(), objs.keys()))
+            if len(set(new_names.keys())) != len(set(new_names.values())):
+                new_names = dict(zip(new_names.keys(), new_names.keys()))
         elif self._class is SimSeries:
             if len(self.columns) == 1:
-                objs = list(objs.values())[0]
+                new_names = list(new_names.values())[0]
         if inplace:
-            self.rename(columns=objs, inplace=inplace)
+            self.rename(columns=new_names, inplace=True)
         else:
-            return self.rename(columns=objs, inplace=inplace)
+            return self.rename(columns=new_names, inplace=False)
 
     def renameRight(self, inplace=False):
         return self.rename_right(inplace=inplace)
 
     def renameLeft(self, inplace=False):
         return self.rename_left(inplace=inplace)
+
+    def _common_rename(self, other,
+                      intersection_character=None,
+                      other_name_separator=None,
+                      complex_names=False,):
+        if intersection_character is None:
+            intersection_character = self.intersection_character
+        if hasattr(other, 'name_separator') and other.name_separator is not None:
+            other_name_separator = other.name_separator
+        elif other_name_separator is None:
+            other_name_separator = self.name_separator
+            print("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
+        return _common_rename(self, other,
+                             intersection_character=intersection_character,
+                             name_separator_2=other_name_separator,
+                             complex_names=complex_names)
+
+    def _joined_index(self, other, *, drop_duplicates=False, keep='first'):
+        from .._common.merger import merge_Index
+        return merge_Index(self, other, how='outer', drop_duplicates=drop_duplicates, keep=keep)
+
+    def _common_index(self, other, *, drop_duplicates=True, keep='first'):
+        from .._common.merger import merge_Index
+        return merge_Index(self, other, how='inner', drop_duplicates=drop_duplicates, keep=keep)
+
+    def _merge_index(self, other, how='outer', *, drop_duplicates=True, keep='first'):
+        from .._common.merger import merge_Index
+        return merge_Index(self, other, how=how, drop_duplicates=drop_duplicates, keep=keep)
+
+    def merge(self, right, how='inner', on=None, left_on=None, right_on=None, left_index=None, right_index=None,
+              sort=False, suffixes=('_x', '_y'), copy=True, indicator=False, validate=None):
+        from .._common.merger import merge as _merge
+        if on is None and left_on is None and right_on is None and right_index is None and left_index is None:
+            left_index, right_index = True, True
+        return _merge(self, right, how='inner', on=on, left_on=left_on, right_on=right_on, left_index=left_index,
+                      right_index=right_index, sort=sort, suffixes=suffixes, copy=copy, indicator=indicator,
+                      validate=validate)
 
     def shift(self, periods=1, freq=None, axis=0, fill_value=None):
         """
@@ -441,20 +716,6 @@ Copy of input object, shifted.
     @property
     def index_name(self):
         return self.index.name
-
-    @property
-    def right(self):
-        if self.name_separator is None or self.name_separator is False or self.name_separator in ['']:
-            return list(self.columns)
-        else:
-            return list(set([None if each is None else each.split(self.name_separator)[-1] for each in self.columns]))
-
-    @property
-    def left(self):
-        if self.name_separator is None or self.name_separator is False or self.name_separator in ['']:
-            return list(self.columns)
-        else:
-            return list(set([None if each is None else each.split(self.name_separator)[0] for each in self.columns]))
 
     def get_wells(self, pattern=None):
         """
@@ -591,12 +852,6 @@ Copy of input object, shifted.
             else:
                 raise ValueError('index is not a valid date or year integer')
 
-    def jitter(self, std=0.10):
-        """
-        add jitter the values of the SimSeries or SimDataFrame
-        """
-        return _jitter(self, std)
-
     def real_year(self, column=None):
         """
         returns a SimSeries with the year and cumulative days as fraction
@@ -730,6 +985,725 @@ Copy of input object, shifted.
         """
         return self.real_year(column=column)
 
+    def _check_by(self, by, raise_by_error=True):
+        if by is None:
+            by = []
+        elif type(by) is not str and hasattr(by, '__iter__'):
+            new_by = []
+            for each in by:
+                if each in self.columns:
+                    new_by.append(each)
+                elif each in [self.index.year, self.index.month, self.index.day]:
+                    if isinstance(self.index, pd.DatetimeIndex):
+                        new_by.append(each)
+                    elif raise_by_error:
+                        raise TypeError("index must be `DateTimeIndex`.")
+                    else:
+                        warn("index must be `DateTimeIndex`.")
+                elif raise_by_error:
+                    raise ValueError("The column '" + str(each) + "' is not present in this frame")
+                else:
+                    warn("The column '" + str(by) + "' is not present in this frame")
+            by = new_by
+        elif by in self.columns:
+            by = [by]
+        elif raise_by_error:
+            raise ValueError("The column '" + str(by) + "' is not present in this frame")
+        else:
+            by = []
+            warn("The column '" + str(by) + "' is not present in this frame")
+        user_by = by if len(by) > 0 else None
+        return by, user_by
+
+    def _aggregated_calculation(self, by, agg):
+        result = self.as_pandas().groupby(by=by)
+        params_ = self.params_.copy()
+        if agg == 'first':
+            result = result.first()
+        elif agg == 'last':
+            result = result.last()
+        elif agg == 'max':
+            result = result.max()
+        elif agg == 'min':
+            result = result.min()
+        elif agg in ['mean', 'avg']:
+            result = result.mean()
+        elif agg == 'median':
+            result = result.median()
+        elif agg == 'std':
+            result = result.std()
+        elif agg == 'sum':
+            result = result.sum()
+        elif agg == 'count':
+            result = result.count()
+        elif agg[:3] == 'int':  # from 'integrate', 'integral'
+            result = self.integrate()
+            #params_['units'] = result.get_units()
+        elif agg[:3] == 'rep':  # from 'representative'
+            result = self.integrate()
+            result = result.as_pandas().groupby(by=by)  # self.index.year
+            index = pd.DataFrame(data=self.index, index=self.index).groupby(by=by)  # self.index.year
+            index = np.append(index.first().to_numpy(), index.last().to_numpy()[-1])
+            delta_index = np.diff(index)
+            if isinstance(self.index, pd.DatetimeIndex):
+                delta_index = delta_index.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
+            values = result.first().append(result.last().iloc[-1])
+            delta_values = np.diff(values.transpose())
+            result = pd.DataFrame(data=(delta_values / delta_index).transpose(), index=result.first().index,
+                               columns=self.columns)
+            #params_['units'] = result.get_units()
+        elif agg in ['cum', 'cumulative']:
+            result = self.cumsum()
+        else:
+            raise ValueError("`agg` parameter is not valid.")
+        self._class(data=result, **params_)
+        return result
+
+    def fill_daily(self, group_by=None, fillna_method=False, raise_by_error=True, **kwargs):
+        """
+        Fill the gaps in DateTimeIndex, completing the missing days in the index and populating the missing values if requiered.
+
+        Returns
+        -------
+
+        """
+        time_by = [self.index.year, self.index.month, self.index.day]
+        group_by, _ = self._check_by(group_by, raise_by_error=raise_by_error)
+        for tb in time_by:
+            if tb in group_by:
+                _ = group_by.remove(tb)
+        by = time_by if group_by is None else time_by + group_by
+        
+        result = self.copy()
+
+        if len(by) > 3:  # user criteria to group by
+            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in result.index])
+            result.index.names = by[3:]
+            result.index = pd.MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for i in result.index]
+            result = result.reset_index()
+        else:
+            index_backup = result.index
+
+        result.index = pd.to_datetime(
+            [str(YYYY) + '-' + str(MM).zfill(2) + '-' + str(DD).zfill(2) for YYYY, MM, DD in index_backup])
+        result.index.name = 'DATE'
+        if len(by) == 4:
+            new_df = None
+            for group in result[by[3]].unique():
+                group_df = result[result[by[3]] == group]
+                if len(group_df) == 0:
+                    continue
+                daily_index = pd.date_range(min(group_df.index), max(group_df.index), freq='D')
+                group_df = group_df.reindex(index=daily_index)
+
+                if fillna_method is False:
+                    pass
+                elif fillna_method is None:
+                    group_df = group_df.interpolate(method='time').fillna(method='pad')
+                elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
+                    group_df = group_df.fillna(method=fillna_method)
+                elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
+                                       'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
+                    group_df = group_df.interpolate(method=fillna_method).fillna(method='pad')
+                elif fillna_method in ['polynomial', 'spline']:
+                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).fillna(method='pad')
+                if new_df is None:
+                    new_df = group_df.copy()
+                else:
+                    new_df = new_df.append(group_df)
+        elif len(by) == 3:
+            daily_index = pd.date_range(min(result.index), max(result.index), freq='D')
+            result = result.reindex(index=daily_index)
+            if fillna_method is False:
+                pass
+            elif fillna_method is None:
+                result = result.interpolate(method='time')
+            elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
+                result = result.fillna(method=fillna_method)
+            elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
+                                   'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
+                result = result.interpolate(method=fillna_method)
+            elif fillna_method in ['polynomial', 'spline']:
+                result = result.interpolate(method=fillna_method, order=kwargs['order'])
+        else:
+            raise NotImplementedError('Not able to reindex grouping by more than one column.')
+
+        by = [result.index.year, result.index.month, result.index.day] + by[3:]
+        result = result.groupby(by=by).first()
+        return result
+
+    def daily(self, agg='mean', datetime_index=True, by=None,
+              complete_index=False, fillna_method=None, raise_by_error=True, **kwargs):
+        """
+        return a dataframe with a single row per day.
+        index must be a date type.
+
+        available gropuing calculations are:
+            first : keeps the fisrt row per day
+            last : keeps the last row per day
+            max : returns the maximum value per day
+            min : returns the minimum value per day
+            mean or avg : returns the average value per day
+            median : returns the median value per day
+            std : returns the standard deviation per day
+            sum : returns the summation of all the values per day
+            count : returns the number of rows per day
+            integrate : calculates the numerical integration per day, over the index (a datetime-index)
+            representative : calculates the representative mean per day, as the numerical integration of the column over the index (a datetime-index) then divided by the elapsed time between the first and las row of each day
+            cumsum or cumulative : run cumsum per day, over the columns and then return the last value of each year
+
+        datetime_index : bool
+            if True the index will converted to DateTimeIndex
+            if False the index will be a MultiIndex (Year, Month, Day)
+
+        by : label or list of labels, optional.
+            Used to determine the groups for the groupby.
+            If by is a function, it’s called on each value of the object’s index.
+            If a dict or Series is passed, the Series or dict VALUES will be used
+            to determine the groups (the Series’ values are first aligned; see .align() method).
+            If an ndarray is passed, the values are used as-is to determine the groups.
+            A label or list of labels may be passed to group by the columns in self.
+            Notice that a tuple is interpreted as a (single) key.
+
+        complete_index : bool, optional. Default False
+            Will reindex the dataframe to new index containing every day between
+            the first and the last dates in the input index.
+            If set to True, by default will autocomplete the null values using
+            linear interpolation considering the length of time intervals from
+            the index.
+            This behavior can be changed by setting the `fillna_method` parameter.
+
+        fillna_method : str or False, optional. Default is False
+            Ignored if `complete_index` is False
+            If not False, will fill null values using the indicated method.
+            Available method to fill NA are the methods from Pandas fillna and
+            Pandas interpolate.
+            Methods from fillna:
+                'pad' / 'ffill': propagate last valid observation forward to
+                                 next valid observation.
+                'backfill' / 'bfill': use next valid observation to fill gap.
+            Methods from interpolate:
+                'linear': Ignore the index and treat the values as equally spaced.
+                'time': Works on daily and higher resolution data to interpolate given length of interval.
+                'index', 'values': use the actual numerical values of the index.
+            Methods from scipy.interpolate.interp1d (passed from interpolate):
+                'nearest'
+                'zero'
+                'slinear'
+                'quadratic'
+                'cubic'
+                'spline'
+                'barycentric'
+                'polynomial'
+                These methods use the numerical values of the index.
+                Both 'polynomial' and 'spline' require that you also specify
+                an order (int), e.g.
+                    df.daily(fillna_method='polynomial', order=5).
+
+        """
+        if type(self.index) is not pd.DatetimeIndex:
+            raise TypeError('index must be of datetime type.')
+
+        if fillna_method in ['polynomial', 'spline']:
+            if 'order' not in kwargs:
+                raise ValueError(
+                    "The '" + fillna_method + "' fillna_method requieres one additional parameter 'order':\n   df.daily(fillna_method='polynomial', order=5)")
+            if type(kwargs['order']) is not int:
+                raise ValueError(
+                    "The 'order' parameter must be an integer:\n   df.daily(fillna_method='polynomial', order=5)")
+
+        if type(agg) is bool and type(datetime_index) is bool:
+            agg, datetime_index = 'mean', agg
+        elif type(agg) is bool and type(datetime_index) is not bool:
+            agg, datetime_index = datetime_index, agg
+
+        raise_by_error = bool(raise_by_error)
+
+        by, user_by = self._timely_common_check_by(by, raise_by_error=raise_by_error)
+        by = [self.index.year, self.index.month, self.index.day] + by
+
+        output = self._aggregated_calculation(by, agg)
+
+        if complete_index:
+            output = output.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
+
+        if user_by is None:
+            output.index = pd.MultiIndex.from_tuples([(int(y), int(m), int(d)) for y, m, d in output.index])
+        elif len(user_by) == 1:
+            output.index = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2]), i[3]) for i in output.index])
+        else:
+            output.index = pd.MultiIndex.from_tuples(
+                [(int(i[0]), int(i[1]), int(i[2]),) + tuple(i[3:]) for i in output.index])
+
+        if datetime_index:
+            if user_by is None:
+                output.index = pd.to_datetime(
+                    [str(YYYY) + '-' + str(MM).zfill(2) + '-' + str(DD).zfill(2) for YYYY, MM, DD in output.index])
+                output.index.names = ['DATE']
+                output.index.name = 'DATE'
+                if 'DATE' not in output.get_units():
+                    output.set_units('date', 'DATE')
+            elif len(user_by) == 1:
+                output.index = pd.MultiIndex.from_tuples(
+                    [(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + '-' + str(i[2]).zfill(2)), i[3]) for i in
+                     output.index])
+            else:
+                output.index = pd.MultiIndex.from_tuples(
+                    [(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + '-' + str(i[2]).zfill(2)),) + tuple(i[3:])
+                     for i in output.index])
+            if user_by is not None:
+                output.index.names = ['DATE'] + user_by
+                output.index.name = 'DATE' + '_' + '_'.join(map(str, user_by))
+        elif user_by is None:
+            output.index.names = ['YEAR', 'MONTH', 'DAY']
+            output.index.name = 'YEAR_MONTH_DAY'
+        else:
+            output.index.names = ['YEAR', 'MONTH', 'DAY'] + user_by
+            output.index.name = 'YEAR_MONTH_DAY' + '_' + '_'.join(map(str, user_by))
+
+        if not datetime_index:
+            if 'YEAR' not in output.get_units():
+                output.set_units('year', 'YEAR')
+            if 'MONTH' not in output.get_units():
+                output.set_units('month', 'MONTH')
+            if 'DAY' not in output.get_units():
+                output.set_units('day', 'DAY')
+        return output
+
+    def monthly(self, agg='mean', datetime_index=False, by=None, day='first',
+                complete_index=False, fillna_method=None, raise_by_error=True):
+        """
+        Return a dataframe with a single row per month.
+        index must be a date type.
+
+        available gropuing aggregations are:
+            first : keeps the fisrt row per month
+            last : keeps the last row per month
+            max : returns the maximum value per month
+            min : returns the minimum value per month
+            mean or avg : returns the average value per month
+            median : returns the median value per month
+            std : returns the standard deviation per month
+            sum : returns the summation of all the values per month
+            count : returns the number of rows per month
+            integrate : calculates the numerical integration per month, over the index (a datetime-index)
+            representative : calculates the representative mean per month, as the numerical integration of the column over the index (a datetime-index) then divided by the elapsed time between the first and last rows of each month
+            cumsum or cumulative : run cumsum per month, over the columns and then return the last value of each year
+
+        datetimeIndex : bool
+            if True the index will converted to DateTimeIndex with Day=`day` for each month
+            if False the index will be a MultiIndex (Year, Month)
+
+        by :  label, or list of labels
+            Used to determine the groups for the groupby.
+            If by is a function, it’s called on each value of the object’s index.
+            If a dict or Series is passed, the Series or dict VALUES will be used
+            to determine the groups (the Series’ values are first aligned; see .align() method).
+            If an ndarray is passed, the values are used as-is to determine the groups.
+            A label or list of labels may be passed to group by the columns in self.
+            Notice that a tuple is interpreted as a (single) key.
+
+        day : str or int
+            The day of the month to write on the datetime index.
+            If integer or string number, this number will be used as the day for the index.
+            If string 'first' the first day of the month will be used, always 1.
+            If string 'last' the last day of each month will be used.
+            Ignored if datetimeIndex is False.
+
+        complete_index : bool, optional. Default False
+            Will reindex the dataframe to new index containing every day between
+            the first and the last dates in the input index.
+            If set to True, by default will autocomplete the null values using
+            linear interpolation considering the length of time intervals from
+            the index.
+            This behavior can be changed by setting the `fillna_method` parameter.
+
+        fillna_method : str or False, optional. Default is False
+            Ignored if `complete_index` is False
+            If not False, will fill null values using the indicated method.
+            Available method to fill NA are the methods from Pandas fillna and
+            Pandas interpolate.
+            Methods from fillna:
+                'pad' / 'ffill': propagate last valid observation forward to
+                                 next valid observation.
+                'backfill' / 'bfill': use next valid observation to fill gap.
+            Methods from interpolate:
+                'linear': Ignore the index and treat the values as equally spaced.
+                'time': Works on daily and higher resolution data to interpolate given length of interval.
+                'index', 'values': use the actual numerical values of the index.
+            Methods from scipy.interpolate.interp1d (passed from interpolate):
+                'nearest'
+                'zero'
+                'slinear'
+                'quadratic'
+                'cubic'
+                'spline'
+                'barycentric'
+                'polynomial'
+                These methods use the numerical values of the index.
+                Both 'polynomial' and 'spline' require that you also specify
+                an order (int), e.g.
+                    df.monthly(fillna_method='polynomial', order=5).
+
+        """
+        if type(self.index) is not pd.DatetimeIndex:
+            raise TypeError('index must be of datetime type.')
+
+        if type(agg) is bool:
+            agg, datetime_index = 'mean', agg
+        elif type(agg) is bool and type(datetime_index) is not bool:
+            agg, datetime_index = datetime_index, agg
+
+        day = check_day(day)
+        by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
+        by = [self.index.year, self.index.month] + by
+
+        if complete_index:
+            output = self.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
+            output = output._aggregated_calculation(by, agg)
+        else:
+            output = self._aggregated_calculation(by, agg)
+
+        if user_by is None:
+            output.index = pd.MultiIndex.from_tuples([(int(y), int(m)) for y, m in output.index])
+        elif len(user_by) == 1:
+            output.index = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), i[2]) for i in output.index])
+        else:
+            output.index = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]),) + tuple(i[2:]) for i in output.index])
+
+        if datetime_index:
+            if user_by is None:
+                output.index = pd.to_datetime(
+                    [str(YYYY) + '-' + str(MM).zfill(2) + (day if day != '-last' else '-' + str(days_in_month(MM, YYYY)))
+                     for YYYY, MM in output.index])
+                output.index.names = ['DATE']
+                output.index.name = 'DATE'
+                if 'DATE' not in output.get_units():
+                    output.set_units('date', 'DATE')
+            elif len(user_by) == 1:
+                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + (
+                    day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))), i[2],) for i in output.index])
+            else:
+                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + (
+                    day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))),) + tuple(i[2:]) for i in
+                                                          output.index])
+            if user_by is not None:
+                output.index.names = ['DATE'] + user_by
+                output.index.name = 'DATE' + '_' + '_'.join(map(str, user_by))
+        elif user_by is None:
+            output.index.names = ['YEAR', 'MONTH']
+            output.index.name = 'YEAR_MONTH'
+        else:
+            output.index.names = ['YEAR', 'MONTH'] + user_by
+            output.index.name = 'YEAR_MONTH' + '_' + '_'.join(map(str, user_by))
+        if not datetime_index:
+            if 'YEAR' not in output.get_units():
+                output.set_units('year', 'YEAR')
+            if 'MONTH' not in output.get_units():
+                output.set_units('month', 'MONTH')
+        return output
+    def yearly(self, agg='mean', datetime_index=False, by=None, day='first', month=None,
+               complete_index=False, fillna_method=None, raise_by_error=True):
+        """
+        return a dataframe with a single row per year.
+        index must be a date type.
+
+        available gropuing aggregations are:
+            first : keeps the fisrt row
+            last : keeps the last row
+            max : returns the maximum value per year
+            min : returns the minimum value per year
+            mean or avg : returns the average value per year
+            median : returns the median value per year
+            std : returns the standard deviation per year
+            sum : returns the summation of all the values per year
+            count : returns the number of rows per year
+            integrate : calculates the numerical integration per year, over the index (a datetime-index)
+            representative : calculates the representative mean per year, as the numerical integration of the column over the index (a datetime-index) then divided by the elapsed time between the first and last row of each year
+            cumsum or cumulative : run cumsum per year, over the columns and then return the last value of each year
+
+        datetime_index : bool, optional
+            if True the index will converted to DateTimeIndex with Day=`day` and Month=`month` for each year
+            if False the index will be a integer (Year)
+
+        by :  label, or list of labels, optional
+            Used to determine the groups for the groupby.
+            If by is a function, it’s called on each value of the object’s index.
+            If a dict or Series is passed, the Series or dict VALUES will be used
+            to determine the groups (the Series’ values are first aligned; see .align() method).
+            If an ndarray is passed, the values are used as-is to determine the groups.
+            A label or list of labels may be passed to group by the columns in self.
+            Notice that a tuple is interpreted as a (single) key.
+
+        day : str or int, optional
+            Ignored if datetimeIndex is False.
+            The day of the month to write on the datetime index.
+            If integer or string number, this number will be used as the day for the index.
+            If string 'first' the first day of the 'month' will be used, always 1.
+            If string 'last' the last day of 'month' will be used.
+            Default is 'first'.
+
+        month : str or int, optional
+            Ignored if datetimeIndex is False.
+            The month of the year to write on the datetime index.
+            If integer or string number, this number will be used as the month for the index.
+            If string 'first' the first month of the year will be used, always 1.
+            If string 'last' the last month of the year will be used, always 12.
+            Default is None.
+
+        complete_index : bool, optional. Default False
+            Will reindex the dataframe to new index containing every day between
+            the first and the last dates in the input index.
+            If set to True, by default will autocomplete the null values using
+            linear interpolation considering the length of time intervals from
+            the index.
+            This behavior can be changed by setting the `fillna_method` parameter.
+
+        fillna_method : str or False, optional. Default is False
+            Ignored if `complete_index` is False
+            If not False, will fill null values using the indicated method.
+            Available method to fill NA are the methods from Pandas fillna and
+            Pandas interpolate.
+            Methods from fillna:
+                'pad' / 'ffill': propagate last valid observation forward to
+                                 next valid observation.
+                'backfill' / 'bfill': use next valid observation to fill gap.
+            Methods from interpolate:
+                'linear': Ignore the index and treat the values as equally spaced.
+                'time': Works on daily and higher resolution data to interpolate given length of interval.
+                'index', 'values': use the actual numerical values of the index.
+            Methods from scipy.interpolate.interp1d (passed from interpolate):
+                'nearest'
+                'zero'
+                'slinear'
+                'quadratic'
+                'cubic'
+                'spline'
+                'barycentric'
+                'polynomial'
+                These methods use the numerical values of the index.
+                Both 'polynomial' and 'spline' require that you also specify
+                an order (int), e.g.
+                    df.yearly(fillna_method='polynomial', order=5).
+
+        """
+        if type(self.index) is not pd.DatetimeIndex:
+            raise TypeError('index must be of datetime type.')
+
+        if type(agg) is bool:
+            agg, datetime_index = 'mean', agg
+        elif type(agg) is bool and type(datetime_index) is not bool:
+            agg, datetime_index = datetime_index, agg
+
+        day = check_day(day)
+        month = check_month(month)
+        by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
+        by = [self.index.year] + by
+        if len(by) == 1:
+            by = by[0]
+
+        if complete_index:
+            output = self.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
+            output = output._aggregated_calculation(by, agg)
+        else:
+            output = self._aggregated_calculation(by, agg)
+
+        if user_by is None:
+            output.index = [int(y) for y in output.index]
+        elif len(user_by) == 1:
+            output.index = pd.MultiIndex.from_tuples([(int(i[0]), i[1]) for i in output.index])
+        else:
+            output.index = pd.MultiIndex.from_tuples([(int(i[0]),) + tuple(i[1:]) for i in output.index])
+
+        if datetime_index:
+            if user_by is None:
+                output.index = pd.to_datetime(
+                    [str(YYYY) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], YYYY))) for YYYY
+                     in output.index])
+                output.index.names = ['DATE']
+                output.index.name = 'DATE'
+                if 'DATE' not in output.get_units():
+                    output.set_units('date', 'DATE')
+            elif len(user_by) == 1:
+                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
+                    str(i[0]) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], i[0])))), i[1],)
+                    for i in output.index])
+            else:
+                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
+                    str(i[0]) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], i[0])))),) + tuple(
+                    i[1:]) for i in output.index])
+            if user_by is not None:
+                output.index.names = ['DATE'] + user_by
+                output.index.name = 'DATE' + '_' + '_'.join(map(str, user_by))
+        elif user_by is None:
+            output.index.names = ['YEAR']
+            output.index.name = 'YEAR'
+        else:
+            output.index.names = ['YEAR', ] + user_by
+            output.index.name = 'YEAR' + '_' + '_'.join(map(str, user_by))
+        if not datetime_index:
+            output.set_units('year', 'YEAR')
+            output.index_units = 'year'
+        return output
+
+    def integrate(self, method='trapz', at=None):
+        """
+        Calculates numerical integration, using trapezoidal method,
+        or constant value of the columns values over the index values.
+
+        method parameter can be: 'trapz' to use trapezoidal method
+                                 'const' or 'avg' constant vale multiplied
+                                         by delta-index
+                                 'month' constant value multiplied by days in month
+                                         index must be a datetime-index
+                                 'year'  constant value multiplied by days in year
+                                         index must be a datetime-index
+                                         or integer representing a year
+
+        at parameter defines the row where cumulative will written, only for the
+        'const' method
+            Possible values are: 'same' to write the cumulative in the same row
+                                        of the input value, considering the cumulative
+                                        is at the end of the period represented by the row index.
+                                 'next' to write the cumulative in the next row, considering the
+                                        cumulative is reached at the instant represented
+                                        by the row index.
+
+        Returns a new SimDataFrame
+        """
+        method = method.lower().strip()
+
+        sl1 = slice(0, -1)
+        sl2 = slice(1, len(self))
+
+        if method[0] == 't':
+            pass
+        elif method[0] in 'ac':
+            if at is None:
+                at = 'next'
+            elif str(at).lower().strip() not in ['same', 'next']:
+                raise ValueError("parameter 'at' must be 'same' or 'next'.")
+            else:
+                at = str(at).lower().strip()
+        elif method[0] in 'my':
+            pass
+        else:
+            raise ValueError("'method' parameter must be 'trapz' or 'const'")
+
+        if len(self) < 2:
+            warn("less than two rows, nothing to integrate.")
+            return self
+
+        if method[0] in 'tac':
+            dt = np.diff(self.index)
+            dt_units = self.index_units
+            if str(dt.dtype).startswith('timedelta'):
+                dt = dt.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
+                dt_units = 'days'
+        elif method[0] in 'm':
+            dt = days_in_month(self.index)
+            dt_units = 'days'
+        elif method[0] in 'y':
+            dt = days_in_year(self.index)
+            dt_units = 'days'
+
+        if method[0] in 't':
+            v_min = np.minimum(self.as_pandas()[sl1].set_index(self.index[sl2]), self.as_pandas()[sl2])
+            v_max = np.maximum(self.as_pandas()[sl1].set_index(self.index[sl2]), self.as_pandas()[sl2])
+            cumulative = (dt * v_min.transpose()).transpose() + (dt * (v_max - v_min).transpose() / 2.0).transpose()
+        elif method[0] in 'ac':
+            if at == 'same':
+                cumulative = (dt * (self.as_pandas()[sl1]).transpose()).transpose()
+            if at == 'next':
+                cumulative = (dt * (self.as_pandas()[sl1].set_index(self.index[sl2])).transpose()).transpose()
+        elif method[0] in 'm':
+            cumulative = (dt * self.as_pandas().transpose()).transpose()
+
+        new_units = {}
+        for col, unit in self.units.items():
+            if unit is None:
+                new_units[col] = None
+            elif len(unit.split('/')) == 2 and (unit.split('/')[-1].lower() == dt_units.lower() or (
+                    unit.split('/')[-1].lower() in ['day', 'days'] and dt_units.lower() == 'days')):
+                new_units[col] = unit.split('/')[0]
+            else:
+                new_units[col] = unit + '*' + dt_units
+
+        params_ = self.params_
+        params_['units'] = new_units
+
+        if method[0] in 't' or (method[0] in 'ac' and at == 'next'):
+            if str(dt.dtype).startswith('timedelta'):
+                first_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), 
+                                         index=['0']).set_index(pd.DatetimeIndex([self.index[0]]))
+            else:
+                first_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
+            return self._class(data=np.cumsum(first_row.append(cumulative)), **params_)
+        elif method[0] in 'ac' and at == 'same':
+            if str(dt.dtype).startswith('timedelta'):
+                last_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
+                                    index=[str(len(self) - 1)]).set_index(pd.DatetimeIndex([self.index[-1]]))
+            else:
+                last_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
+            return self._class(data=np.cumsum(cumulative.append(last_row)), **params_)
+        else:
+            return self._class(data=np.cumsum(cumulative), **params_)
+
+    def differenciate(self, na_position='last'):
+        """
+        Calculates numerical differentiation of the columns values over the index values.
+
+        Returns a new SimDataFrame
+        """      
+        if len(self) < 2:
+            print("less than two rows, nothing to differenciate.")
+            return self
+
+        dt = np.diff(self.index)
+        dt_units = self.index_units
+        if str(dt.dtype).startswith('timedelta'):
+            dt = dt.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
+            dt_units = 'days'
+
+        diff = np.diff(self.as_pandas().to_numpy(), axis=0)
+        diff = diff / dt.reshape(-1, 1)
+
+        new_units = {}
+        if self.units is not None:
+            for col, unit in self.units.items():
+                if unit is None:
+                    new_units[col] = str(unit) + '/' + str(dt_units)
+                elif len(unit.split('/')) == 2 and (unit.split('/')[-1].lower() == dt_units.lower() or (
+                        unit.split('/')[-1].lower() in ['day', 'days'] and dt_units.lower() == 'days')):
+                    new_units[col] = unit + '/' + unit.split('/')[-1]
+                elif len(unit.split('*')) == 2 and (unit.split('*')[-1].lower() == dt_units.lower() or (
+                        unit.split('*')[-1].lower() in ['day', 'days'] and dt_units.lower() == 'dsys')):
+                    new_units[col] = unit.split('*')[0]
+                else:
+                    new_units[col] = str(unit) + '/' + str(dt_units)
+
+        if na_position == 'first':
+            if str(dt.dtype).startswith('timedelta'):
+                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
+                    pd.DatetimeIndex([self.index[0]]))
+            else:
+                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[0]])
+            diff = pd.DataFrame(data=diff, index=self.index[1:], columns=self.columns)
+            diff = nan_row.append(diff)
+        else:
+            if str(dt.dtype).startswith('timedelta'):
+                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
+                    pd.DatetimeIndex([self.index[-1]]))
+            else:
+                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[-1]])
+            diff = pd.DataFrame(data=diff, index=self.index[:-1], columns=self.columns)
+            diff = diff.append(nan_row)
+
+        params_ = self.params_
+        params_['units'] = new_units
+        params_['index_units'] = self.index_units
+        return self._class(data=diff, **params_)
+
     def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
                  float_format=None, columns=None, header=True, units=True, index=True,
                  index_label=None, startrow=0, startcol=0, engine=None,
@@ -840,3 +1814,54 @@ Copy of input object, shifted.
                                                verbose=verbose,
                                                freeze_panes=freeze_panes,
                                                sort=sort)
+
+    def info(self, *args, **kwargs):
+        """
+        wrapper for pandas.DataFrame.info() but with Units.
+        """
+
+        def fillblank(string, length):
+            if len(string.strip()) > length:
+                return string.strip() + ' '
+            return string.strip() + ' ' * (length - len(string.strip()) + 1)
+
+        print(type(self))
+        print(str(type(self.as_pandas().index)).split('.')[-1][:-2] + ': ' + str(len(self)) + ' entries, ' + str(
+            self.index[0]) + ' to ' + str(self.index[-1]))
+
+        columns = [str(col) for col in self.columns]
+        notnulls = [str(self.iloc[:, col].notnull().sum()) for col in range(len(self.columns))]
+        dtypes = [str(self.iloc[:, col].dtype) for col in range(len(self.columns))]
+        units = [str(self.units[col]) for col in self.columns]
+
+        print('Data columns (total ' + str(len(columns)) + ' columns):')
+
+        line = ' ' + fillblank('#', len(str(len(columns))))
+        line = line + ' ' + fillblank('Column', max(len('Column'), max(map(len, columns))))
+        line = line + ' ' + fillblank('Non-Null Count',
+                                      max(len('Non-Null Count'), len(str(len(self))) + len(' non-null')))
+        line = line + ' ' + fillblank('Dtype', max(len('Dtype'), max(map(len, dtypes))))
+        line = line + ' ' + fillblank('Units', max(len('Units'), max(map(len, units))))
+        print(line)
+
+        line = fillblank('---', len(str(len(columns))))
+        line = line + ' ' + fillblank('------', max(map(len, columns)))
+        line = line + ' ' + fillblank('--------------', len(str(len(self))) + len(' non-null '))
+        line = line + ' ' + fillblank('-----', max(map(len, dtypes)))
+        line = line + ' ' + fillblank('-----', max(map(len, units)))
+        print(line)
+
+        for i in range(len(columns)):
+            line = ' ' + fillblank(str(i), max(len('# '), len(str(len(columns)))))
+            line = line + ' ' + fillblank(columns[i], max(len('Column'), max(map(len, columns))))
+            line = line + ' ' + fillblank(notnulls[i] + ' non-null',
+                                          max(len('Non-Null Count'), len(str(len(self))) + len(' non-null')))
+            line = line + ' ' + fillblank(dtypes[i], max(len('Dtype'), max(map(len, dtypes))))
+            line = line + ' ' + fillblank(units[i], max(len('Units'), max(map(len, units))))
+            print(line)
+
+        print('dtypes: ' + ', '.join([each + '(' + str(dtypes.count(each)) + ')' for each in sorted(set(dtypes))]))
+
+        print('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
+
+        return None

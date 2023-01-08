@@ -11,8 +11,71 @@ __release__ = 20230104
 import datetime as dt
 from pandas import Timestamp, DatetimeIndex, Series, to_datetime
 import numpy as np
-from simpandas.series import SimSeries
 
+
+def check_day(day):
+    if day is None:
+        day = '01'
+    elif type(day) in [int, float]:
+        if day > 31 or day < 1:
+            raise ValueError("`day` must be between 1 and 31")
+        day = str(int(day))
+    elif type(day) is str:
+        if day.strip().isdigit():
+            day = day.strip()
+            if int(day) > 31 or int(day) < 1:
+                raise ValueError("`day` must be between 1 and 31")
+        elif day.strip().lower() == 'first':
+            day = '01'
+        elif day.strip().lower() == 'last':
+            day = 'last'
+        else:
+            raise ValueError("`day` parameter must be an integer or the string 'first'")
+    else:
+        raise ValueError("`day` parameter must be an integer or the string 'first'")
+    day = '-' + day.zfill(2)
+    return day
+
+
+def check_month(month):
+    months_names = {'JAN': 1, 'ENE': 1, 'GEN': 1,
+                    'FEB': 2,
+                    'MAR': 3,
+                    'APR': 4, 'ABR': 4,
+                    'MAY': 5,
+                    'JUN': 6, 'GIU': 6,
+                    'JUL': 7, 'JLY': 7, 'LUG': 7,
+                    'AUG': 8, 'AGO': 8,
+                    'SEP': 9, 'SET': 9,
+                    'OCT': 10, 'OTT': 10,
+                    'NOV': 11,
+                    'DEC': 12, 'DIC': 12, }
+    if month is None:
+        if str(day).strip().lower() not in ['first', 'last']:
+            raise ValueError("please provide `month` when requesting a particular day")
+    elif type(month) in [int, float]:
+        if month > 12 or month < 1:
+            raise ValueError("`month` must be between 1 and 12")
+        month = str(int(month))
+    elif type(month) is str:
+        if month.strip().isdigit():
+            month = month.strip()
+            if int(month) > 12 or int(month) < 1:
+                raise ValueError("`month` must be between 1 and 12")
+        elif month.lower() == 'first':
+            month = '01'
+        elif month.lower() == 'last':
+            month = '12'
+        elif month.strip().upper()[:3] in months_names:
+            month = str(months_names[month.strip().upper()[:3]])
+        else:
+            raise ValueError(
+                "`month` parameter must be an integer or the string representing a month, or 'first' or 'last'")
+    else:
+        raise ValueError(
+            "`month` parameter must be an integer or the string representing a month, or 'first' or 'last'")
+    month = '-' + month.zfill(2)
+    return month
 
 def days_in_year(year):
     """
@@ -29,6 +92,8 @@ def days_in_year(year):
     -------
     int or array of ints, according to the input
     """
+    from simpandas.series import SimSeries
+
     if type(year) in (int, float):
         return dt.date(int(year), 12, 31).timetuple().tm_yday
     if type(year) in (dt.date, dt.datetime):
@@ -52,7 +117,7 @@ def days_in_year(year):
 
     if isinstance(year, SimSeries):
         params = year._SimParameters
-        params['name'] = 'DaysInYear'
+        params['name'] = 'days_in_year'
         params['units'] = 'days'
         return SimSeries(data=np.array([dt.date(Y.year, 12, 31).timetuple().tm_yday for Y in year], dtype=int),
                          index=year.index, **params)
@@ -83,6 +148,8 @@ def days_in_month(month, year=None):
     -------
     int or array of ints, according to the input
     """
+    from simpandas.series import SimSeries
+
     daysinmonths = {1: 31,
                     2: 28,
                     3: 31,
@@ -174,7 +241,7 @@ def days_in_month(month, year=None):
 
     if isinstance(month, SimSeries):
         params = month._SimParameters
-        params['name'] = 'DaysInMonth'
+        params['name'] = 'days_in_month'
         params['units'] = 'days'
         return SimSeries(data=np.array([days_in_month(M.month) for M in month], dtype=int), index=month.index, **params)
 
@@ -196,6 +263,8 @@ def real_year(date):
     -------
     float
     """
+    from simpandas.series import SimSeries
+
     if type(date) in (dt.date, dt.datetime):
         return date.timetuple().tm_year + (date.timetuple().tm_yday - 1) / dt.date(date.timetuple().tm_year, 12,
                                                                                    31).timetuple().tm_yday
@@ -224,7 +293,7 @@ def real_year(date):
 
     if isinstance(date, SimSeries):
         params = date._SimParameters
-        params['name'] = 'Year'
+        params['name'] = 'year'
         params['units'] = 'year'
         return SimSeries(data=real_year(date.to_Pandas()), **params)
 

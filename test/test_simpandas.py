@@ -6,6 +6,7 @@ Created on Wed Sep 21 22:34:40 2022
 """
 
 from simpandas import SimDataFrame, SimSeries
+from pandas import DataFrame
 
 data = {'A': [1,2,3,4,5],
         'B': [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -16,7 +17,8 @@ units = {'A': 'ml',
          'C': 'cm',
          'D': 'in'}
 
-sdf = SimDataFrame(data, units)
+sdf = SimDataFrame(data, units=units)
+DataFrame(data)
 
 sdf['C3'] = (sdf['C']**3).to('m3')
 
