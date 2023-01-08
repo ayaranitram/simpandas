@@ -253,10 +253,10 @@ class SimSeries(SimBasics, Series):
             return result
 
     def __call__(self):
-        if len(self.get_units()) == 1:
-            return units(self.values, self.get_UnitsString())
-        else:
-            return self.values
+        """
+        Returns the series converted to NumPy array.
+        """
+        return self.values
 
     def __getitem__(self, key=None):
         if key is None:
