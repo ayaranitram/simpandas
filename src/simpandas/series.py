@@ -21,7 +21,7 @@ from warnings import warn
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
     unit_power as _unit_power
-from unyts import units
+from unyts import units, is_Unit
 
 from simpandas.basics import SimBasics
 from simpandas.common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
@@ -123,7 +123,6 @@ class SimSeries(SimBasics, Series):
         self.operate_per_name = bool(operate_per_name)
         self.spdLocator = _SimLocIndexer("loc", self)
         self.transposed = bool(transposed)
-        # self.columns = name if columns is None else columns
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -160,6 +159,8 @@ class SimSeries(SimBasics, Series):
         if self.name is None or (type(self.name) is str and self.name.strip() == ''):
             if type(units) is dict and len(units) == 1:
                 self.name = list(units.keys())[0]
+
+        self.columns = Index([self.name]) if columns is None else columns
 
         # set units
         if units is not None:
@@ -292,37 +293,43 @@ class SimSeries(SimBasics, Series):
                 else:
                     result = self.as_pandas().add(other.as_pandas(), fill_value=0)
                     params_['units'] = self.units + '+' + other.units
-                try:
-                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params_['dtype'] = result.dtype
-                except TypeError:
-                    params_['dtype'] = result.dtype
                 params_['name'] = new_name
-                return SimSeries(data=result, **params_)
+                result = self._class(data=result, **params_)
             else:
                 raise NotImplementedError
 
         # other is Pandas Series
         elif isinstance(other, Series):
-            return 'series'
             result = self.as_pandas().add(other, fill_value=0)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
-            try:
-                params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-            except ValueError:
-                params_['dtype'] = result.dtype
+            new_name = _string_new_name(self._common_rename(self._class(other, **self.params_))[2])
             params_['name'] = new_name
-            return SimSeries(data=result, **params_)
+            result = self._class(data=result, **params_)
+        
+        # other is int or float
+        elif type(other) in (int, float, complex):
+            result = self._class(self.values + other, **self.params_)
+        
+        # other is instance of unyts
+        elif is_Unit(other):
+            if type(self.units) is str:
+                if _convertible(other.unit, self.units):
+                    result = self._class(self.values + other.to(self.units).value, **self.params_)
+                else:
+                    raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
+            else:
+                result = (self.as_dataframe() + other).as_simseries()
 
-        return 'other'
         # lets Pandas deal with other types, maintain units, dtype and name
-        result = self.as_Series() + other
+        else:
+            result = self._class(self.as_Series() + other, **self.params_)
+                        
         try:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
         except ValueError:
             params_['dtype'] = result.dtype
-        return SimSeries(data=result, **params_)
+        except TypeError:
+            params_['dtype'] = result.dtype
+        return self._class(data=result, **params_)
 
     def __sub__(self, other):
         params_ = self.params_.copy()
@@ -345,33 +352,42 @@ class SimSeries(SimBasics, Series):
                 else:
                     result = self.sub(other, fill_value=0)
                     params_['units'] = self.units + '-' + other.units
-                try:
-                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params_['dtype'] = result.dtype
-                except TypeError:
-                    params_['dtype'] = result.dtype
+
                 params_['name'] = new_name
-                return SimSeries(data=result, **params_)
+                result = SimSeries(data=result, **params_)
             else:
                 raise NotImplementedError
+
+        # other is int or float
+        elif type(other) in (int, float, complex):
+            result = self._class(self.values - other, **self.params_)
+        
+        # other is instance of unyts
+        elif is_Unit(other):
+            if type(self.units) is str:
+                if _convertible(other.unit, self.units):
+                    result = self._class(self.values - other.to(self.units).value, **self.params_)
+                else:
+                    raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
+            else:
+                result = (self.as_dataframe() - other).as_simseries()
 
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().sub(other, fill_value=0)
             new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
-            try:
-                params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-            except ValueError:
-                params_['dtype'] = result.dtype
             params_['name'] = new_name
-            return SimSeries(data=result, **params_)
+            result = self._class(data=result, **params_)
 
         # lets Pandas deal with other types, maintain units and dtype
-        result = self.as_Series() - other
+        else:
+            result = self.as_pandas() - other
+            
         try:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
         except ValueError:
+            params_['dtype'] = result.dtype
+        except TypeError:
             params_['dtype'] = result.dtype
         return SimSeries(data=result, **params_)
 
@@ -404,21 +420,46 @@ class SimSeries(SimBasics, Series):
                 else:
                     result = self.mul(other)
                     params_['units'] = self.units + '*' + other.units
-                try:
-                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params_['dtype'] = result.dtype
-                except TypeError:
-                    params_['dtype'] = result.dtype
+
                 params_['name'] = new_name
-                return SimSeries(data=result, **params_)
+                result = self._class(data=result, **params_)
             else:
                 raise NotImplementedError
+                
+        # other is int or float
+        elif type(other) in (int, float, complex):
+            result = self._class(self.values * other, **self.params_)
+        
+        # other is instance of unyts
+        elif is_Unit(other):
+            if type(self.units) is str:
+                if _convertible(other.unit, self.units):
+                    params_['units'] = _unit_product(self.units, other.unit)
+                    result = self._class(self.values * other.to(self.units).value, **params_)
+                else:
+                    params_['units'] = _unit_product(self.units, other.unit)
+                    result = self._class(self.values * other.value, **params_)
+            else:
+                result = (self.as_dataframe() * other).as_simseries()
 
-        # lets Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() * other
-        params_['dtype'] = self.dtype if (result.astype(self.dtype).equals(result)) else result.dtype
-        return SimSeries(data=result, **params_)
+        # other is Pandas Series
+        elif isinstance(other, Series):
+            result = self.as_pandas().mul(other)
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            params_['name'] = new_name
+            result = self._class(data=result, **params_)
+
+        # lets Pandas deal with other types, maintain units and dtype
+        else:
+            result = self.as_pandas() * other
+
+        try:
+            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+        except ValueError:
+            params_['dtype'] = result.dtype
+        except TypeError:
+            params_['dtype'] = result.dtype
+        return self._class(data=result, **params_)
 
     def __truediv__(self, other):
         params_ = self.params_.copy()
@@ -456,17 +497,44 @@ class SimSeries(SimBasics, Series):
                 except TypeError:
                     params_['dtype'] = result.dtype
                 params_['name'] = new_name
-                return SimSeries(data=result, **params_)
+                result = self._class(data=result, **params_)
             else:
                 raise NotImplementedError
 
-        # lets Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() / other
+        # other is int or float
+        elif type(other) in (int, float, complex):
+            result = self._class(self.values / other, **self.params_)
+        
+        # other is instance of unyts
+        elif is_Unit(other):
+            if type(self.units) is str:
+                if _convertible(other.unit, self.units):
+                    params_['units'] = _unit_division(self.units, other.unit)
+                    result = self._class(self.values / other.to(self.units).value, **params_)
+                else:
+                    params_['units'] = _unit_division(self.units, other.unit)
+                    result = self._class(self.values / other.value, **params_)
+            else:
+                result = (self.as_dataframe() / other).as_simseries()
+        
+        # other is Pandas Series
+        elif isinstance(other, Series):
+            result = self.as_pandas().truediv(other)
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            params_['name'] = new_name
+            result = self._class(data=result, **params_)
+        
+        # lets Pandas deal with other types, maintain units and dtype
+        else:
+            result = self.as_pandas() / other
+        
         try:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
         except ValueError:
             params_['dtype'] = result.dtype
-        return SimSeries(data=result, **params_)
+        except TypeError:
+            params_['dtype'] = result.dtype
+        return self._class(data=result, **params_)
 
     def __floordiv__(self, other):
         params_ = self.params_.copy()
@@ -500,14 +568,44 @@ class SimSeries(SimBasics, Series):
                 params_[
                     'dtype'] = result.dtype  # self.dtype if result.astype(self.dtype).equals(result) else result.dtype
                 params_['name'] = new_name
-                return SimSeries(data=result, **params_)
+                result = self._class(data=result, **params_)
             else:
                 raise NotImplementedError
 
-        # let's Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() // other
-        params_['dtype'] = result.dtype
-        return SimSeries(data=result, **params_)
+        # other is int or float
+        elif type(other) in (int, float, complex):
+            result = self._class(self.values // other, **self.params_)
+        
+        # other is instance of unyts
+        elif is_Unit(other):
+            if type(self.units) is str:
+                if _convertible(other.unit, self.units):
+                    params_['units'] = _unit_division(self.units, other.unit)
+                    result = self._class(self.values // other.to(self.units).value, **params_)
+                else:
+                    params_['units'] = _unit_division(self.units, other.unit)
+                    result = self._class(self.values // other.value, **params_)
+            else:
+                result = (self.as_dataframe() // other).as_simseries()
+        
+        # other is Pandas Series
+        elif isinstance(other, Series):
+            result = self.as_pandas().truediv(other)
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            params_['name'] = new_name
+            result = SimSeries(data=result, **params_)
+        
+        # lets Pandas deal with other types, maintain units and dtype
+        else:
+            result = self.as_pandas() // other
+        
+        try:
+            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+        except ValueError:
+            params_['dtype'] = result.dtype
+        except TypeError:
+            params_['dtype'] = result.dtype
+        return self._class(data=result, **params_)
 
     def __mod__(self, other):
         params_ = self.params_.copy()
@@ -540,13 +638,38 @@ class SimSeries(SimBasics, Series):
             else:
                 raise NotImplementedError
 
+        # other is int or float
+        elif type(other) in (int, float, complex):
+            result = self._class(self.values % other, **self.params_)
+        
+        # other is instance of unyts
+        elif is_Unit(other):
+            if type(self.units) is str:
+                if _convertible(other.unit, self.units):
+                    result = self._class(self.values % other.to(self.units).value, **self.params_)
+                else:
+                    result = self._class(self.values % other.value, **self.params_)
+            else:
+                result = (self.as_dataframe() % other).as_simseries()
+        
+        # other is Pandas Series
+        elif isinstance(other, Series):
+            result = self.as_pandas().mod(other)
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            params_['name'] = new_name
+            result = self._class(data=result, **params_)
+        
         # lets Pandas deal with other types, maintain units and dtype
-        result = self.as_Series() % other
+        else:
+            result = self.as_pandas() % other
+        
         try:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
         except ValueError:
             params_['dtype'] = result.dtype
-        return SimSeries(data=result, **params_)
+        except TypeError:
+            params_['dtype'] = result.dtype
+        return self._class(data=result, **params_)
 
     def __pow__(self, other):
         params_ = self.params_.copy()
@@ -587,14 +710,37 @@ class SimSeries(SimBasics, Series):
             params_ = self.params_.copy()
             params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
             return SimSeries(data=result, **params_)
-
-        # lets Pandas deal with other types(types with no units), maintain units and dtype
-        result = self.as_Series() ** other
+        
+        # other is instance of unyts
+        elif is_Unit(other):
+            if type(self.units) is str:
+                if _convertible(other.unit, self.units):
+                    params_['units'] = _unit_power(self.units, other.unit)
+                    result = self._class(self.values ** other.to(self.units).value, **params_)
+                else:
+                    params_['units'] = _unit_power(self.units, other.unit)
+                    result = self._class(self.values ** other.value, **params_)
+            else:
+                result = (self.as_dataframe() ** other).as_simseries()
+        
+        # other is Pandas Series
+        elif isinstance(other, Series):
+            result = self.as_pandas().pow(other)
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            params_['name'] = new_name
+            result = SimSeries(data=result, **params_)
+        
+        # lets Pandas deal with other types, maintain units and dtype
+        else:
+            result = self.as_pandas() ** other
+        
         try:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
         except ValueError:
             params_['dtype'] = result.dtype
-        return SimSeries(data=result, **params_)
+        except TypeError:
+            params_['dtype'] = result.dtype
+        return self._class(data=result, **params_)
 
     def set_index(self, name):
         self.set_index_name(name)
@@ -657,13 +803,17 @@ class SimSeries(SimBasics, Series):
             if _convertible(self.units, units):
                 params_ = self.params_.copy()
                 params_['units'] = units
-                return SimSeries(data=_converter(self.as_pandas(), self.units, units, self.verbose), **params_)
-        if type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
+                return self._class(data=_converter(self.as_pandas(), self.units, units, self.verbose), **params_)
+            else:
+                return self
+        elif type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
             params_ = self.params_.copy()
             params_['units'] = units
-            return SimSeries(data=_converter(self.as_pandas(), list(set(self.units.values()))[0], units, self.verbose), **params_)
-        if type(units) is dict:
+            return self._class(data=_converter(self.as_pandas(), list(set(self.units.values()))[0], units, self.verbose), **params_)
+        elif type(units) is dict:
             return self.to_simdataframe().convert(units).to_simseries()
+        else:
+            return self
 
     def reindex(self, index=None, **kwargs):
         """
@@ -677,9 +827,9 @@ class SimSeries(SimBasics, Series):
 
 
     # not shared methods
-    @property
-    def columns(self):
-        return Index([self.name])
+    #@property
+    #def columns(self):
+    #    return Index([self.name])
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
         axis = _clean_axis(axis)

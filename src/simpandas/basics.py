@@ -701,7 +701,7 @@ SimDataFrame
 Copy of input object, shifted.
 
         """
-        return self._class(data=self.as_Pandas().shift(periods=periods, freq=freq, axis=axis, fill_value=fill_value),
+        return self._class(data=self.as_pandas().shift(periods=periods, freq=freq, axis=axis, fill_value=fill_value),
                            **self.params_)
 
     def to(self, units):
