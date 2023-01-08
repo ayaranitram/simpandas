@@ -709,6 +709,15 @@ Copy of input object, shifted.
         returns the dataframe converted to the requested units if possible, if not, returns the original values.
         """
         return self.convert(units)
+    
+    def like(self, units):
+        """
+        returns the dataframe replacing its units by the requested `units`.
+        NO CONVERSION IS APPLIED!
+        """
+        result = self.copy()
+        result.set_units(units)
+        return result
 
     @property
     def index_name(self):
