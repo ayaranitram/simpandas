@@ -5,8 +5,8 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.10'
-__release__ = 20230104
+__version__ = '0.81.1'
+__release__ = 20230111
 __all__ = ['_SimLocIndexer']
 
 from pandas.core.indexing import _LocIndexer  #, _iLocIndexer
@@ -28,8 +28,8 @@ class _SimLocIndexer(_LocIndexer):
 
 
     def __getitem__(self, *args):
-        from .frame import SimDataFrame
-        from .series import SimSeries
+        from simpandas.frame import SimDataFrame
+        from simpandas.series import SimSeries
         result = super().__getitem__(*args)
         if isinstance(result, (pd.Series, pd.DataFrame)):
             if type(self.spd) is SimSeries:
@@ -46,7 +46,7 @@ class _SimLocIndexer(_LocIndexer):
                 result.set_units(self.spd.get_units(self.spd[[args[0][-1]]].columns))
                 return result
         else:
-            return units(result, self.spd.get_units_string(args[0][1]))
+            return units(result, self.spd.get_units_string(args[0]))
 
 
     def __setitem__(self, key, value):  #, units=None):
