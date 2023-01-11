@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.0'
-__release__ = 20230108
+__version__ = '0.81.1'
+__release__ = 20230111
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -1709,6 +1709,43 @@ Copy of input object, shifted.
         params_['units'] = new_units
         params_['index_units'] = self.index_units
         return self._class(data=diff, **params_)
+
+    def get_units_string(self, items=None):
+        if len(self.get_units(items)) == 1:
+            return list(self.get_units(items).values())[0]
+        elif len(set(self.get_units(items).values())) == 1:
+            return list(set(self.get_units(items).values()))[0]
+        else:
+            warn("More than one units found, not possible to return a single string.")
+
+    def get_UnitsString(self, items=None):
+        return self.get_units_string(items)
+    def set_Units(self, units, item=None):
+        """
+        Alias of .set_units method.
+        This method can be used to define the units related to the values of a column (item).
+
+        Parameters
+        ----------
+        units : str or list of str
+            the units to be assigned
+        item : str, optional
+            The name of the column to apply the units.
+            The default is None. In this case the unit
+
+        Raises
+        ------
+        ValueError
+            when units can't be applied.
+        TypeError
+            when units or item has the wrong format.
+
+        Returns
+        -------
+        None.
+
+        """
+        return self.set_units(units=units, item=item)
 
     def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
                  float_format=None, columns=None, header=True, units=True, index=True,

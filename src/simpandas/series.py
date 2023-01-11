@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.81.0'
-__release__ = 20230108
+__version__ = '0.81.1'
+__release__ = 20230111
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -1021,33 +1021,6 @@ class SimSeries(SimBasics, Series):
             units_dict = self.units.copy() if type(self.units) is dict else {self.name: self.units}
         return units_dict
 
-    def set_Units(self, units, item=None):
-        """
-        Alias of .set_Units method.
-        This method can be used to define the units related to the values of a column (item).
-
-        Parameters
-        ----------
-        units : str or list of str
-            the units to be assigned
-        item : str, optional
-            The name of the column to apply the units.
-            The default is None. In this case the unit
-
-        Raises
-        ------
-        ValueError
-            when units can't be applied.
-        TypeError
-            when units or item has the wrong format.
-
-        Returns
-        -------
-        None.
-
-        """
-        return self.set_units(units=units, item=item)
-
     def set_units(self, units, item=None):
         """
         This method can be used to define the units related to the values of a column (item).
@@ -1143,12 +1116,6 @@ class SimSeries(SimBasics, Series):
                     self.units[item] = units.strip()
                 elif item in self.index:
                     self.units[item] = units.strip()
-
-    def get_UnitsString(self, items=None):
-        if len(self.get_units(items)) == 1:
-            return list(self.get_units(items).values())[0]
-        elif len(set(self.get_units(items).values())) == 1:
-            return list(set(self.get_units(items).values()))[0]
 
     def copy(self):
         if type(self.units) is dict:

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.0'
-__release__ = 20230108
+__version__ = '0.81.1'
+__release__ = 20230111
 __all__ = ['SimDataFrame']
 
 from warnings import warn
@@ -1985,12 +1985,6 @@ class SimDataFrame(SimBasics, DataFrame):
                     units_dict[key] = self.units[key] if key in self.units else ''
         return units_dict
 
-    def get_units_string(self, items=None):
-        if len(self.get_units(items)) == 1:
-            return list(self.get_units(items).values())[0]
-        elif len(set(self.get_units(items).values())) == 1:
-            return list(set(self.get_units(items).values()))[0]
-
     def set_units(self, units, item=None):
         """
         This method can be used to define the units related to the values of a column (item).
@@ -2015,10 +2009,21 @@ class SimDataFrame(SimBasics, DataFrame):
         None.
 
         """
-        if item is not None and item not in self.columns and item != self.index.name and item not in self.index.names:
+        if item is not None and units is not None and \
+                type(item) is not str and hasattr(units, '__iter__') and \
+                type(units) not in (str, dict) and hasattr(units, '__iter__'):
+            if len(item) == len(units):
+                return self.set_units(dict(zip(item, units)))
+            else:
+                raise ValueError("both units and item must have the same length.")
+        elif item is not None and \
+                type(item) is not str and hasattr(item, '__iter__') and type(units) is str:
+            return self.set_units({i: units for i in item})
+        elif item is not None and item not in self.columns and item != self.index.name and item not in self.index.names:
             if units in self.columns or units == self.index.name or units in self.index.names:
                 return self.set_units(item, units)
             raise ValueError("the required item '" + str(item) + "' is not in this SimDataFrame.")
+
         if type(units) not in (str, dict) and hasattr(units, '__iter__'):
             if item is not None and type(item) is not str and hasattr(item, '__iter__'):
                 if len(item) == len(units):
