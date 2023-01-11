@@ -27,22 +27,21 @@ assert SimSeries()._class is SimSeries
 # prepare a SimSeries
 ss1 = SimSeries(
     data=[0.0153, 5.1476, 1.1537, 0.1432, 15.1588],
-    units='ft'
+    units='ft',
     )
 ss2 = SimSeries(
     data=[0.25, 73, 20.0, 9.87, 1000.0],
-    units='cm',
-    name='length'
+    units='in',
+    name='length',
     )
 u = units(1.0, 'm')
 z = units(0.0, 'mm')
-ft = units(1.0, 'ft')
+ft = units(1.0, 'yd')
 
-ss1 + ss2
-ss1 + 0
-ss1 + u
+# get item
+ss1[1]
 
-
+# operations with SimSeries
 assert ((ss1 + 0) == ss1).all()
 assert ((ss1 - 0) == ss1).all()
 assert ((ss1 * 1) == ss1).all()
@@ -68,10 +67,10 @@ assert (ss1 ** ft).units == 'ft^ft'
 
 ss3 = SimSeries(
     data=[0.0153, 5.1476, 1.1537, 0.1432, 15.1588],
-    index=range(1,6),
+    index=range(1, 6),
     index_units='m',
     index_name='metros',
-    units={'length':'ft'}
+    units={'length': 'ft'}
     )
 
 # ss4 = SimSeries(
@@ -80,9 +79,3 @@ ss3 = SimSeries(
 #     units={'a':'yd', 'b':'in', 'c':'ft', 'd':'m', 'e':'cm'}
 #     )
 
-
-
-ss1 + ss2
-
-
-n = ss1()
