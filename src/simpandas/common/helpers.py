@@ -5,9 +5,12 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.3'
-__release__ = 20230107
+__version__ = '0.80.4'
+__release__ = 20230112
 __all__ = ['clean_axis', 'string_new_name', 'type_of_frame', 'main_key', 'item_key']
+
+
+import pandas as pd
 
 
 def clean_axis(axis=None):
@@ -26,11 +29,11 @@ def clean_axis(axis=None):
     return axis
 
 
-def string_new_name(newName):
-    if len(newName) == 1:
-        return list(newName.values())[0]
+def string_new_name(new_name, intersection_character='∩'):
+    if len(new_name) == 1:
+        return list(new_name.values())[0]
     else:
-        return '∩'.join(map(str, set(newName.values())))
+        return intersection_character.join(map(str, dict.fromkeys(new_name.values())))
 
 
 def type_of_frame(frame):
@@ -71,7 +74,7 @@ def main_key(Key, clean=True, nameSeparator=':'):
             return list(set(results))
         else:
             return list(results)
-    if isinstance(Key, (SimSeries, pandas.Series)):
+    if isinstance(Key, pd.Series):
         return main_key(Key.name)
 
 
@@ -95,5 +98,5 @@ def item_key(Key, clean=True, nameSeparator=':'):
             return list(set(results))
         else:
             return list(results)
-    if isinstance(Key, (SimSeries, pandas.Series)):
+    if isinstance(Key, pd.Series):
         return item_key(Key.name)
