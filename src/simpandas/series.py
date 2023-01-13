@@ -184,6 +184,10 @@ class SimSeries(SimBasics, Series):
             self.index.name = index_name
 
     @property
+    def _identity_(self):
+        return 'SimSeries'    
+
+    @property
     def _constructor(self):
         return _simseries_constructor_with_fallback
 

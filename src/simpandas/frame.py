@@ -175,6 +175,10 @@ class SimDataFrame(SimBasics, DataFrame):
             self.index.name = index_name
 
     @property
+    def _identity_(self):
+        return 'SimDataFrame'
+
+    @property
     def _constructor(self):
         return SimDataFrame
 
