@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.81.1'
-__release__ = 20230111
+__release__ = 20230112
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -257,11 +257,14 @@ class SimSeries(SimBasics, Series):
         else:
             return result
 
-    def __call__(self):
+    def __call__(self, key=None):
         """
-        Returns the series converted to NumPy array.
+        Returns the series values, a NumPy array or number without units.
         """
-        return self.values
+        if key is None:
+            return self.values
+        else:
+            return self[key].values
 
     def __getitem__(self, key=None):
         if key is None:
@@ -279,12 +282,14 @@ class SimSeries(SimBasics, Series):
 
     def __add__(self, other):
         params_ = self.params_.copy()
+        operation = '+'
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 warn("indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
-                new_name = _string_new_name(self._common_rename(other)[2])
+                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+                                            intersection_character=operation)
                 if self.units == other.units:
                     result = self.as_pandas().add(other.as_pandas(), fill_value=0)
                 elif _convertible(other.units, self.units):
@@ -305,7 +310,8 @@ class SimSeries(SimBasics, Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().add(other, fill_value=0)
-            new_name = _string_new_name(self._common_rename(self._class(other, **self.params_))[2])
+            new_name = _string_new_name(self._common_rename(self._class(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+                                        intersection_character=operation)
             params_['name'] = new_name
             result = self._class(data=result, **params_)
         
@@ -317,7 +323,7 @@ class SimSeries(SimBasics, Series):
         elif is_Unit(other):
             if type(self.units) is str:
                 if _convertible(other.unit, self.units):
-                    result = self._class(self.values + other.to(self.units).value, **self.params_)
+                    result = self._class(self.values + other.to(self.units).value, **params_)
                 else:
                     raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
             else:
@@ -337,13 +343,15 @@ class SimSeries(SimBasics, Series):
 
     def __sub__(self, other):
         params_ = self.params_.copy()
+        operation = '-'
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 Warning(
                     "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
-                new_name = _string_new_name(self._common_rename(other)[2])
+                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+                                            intersection_character=operation)
                 if self.units == other.units:
                     result = self.sub(other, fill_value=0)
                 elif _convertible(other.units, self.units):
@@ -379,7 +387,8 @@ class SimSeries(SimBasics, Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().sub(other, fill_value=0)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+                                        intersection_character=operation)
             params_['name'] = new_name
             result = self._class(data=result, **params_)
 
@@ -397,6 +406,7 @@ class SimSeries(SimBasics, Series):
 
     def __mul__(self, other):
         params_ = self.params_.copy()
+        operation = '*'
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
@@ -404,7 +414,8 @@ class SimSeries(SimBasics, Series):
                     "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
                 params_['units'] = _unit_product(self.units, other.units)
-                new_name = _string_new_name(self._common_rename(other)[2])
+                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+                                            intersection_character=operation)
                 if self.units == other.units:
                     result = self.mul(other)
                 elif _convertible(other.units, self.units):
@@ -449,7 +460,8 @@ class SimSeries(SimBasics, Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().mul(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+                                        intersection_character=operation)
             params_['name'] = new_name
             result = self._class(data=result, **params_)
 
@@ -467,13 +479,15 @@ class SimSeries(SimBasics, Series):
 
     def __truediv__(self, other):
         params_ = self.params_.copy()
+        operation = '/'
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 Warning(
                     "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
-                new_name = _string_new_name(self._common_rename(other)[2])
+                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+                                            intersection_character=operation)
                 params_['units'] = _unit_division(self.units, other.units)
                 if self.units == other.units:
                     result = self.truediv(other)
@@ -524,7 +538,8 @@ class SimSeries(SimBasics, Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().truediv(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+                                        intersection_character=operation)
             params_['name'] = new_name
             result = self._class(data=result, **params_)
         
@@ -542,6 +557,7 @@ class SimSeries(SimBasics, Series):
 
     def __floordiv__(self, other):
         params_ = self.params_.copy()
+        operation = '//'
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
@@ -549,7 +565,8 @@ class SimSeries(SimBasics, Series):
                     "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
                 params_['units'] = _unit_division(self.units, other.units)
-                new_name = _string_new_name(self._common_rename(other)[2])
+                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+                                            intersection_character=operation)
                 if self.units == other.units:
                     result = self.floordiv(other)
                 elif _convertible(other.units, self.units):
@@ -595,7 +612,8 @@ class SimSeries(SimBasics, Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().truediv(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+                                        intersection_character=operation)
             params_['name'] = new_name
             result = SimSeries(data=result, **params_)
         
@@ -613,13 +631,15 @@ class SimSeries(SimBasics, Series):
 
     def __mod__(self, other):
         params_ = self.params_.copy()
+        operation = '%'
         # both are SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 Warning(
                     "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
-                newName = _string_new_name(self._common_rename(other)[2])
+                newName = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+                                           intersection_character=operation)
                 if self.units == other.units:
                     result = self.mod(other)
                 elif _convertible(other.units, self.units):
@@ -659,7 +679,8 @@ class SimSeries(SimBasics, Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().mod(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+                                        intersection_character=operation)
             params_['name'] = new_name
             result = self._class(data=result, **params_)
         
@@ -677,6 +698,7 @@ class SimSeries(SimBasics, Series):
 
     def __pow__(self, other):
         params_ = self.params_.copy()
+        operation = '**'
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
@@ -684,7 +706,8 @@ class SimSeries(SimBasics, Series):
                     "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
                 params_['units'] = self.units + '^' + other.units
-                newName = _string_new_name(self._common_rename(other)[2])
+                newName = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+                                           intersection_character=operation)
                 if self.units == other.units:
                     result = self.pow(other)
                 elif _convertible(other.units, self.units):
@@ -730,7 +753,8 @@ class SimSeries(SimBasics, Series):
         # other is Pandas Series
         elif isinstance(other, Series):
             result = self.as_pandas().pow(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_))[2])
+            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+                                        intersection_character=operation)
             params_['name'] = new_name
             result = SimSeries(data=result, **params_)
         

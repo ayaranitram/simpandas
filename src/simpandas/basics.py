@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 from sys import getsizeof
 from warnings import warn
+from unyts import is_Unit
+from unyts.converter import convertible as _convertible
 from simpandas.indexer import _SimLocIndexer
 from simpandas.common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
@@ -167,6 +169,9 @@ class SimBasics(object):
         else:
             return False
 
+    def int(self):
+        return self.astype(int)
+
     def __neg__(self):
         return self._class(data=self.as_pandas().__neg__(), **self.params_)
 
@@ -174,19 +179,38 @@ class SimBasics(object):
         return self._class(data=abs(self.as_pandas()), **self.params_)
 
     def __radd__(self, other):
+        if is_Unit(other):
+            if _convertible(self.units, other.units):
+                return self.to(other.units).__add__(other)
+            else:
+                raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
         return self.__add__(other)
 
     def __rsub__(self, other):
+        if is_Unit(other):
+            if _convertible(self.units, other.units):
+                return self.to(other.units).__neg__().__add__(other)
+            else:
+                raise NotImplementedError("Subtraction of SimSeries with not convertible Unyts is not implemented.")
         return self.__neg__().__add__(other)
 
     def __rmul__(self, other):
-        return self.__mul__(other)
+        if is_Unit(other):
+            return self.to(other.units).__mul__(other)
+        else:
+            return self.__mul__(other)
 
     def __rtruediv__(self, other):
-        return self.__pow__(-1).__mul__(other)
+        if is_Unit(other):
+            return self.to(other.units).__pow__(-1).__mul__(other)
+        else:
+            return self.__pow__(-1).__mul__(other)
 
     def __rfloordiv__(self, other):
-        return self.__pow__(-1).__mul__(other).__int__()
+        if is_Unit(other):
+            return self.to(other.units).__pow__(-1).__mul__(other).astype(int)
+        else:
+            return self.__pow__(-1).__mul__(other).astype(int)
 
     def avg(self, axis=0, **kwargs):
         return self.mean(axis=axis, **kwargs)
@@ -637,7 +661,8 @@ class SimBasics(object):
     def _common_rename(self, other,
                       intersection_character=None,
                       other_name_separator=None,
-                      complex_names=False,):
+                      complex_names=False,
+                      **kwargs):
         if intersection_character is None:
             intersection_character = self.intersection_character
         if hasattr(other, 'name_separator') and other.name_separator is not None:
@@ -648,7 +673,8 @@ class SimBasics(object):
         return _common_rename(self, other,
                              intersection_character=intersection_character,
                              name_separator_2=other_name_separator,
-                             complex_names=complex_names)
+                             complex_names=complex_names,
+                             **kwargs)
 
     def _joined_index(self, other, *, drop_duplicates=False, keep='first'):
         from .._common.merger import merge_Index
