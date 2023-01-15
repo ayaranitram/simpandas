@@ -7,7 +7,7 @@ Created on Wed Nov 16 18:25:41 2022
 """
 
 __version__ = '0.81.1'
-__release__ = 20230112
+__release__ = 20230115
 __all__ = ['left', 'right', 'rename_left', 'rename_right', 'common_rename']
 
 import warnings
@@ -81,8 +81,8 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
             return series_or_frame_1, series_or_frame_2, new_name
     
     # identify type of input objects
-    if hasattr(series_or_frame_1, '_identity_'):
-        if series_or_frame_1._identity_ == 'SimSeries':
+    if hasattr(series_or_frame_1, 'type'):
+        if series_or_frame_1.type == 'SimSeries':
             types = [0]
         else:
             types = [1]
@@ -90,8 +90,8 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
         types = [1]
     else:
         types = [0]
-    if hasattr(series_or_frame_2, '_identity_'):
-        if series_or_frame_2._identity_ == 'SimSeries':
+    if hasattr(series_or_frame_2, 'type'):
+        if series_or_frame_2.type == 'SimSeries':
             types += [0]
         else:
             types += [1]

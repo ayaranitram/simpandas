@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.81.1'
-__release__ = 20230111
+__release__ = 20230115
 __all__ = ['SimDataFrame']
 
 from warnings import warn
@@ -175,7 +175,7 @@ class SimDataFrame(SimBasics, DataFrame):
             self.index.name = index_name
 
     @property
-    def _identity_(self):
+    def type(self):
         return 'SimDataFrame'
 
     @property

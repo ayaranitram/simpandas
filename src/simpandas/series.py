@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.81.1'
-__release__ = 20230112
+__release__ = 20230115
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -184,7 +184,7 @@ class SimSeries(SimBasics, Series):
             self.index.name = index_name
 
     @property
-    def _identity_(self):
+    def type(self):
         return 'SimSeries'    
 
     @property
