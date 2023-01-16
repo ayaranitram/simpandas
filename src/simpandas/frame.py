@@ -98,7 +98,8 @@ class SimDataFrame(SimBasics, DataFrame):
                  'spdLocator',
                  'operate_per_name',
                  'transposed',
-                 'name']
+                 'name',
+                 'reverse']
 
     def __init__(self,
                  data=None,
@@ -128,6 +129,7 @@ class SimDataFrame(SimBasics, DataFrame):
         self.transposed = bool(transposed)
         self.spdLocator = _SimLocIndexer("loc", self)
         self.name = name
+        self.reverse = kwargs['reverse'] if 'reverse' in kwargs else False
 
         # get units from data if it is SimDataFrame or SimSeries
         if units is None or (type(units) in [list, dict] and len(units) == 0):

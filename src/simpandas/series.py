@@ -15,12 +15,12 @@ from shutil import get_terminal_size
 from pandas._config import get_option
 import fnmatch
 import numpy as np
+import pandas as pd
 import warnings
-from warnings import warn
 
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
-    unit_power as _unit_power
+    unit_power as _unit_power, unit_addition as _unit_addition
 from unyts import units, is_Unit
 
 from simpandas.basics import SimBasics
@@ -93,7 +93,8 @@ class SimSeries(SimBasics, Series):
                  'spdLocator',
                  'operate_per_name',
                  'transposed',
-                 'columns']
+                 'columns',
+                 'reverse']
 
     def __init__(self,
                  data=None,
@@ -123,6 +124,7 @@ class SimSeries(SimBasics, Series):
         self.operate_per_name = bool(operate_per_name)
         self.spdLocator = _SimLocIndexer("loc", self)
         self.transposed = bool(transposed)
+        self.reverse = kwargs['reverse'] if 'reverse' in kwargs else False
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -280,28 +282,88 @@ class SimSeries(SimBasics, Series):
                 except IndexError:
                     raise KeyError("the requested Key is not a valid index or name: " + str(key))
 
-    def __add__(self, other):
+    def astype(self, dtype, copy=True, errors='raise'):
         params_ = self.params_.copy()
-        operation = '+'
+        params_['dtype'] = dtype
+        return self._class(data=self.as_pandas().astype(dtype), **params_)
+
+    def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
+                               intersection_character=None):
+        def _units_operation(a, b, operation):
+            if operation in ['+', '-', '%']:
+                return _unit_addition(a, b)
+            elif operation in ['*']:
+                return _unit_product(a, b)
+            elif operation in ['/', '//']:
+                return _unit_division(a, b)
+            elif operation in ['**']:
+                return _unit_power(a, b)
+            else:
+                raise ValueError("Unknown operation")
+
+        params_ = self.params_.copy()
+        _products = ['*', '/', '//']
+        valid_operations = {# operator, pd.Series.method, proposed fill_value
+                            '+': [pd.Series.add, 'Addition', 0],
+                            '-': [pd.Series.sub, 'Subtraction', 0],
+                            '*': [pd.Series.mul, 'Product', 1],
+                            '/': [pd.Series.truediv, 'Division', None],
+                            '//': [pd.Series.floordiv, 'Floor Division', None],
+                            '%': [pd.Series.mod, 'Module', None],
+                            '**': [pd.Series.pow, 'Power', None]}
+        assert operation in valid_operations
+        intersection_character = operation if intersection_character is None else intersection_character
+        op_method = valid_operations[operation][0]
+        op_label = valid_operations[operation][1]
+        fill_value = valid_operations[operation][1] if fill_value is True else fill_value
+
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                warn("indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+                warnings.warn("indexes of both SimSeries are not of the same kind:\n   '" +
+                              self.index.name + "' != '" + other.index.name + "'")
             if type(self.units) is str and type(other.units) is str:
-                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
-                                            intersection_character=operation)
+                new_name = _string_new_name(
+                    self._common_rename(other, intersection_character=intersection_character, return_names_dict_only=True),
+                    intersection_character=intersection_character)
+                params_['units'] = _units_operation(self.units, other.units, operation)
                 if self.units == other.units:
-                    result = self.as_pandas().add(other.as_pandas(), fill_value=0)
+                    result = op_method(self.as_pandas(), other.as_pandas(), level=level, fill_value=fill_value, axis=axis)
                 elif _convertible(other.units, self.units):
-                    other_c = _converter(other, other.units, self.units, self.verbose)
-                    result = self.as_pandas().add(other_c.as_pandas(), fill_value=0)
+                    other_c = _converter(other.as_pandas(), other.units, self.units, self.verbose)
+                    result = op_method(self.as_pandas(), other_c, level=level, fill_value=fill_value, axis=axis)
                 elif _convertible(self.units, other.units):
-                    self_c = _converter(self, self.units, other.units, self.verbose)
-                    result = other.as_pandas().add(self_c.as_pandas(), fill_value=0)
-                    params_['units'] = other.units
+                    self_c = _converter(self.as_pandas(), self.units, other.units, self.verbose)
+                    result = op_method(other.as_pandas(), self_c, level=level, fill_value=fill_value, axis=axis)
+                    params_['units'] = _units_operation(other.units, self.units, operation)
+                elif operation in _products and _convertible(_unit_base(other.units), _unit_base(self.units)):
+                    other_c = _converter(other.as_pandas(), _unit_base(other.units), _unit_base(self.units),
+                                         self.verbose)
+                    result = op_method(self.as_pandas(), other_c, level=level, fill_value=fill_value, axis=axis)
+                elif operation in _products and _convertible(_unit_base(self.units), _unit_base(other.units)):
+                    self_c = _converter(self.as_pandas(), _unit_base(self.units), _unit_base(other.units), self.verbose)
+                    result = op_method(other.as_pandas(), self_c, level=level, fill_value=fill_value, axis=axis)
+                    params_['units'] = _units_operation(other.units, self.units, operation)
                 else:
-                    result = self.as_pandas().add(other.as_pandas(), fill_value=0)
-                    params_['units'] = self.units + '+' + other.units
+                    result = op_method(self.as_pandas(), other.as_pandas(), level=level, fill_value=fill_value, axis=axis)
+                    if type(self.units) is str and type(other.units) is str:
+                        params_['units'] = self.units + operation + other.units
+                    elif type(self.units) is dict and len(self.units) == 1 and type(other.units) is str:
+                        params_['units'] = self.get_units_string() + operation + other.units
+                    elif type(other.units) is dict and len(other.units) == 1 and type(self.units) is str:
+                        params_['units'] = self.units + operation + other.get_units_string()
+                    elif type(self.units) is dict and len(self.units) == 1 and type(other.units) is dict and len(
+                            other.units) == 1:
+                        params_['units'] = self.get_units_string() + operation + other.get_units_string()
+                    elif type(self.units) is dict and type(other.units) is dict:
+                        params_['units'] = self.units.copy()
+                        for k, u in other.units.items():
+                            if k in params_['units']:
+                                params_['units'][k] = params_['units'][k] + operation + u
+                            else:
+                                params_['units'][k] = u
+                    else:
+                        raise NotImplementedError(op_label + ' of SimSeries with different units is not implemented.')
                 params_['name'] = new_name
                 result = self._class(data=result, **params_)
             else:
@@ -309,466 +371,555 @@ class SimSeries(SimBasics, Series):
 
         # other is Pandas Series
         elif isinstance(other, Series):
-            result = self.as_pandas().add(other, fill_value=0)
-            new_name = _string_new_name(self._common_rename(self._class(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
-                                        intersection_character=operation)
+            result = op_method(self.as_pandas(), other, level=level, fill_value=fill_value, axis=axis)
+            new_name = _string_new_name(
+                self._common_rename(self._class(other), intersection_character=intersection_character,
+                                    return_names_dict_only=True),
+                intersection_character=intersection_character)
             params_['name'] = new_name
-            result = self._class(data=result, **params_)
-        
+
         # other is int or float
         elif type(other) in (int, float, complex):
-            result = self._class(self.values + other, **self.params_)
-        
+            result = op_method(self.as_pandas(), other, level=level, fill_value=fill_value, axis=axis)
+
         # other is instance of unyts
         elif is_Unit(other):
             if type(self.units) is str:
-                if _convertible(other.unit, self.units):
-                    result = self._class(self.values + other.to(self.units).value, **params_)
+                if self.reverse:
+                    params_['units'] = _units_operation(other.units, self.units, operation)
                 else:
-                    raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
+                    params_['units'] = _units_operation(self.units, other.units, operation)
+                if _convertible(other.unit, self.units):
+                    result = op_method(self.as_pandas(), other.to(self.units).value, level=level, fill_value=fill_value, axis=axis)
+                elif operation in _products:
+                    result = op_method(self.as_pandas(), other.value, level=level, fill_value=fill_value, axis=axis)
+                else:
+                    raise NotImplementedError(op_label + " of SimSeries with not convertible Unyts is not implemented.")
             else:
-                result = (self.as_dataframe() + other).as_simseries()
+                result = op_method(self.as_simdataframe().as_pandas(), other, level=level, fill_value=fill_value, axis=axis).as_simseries()
 
         # lets Pandas deal with other types, maintain units, dtype and name
         else:
-            result = self._class(self.as_Series() + other, **self.params_)
-                        
-        try:
+            result = op_method(self.as_pandas(), other, level=level, fill_value=fill_value, axis=axis)
+
+        if operation in ['//']:
+            params_['dtype'] = result.dtype
+        else:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params_['dtype'] = result.dtype
-        except TypeError:
-            params_['dtype'] = result.dtype
+        self.reverse = False
         return self._class(data=result, **params_)
 
+    def __add__(self, other):
+#        params_ = self.params_.copy()
+#        operation = '+'
+#        # both SimSeries
+#        if isinstance(other, SimSeries):
+#            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+#                warnings.warn("indexes of both SimSeries are not of the same kind:\n   '" +
+#                              self.index.name + "' != '" + other.index.name + "'")
+#            if type(self.units) is str and type(other.units) is str:
+#                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+#                                            intersection_character=operation)
+#                if self.units == other.units:
+#                    result = self.as_pandas().add(other.as_pandas(), fill_value=0)
+#                elif _convertible(other.units, self.units):
+#                    other_c = _converter(other, other.units, self.units, self.verbose)
+#                    result = self.as_pandas().add(other_c.as_pandas(), fill_value=0)
+#                elif _convertible(self.units, other.units):
+#                    self_c = _converter(self, self.units, other.units, self.verbose)
+#                    result = self_c.as_pandas().add(other.as_pandas(), fill_value=0)
+#                    params_['units'] = other.units
+#                else:
+#                    result = self.as_pandas().add(other.as_pandas(), fill_value=0)
+#                    if type(self.units) is str and type(other.units) is str:
+#                        params_['units'] = self.units + '+' + other.units
+#                    elif type(self.units) is dict and len(self.units) == 1 and type(other.units) is str:
+#                        params_['units'] = self.get_units_string() + '+' + u
+#                    elif type(other.units) is dict and len(other.units) == 1 and type(self.units) is str:
+#                        params_['units'] = self.units + '+' + other.get_units_string()
+#                    elif type(self.units) is dict and len(self.units) == 1 and type(other.units) is dict and len(other.units) == 1:
+#                        params_['units'] = self.get_units_string() + '+' + other.get_units_string()
+#                    elif type(self.units) is dict and type(other.units) is dict:
+#                        params_['units'] = self.units.copy()
+#                        for k, u in other.units.items():
+#                            if k in params_['units']:
+#                                params_['units'][k] = params_['units'][k] + u
+#                            else:
+#                                params_['units'][k] = u
+#                    else:
+#                        raise NotImplementedError('Addition of SimSeries with different units is not implemented.')
+#                params_['name'] = new_name
+#                result = self._class(data=result, **params_)
+#            else:
+#                raise NotImplementedError
+#
+#        # other is Pandas Series
+#        elif isinstance(other, Series):
+#            result = self.as_pandas().add(other, fill_value=0)
+#            new_name = _string_new_name(self._common_rename(self._class(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+#                                        intersection_character=operation)
+#            params_['name'] = new_name
+#            result = self._class(data=result, **params_)
+#
+#        # other is int or float
+#        elif type(other) in (int, float, complex):
+#            result = self._class(self.values + other, **self.params_)
+#
+#        # other is instance of unyts
+#        elif is_Unit(other):
+#            if type(self.units) is str:
+#                if _convertible(other.unit, self.units):
+#                    result = self._class(self.values + other.to(self.units).value, **params_)
+#                else:
+#                    raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
+#            else:
+#                result = (self.as_dataframe() + other).as_simseries()
+#
+#        # lets Pandas deal with other types, maintain units, dtype and name
+#        else:
+#            result = self._class(self.as_Series() + other, **self.params_)
+#
+#        try:
+#            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#        except ValueError:
+#            params_['dtype'] = result.dtype
+#        except TypeError:
+#            params_['dtype'] = result.dtype
+#        return self._class(data=result, **params_)
+        return self._arithmethic_operation(other, operation='+', fill_value=0)
     def __sub__(self, other):
-        params_ = self.params_.copy()
-        operation = '-'
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
-                                            intersection_character=operation)
-                if self.units == other.units:
-                    result = self.sub(other, fill_value=0)
-                elif _convertible(other.units, self.units):
-                    otherC = _converter(other, other.units, self.units, self.verbose)
-                    result = self.sub(otherC, fill_value=0)
-                elif _convertible(self.units, other.units):
-                    selfC = _converter(self, self.units, other.units, self.verbose)
-                    result = selfC.sub(other, fill_value=0)
-                    params_['units'] = other.units
-                else:
-                    result = self.sub(other, fill_value=0)
-                    params_['units'] = self.units + '-' + other.units
-
-                params_['name'] = new_name
-                result = SimSeries(data=result, **params_)
-            else:
-                raise NotImplementedError
-
-        # other is int or float
-        elif type(other) in (int, float, complex):
-            result = self._class(self.values - other, **self.params_)
-        
-        # other is instance of unyts
-        elif is_Unit(other):
-            if type(self.units) is str:
-                if _convertible(other.unit, self.units):
-                    result = self._class(self.values - other.to(self.units).value, **self.params_)
-                else:
-                    raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
-            else:
-                result = (self.as_dataframe() - other).as_simseries()
-
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            result = self.as_pandas().sub(other, fill_value=0)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
-                                        intersection_character=operation)
-            params_['name'] = new_name
-            result = self._class(data=result, **params_)
-
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_pandas() - other
-            
-        try:
-            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params_['dtype'] = result.dtype
-        except TypeError:
-            params_['dtype'] = result.dtype
-        return SimSeries(data=result, **params_)
+#        params_ = self.params_.copy()
+#        operation = '-'
+#        # both SimSeries
+#        if isinstance(other, SimSeries):
+#            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+#                warnings.warn("indexes of both SimSeries are not of the same kind:\n   '" +
+#                              self.index.name + "' != '" + other.index.name + "'")
+#            if type(self.units) is str and type(other.units) is str:
+#                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+#                                            intersection_character=operation)
+#                if self.units == other.units:
+#                    result = self.as_pandas().sub(other.as_pandas(), fill_value=0)
+#                elif _convertible(other.units, self.units):
+#                    otherC = _converter(other, other.units, self.units, self.verbose)
+#                    result = self.sub(otherC, fill_value=0)
+#                elif _convertible(self.units, other.units):
+#                    selfC = _converter(self, self.units, other.units, self.verbose)
+#                    result = selfC.sub(other, fill_value=0)
+#                    params_['units'] = other.units
+#                else:
+#                    result = self.sub(other, fill_value=0)
+#                    params_['units'] = self.units + '-' + other.units
+#
+#                params_['name'] = new_name
+#                result = SimSeries(data=result, **params_)
+#            else:
+#                raise NotImplementedError
+#
+#        # other is int or float
+#        elif type(other) in (int, float, complex):
+#            result = self._class(self.values - other, **self.params_)
+#
+#        # other is instance of unyts
+#        elif is_Unit(other):
+#            if type(self.units) is str:
+#                if _convertible(other.unit, self.units):
+#                    result = self._class(self.values - other.to(self.units).value, **self.params_)
+#                else:
+#                    raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
+#            else:
+#                result = (self.as_dataframe() - other).as_simseries()
+#
+#        # other is Pandas Series
+#        elif isinstance(other, Series):
+#            result = self.as_pandas().sub(other, fill_value=0)
+#            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+#                                        intersection_character=operation)
+#            params_['name'] = new_name
+#            result = self._class(data=result, **params_)
+#
+#        # lets Pandas deal with other types, maintain units and dtype
+#        else:
+#            result = self.as_pandas() - other
+#
+#        try:
+#            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#        except ValueError:
+#            params_['dtype'] = result.dtype
+#        except TypeError:
+#            params_['dtype'] = result.dtype
+#        return SimSeries(data=result, **params_)
+        return self._arithmethic_operation(other, operation='-', fill_value=0)
 
     def __mul__(self, other):
-        params_ = self.params_.copy()
-        operation = '*'
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                params_['units'] = _unit_product(self.units, other.units)
-                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
-                                            intersection_character=operation)
-                if self.units == other.units:
-                    result = self.mul(other)
-                elif _convertible(other.units, self.units):
-                    other_c = _converter(other, other.units, self.units, self.verbose)
-                    result = self.mul(other_c)
-                elif _convertible(self.units, other.units):
-                    self_c = _converter(self, self.units, other.units, self.verbose)
-                    result = other.mul(self_c)
-                    params_['units'] = _unit_product(other.units, self.units)
-                elif _convertible(other.units, _unit_base(self.units)):
-                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
-                    result = self.mul(other_c)
-                elif _convertible(self.units, _unit_base(other.units)):
-                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
-                    result = other.mul(self_c)
-                    params_['units'] = _unit_product(other.units, self.units)
-                else:
-                    result = self.mul(other)
-                    params_['units'] = self.units + '*' + other.units
-
-                params_['name'] = new_name
-                result = self._class(data=result, **params_)
-            else:
-                raise NotImplementedError
-                
-        # other is int or float
-        elif type(other) in (int, float, complex):
-            result = self._class(self.values * other, **self.params_)
-        
-        # other is instance of unyts
-        elif is_Unit(other):
-            if type(self.units) is str:
-                if _convertible(other.unit, self.units):
-                    params_['units'] = _unit_product(self.units, other.unit)
-                    result = self._class(self.values * other.to(self.units).value, **params_)
-                else:
-                    params_['units'] = _unit_product(self.units, other.unit)
-                    result = self._class(self.values * other.value, **params_)
-            else:
-                result = (self.as_dataframe() * other).as_simseries()
-
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            result = self.as_pandas().mul(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
-                                        intersection_character=operation)
-            params_['name'] = new_name
-            result = self._class(data=result, **params_)
-
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_pandas() * other
-
-        try:
-            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params_['dtype'] = result.dtype
-        except TypeError:
-            params_['dtype'] = result.dtype
-        return self._class(data=result, **params_)
+#        params_ = self.params_.copy()
+#        operation = '*'
+#        # both SimSeries
+#        if isinstance(other, SimSeries):
+#            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+#                Warning(
+#                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+#            if type(self.units) is str and type(other.units) is str:
+#                params_['units'] = _unit_product(self.units, other.units)
+#                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+#                                            intersection_character=operation)
+#                if self.units == other.units:
+#                    result = self.mul(other)
+#                elif _convertible(other.units, self.units):
+#                    other_c = _converter(other, other.units, self.units, self.verbose)
+#                    result = self.mul(other_c)
+#                elif _convertible(self.units, other.units):
+#                    self_c = _converter(self, self.units, other.units, self.verbose)
+#                    result = other.mul(self_c)
+#                    params_['units'] = _unit_product(other.units, self.units)
+#                elif _convertible(other.units, _unit_base(self.units)):
+#                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
+#                    result = self.mul(other_c)
+#                elif _convertible(self.units, _unit_base(other.units)):
+#                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
+#                    result = other.mul(self_c)
+#                    params_['units'] = _unit_product(other.units, self.units)
+#                else:
+#                    result = self.mul(other)
+#                    params_['units'] = self.units + '*' + other.units
+#
+#                params_['name'] = new_name
+#                result = self._class(data=result, **params_)
+#            else:
+#                raise NotImplementedError
+#
+#        # other is int or float
+#        elif type(other) in (int, float, complex):
+#            result = self._class(self.values * other, **self.params_)
+#
+#        # other is instance of unyts
+#        elif is_Unit(other):
+#            if type(self.units) is str:
+#                if _convertible(other.unit, self.units):
+#                    params_['units'] = _unit_product(self.units, other.unit)
+#                    result = self._class(self.values * other.to(self.units).value, **params_)
+#                else:
+#                    params_['units'] = _unit_product(self.units, other.unit)
+#                    result = self._class(self.values * other.value, **params_)
+#            else:
+#                result = (self.as_dataframe() * other).as_simseries()
+#
+#        # other is Pandas Series
+#        elif isinstance(other, Series):
+#            result = self.as_pandas().mul(other)
+#            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+#                                        intersection_character=operation)
+#            params_['name'] = new_name
+#            result = self._class(data=result, **params_)
+#
+#        # lets Pandas deal with other types, maintain units and dtype
+#        else:
+#            result = self.as_pandas() * other
+#
+#        try:
+#            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#        except ValueError:
+#            params_['dtype'] = result.dtype
+#        except TypeError:
+#            params_['dtype'] = result.dtype
+#        return self._class(data=result, **params_)
+        return self._arithmethic_operation(other, operation='*', fill_value=1)
 
     def __truediv__(self, other):
-        params_ = self.params_.copy()
-        operation = '/'
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
-                                            intersection_character=operation)
-                params_['units'] = _unit_division(self.units, other.units)
-                if self.units == other.units:
-                    result = self.truediv(other)
-                elif _convertible(other.units, self.units):
-                    other_c = _converter(other, other.units, self.units, self.verbose)
-                    result = self.truediv(other_c)
-                elif _convertible(self.units, other.units):
-                    self_c = _converter(self, self.units, other.units, self.verbose)
-                    result = self_c.truediv(other)
-                    params_['units'] = _unit_division(other.units, self.units)
-                elif _convertible(other.units, _unit_base(self.units)):
-                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
-                    result = self.truediv(other_c)
-                elif _convertible(self.units, _unit_base(other.units)):
-                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
-                    result = self_c.truediv(other)
-                    params_['units'] = _unit_division(other.units, self.units)
-                else:
-                    result = self.truediv(other)
-                    params_['units'] = self.units + '/' + other.units
-                try:
-                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params_['dtype'] = result.dtype
-                except TypeError:
-                    params_['dtype'] = result.dtype
-                params_['name'] = new_name
-                result = self._class(data=result, **params_)
-            else:
-                raise NotImplementedError
-
-        # other is int or float
-        elif type(other) in (int, float, complex):
-            result = self._class(self.values / other, **self.params_)
-        
-        # other is instance of unyts
-        elif is_Unit(other):
-            if type(self.units) is str:
-                if _convertible(other.unit, self.units):
-                    params_['units'] = _unit_division(self.units, other.unit)
-                    result = self._class(self.values / other.to(self.units).value, **params_)
-                else:
-                    params_['units'] = _unit_division(self.units, other.unit)
-                    result = self._class(self.values / other.value, **params_)
-            else:
-                result = (self.as_dataframe() / other).as_simseries()
-        
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            result = self.as_pandas().truediv(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
-                                        intersection_character=operation)
-            params_['name'] = new_name
-            result = self._class(data=result, **params_)
-        
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_pandas() / other
-        
-        try:
-            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params_['dtype'] = result.dtype
-        except TypeError:
-            params_['dtype'] = result.dtype
-        return self._class(data=result, **params_)
+#        params_ = self.params_.copy()
+#        operation = '/'
+#        # both SimSeries
+#        if isinstance(other, SimSeries):
+#            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+#                Warning(
+#                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+#            if type(self.units) is str and type(other.units) is str:
+#                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+#                                            intersection_character=operation)
+#                params_['units'] = _unit_division(self.units, other.units)
+#                if self.units == other.units:
+#                    result = self.truediv(other)
+#                elif _convertible(other.units, self.units):
+#                    other_c = _converter(other, other.units, self.units, self.verbose)
+#                    result = self.truediv(other_c)
+#                elif _convertible(self.units, other.units):
+#                    self_c = _converter(self, self.units, other.units, self.verbose)
+#                    result = self_c.truediv(other)
+#                    params_['units'] = _unit_division(other.units, self.units)
+#                elif _convertible(other.units, _unit_base(self.units)):
+#                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
+#                    result = self.truediv(other_c)
+#                elif _convertible(self.units, _unit_base(other.units)):
+#                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
+#                    result = self_c.truediv(other)
+#                    params_['units'] = _unit_division(other.units, self.units)
+#                else:
+#                    result = self.truediv(other)
+#                    params_['units'] = self.units + '/' + other.units
+#                try:
+#                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#                except ValueError:
+#                    params_['dtype'] = result.dtype
+#                except TypeError:
+#                    params_['dtype'] = result.dtype
+#                params_['name'] = new_name
+#                result = self._class(data=result, **params_)
+#            else:
+#                raise NotImplementedError
+#
+#        # other is int or float
+#        elif type(other) in (int, float, complex):
+#            result = self._class(self.values / other, **self.params_)
+#
+#        # other is instance of unyts
+#        elif is_Unit(other):
+#            if type(self.units) is str:
+#                if _convertible(other.unit, self.units):
+#                    params_['units'] = _unit_division(self.units, other.unit)
+#                    result = self._class(self.values / other.to(self.units).value, **params_)
+#                else:
+#                    params_['units'] = _unit_division(self.units, other.unit)
+#                    result = self._class(self.values / other.value, **params_)
+#            else:
+#                result = (self.as_dataframe() / other).as_simseries()
+#
+#        # other is Pandas Series
+#        elif isinstance(other, Series):
+#            result = self.as_pandas().truediv(other)
+#            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+#                                        intersection_character=operation)
+#            params_['name'] = new_name
+#            result = self._class(data=result, **params_)
+#
+#        # lets Pandas deal with other types, maintain units and dtype
+#        else:
+#            result = self.as_pandas() / other
+#
+#        try:
+#            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#        except ValueError:
+#            params_['dtype'] = result.dtype
+#        except TypeError:
+#            params_['dtype'] = result.dtype
+#        return self._class(data=result, **params_)
+        return self._arithmethic_operation(other, operation='/', fill_value=None)
 
     def __floordiv__(self, other):
-        params_ = self.params_.copy()
-        operation = '//'
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                params_['units'] = _unit_division(self.units, other.units)
-                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
-                                            intersection_character=operation)
-                if self.units == other.units:
-                    result = self.floordiv(other)
-                elif _convertible(other.units, self.units):
-                    other_c = _converter(other, other.units, self.units, self.verbose)
-                    result = self.floordiv(other_c)
-                elif _convertible(self.units, other.units):
-                    self_c = _converter(self, self.units, other.units, self.verbose)
-                    result = other.floordiv(self_c)
-                    params_['units'] = _unit_division(other.units, self.units)
-                elif _convertible(other.units, _unit_base(self.units)):
-                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
-                    result = self.floordiv(other_c)
-                elif _convertible(self.units, _unit_base(other.units)):
-                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
-                    result = other.floordiv(self_c)
-                    params_['units'] = _unit_division(other.units, self.units)
-                else:
-                    result = self.floordiv(other)
-                    params_['units'] = self.units + '/' + other.units
-                params_[
-                    'dtype'] = result.dtype  # self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                params_['name'] = new_name
-                result = self._class(data=result, **params_)
-            else:
-                raise NotImplementedError
-
-        # other is int or float
-        elif type(other) in (int, float, complex):
-            result = self._class(self.values // other, **self.params_)
-        
-        # other is instance of unyts
-        elif is_Unit(other):
-            if type(self.units) is str:
-                if _convertible(other.unit, self.units):
-                    params_['units'] = _unit_division(self.units, other.unit)
-                    result = self._class(self.values // other.to(self.units).value, **params_)
-                else:
-                    params_['units'] = _unit_division(self.units, other.unit)
-                    result = self._class(self.values // other.value, **params_)
-            else:
-                result = (self.as_dataframe() // other).as_simseries()
-        
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            result = self.as_pandas().truediv(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
-                                        intersection_character=operation)
-            params_['name'] = new_name
-            result = SimSeries(data=result, **params_)
-        
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_pandas() // other
-        
-        try:
-            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params_['dtype'] = result.dtype
-        except TypeError:
-            params_['dtype'] = result.dtype
-        return self._class(data=result, **params_)
-
+#        params_ = self.params_.copy()
+#        operation = '//'
+#        # both SimSeries
+#        if isinstance(other, SimSeries):
+#            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+#                Warning(
+#                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+#            if type(self.units) is str and type(other.units) is str:
+#                params_['units'] = _unit_division(self.units, other.units)
+#                new_name = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+#                                            intersection_character=operation)
+#                if self.units == other.units:
+#                    result = self.floordiv(other)
+#                elif _convertible(other.units, self.units):
+#                    other_c = _converter(other, other.units, self.units, self.verbose)
+#                    result = self.floordiv(other_c)
+#                elif _convertible(self.units, other.units):
+#                    self_c = _converter(self, self.units, other.units, self.verbose)
+#                    result = other.floordiv(self_c)
+#                    params_['units'] = _unit_division(other.units, self.units)
+#                elif _convertible(other.units, _unit_base(self.units)):
+#                    other_c = _converter(other, other.units, _unit_base(self.units), self.verbose)
+#                    result = self.floordiv(other_c)
+#                elif _convertible(self.units, _unit_base(other.units)):
+#                    self_c = _converter(self, self.units, _unit_base(other.units), self.verbose)
+#                    result = other.floordiv(self_c)
+#                    params_['units'] = _unit_division(other.units, self.units)
+#                else:
+#                    result = self.floordiv(other)
+#                    params_['units'] = self.units + '//' + other.units
+#                params_[
+#                    'dtype'] = result.dtype  # self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#                params_['name'] = new_name
+#                result = self._class(data=result, **params_)
+#            else:
+#                raise NotImplementedError
+#
+#        # other is int or float
+#        elif type(other) in (int, float, complex):
+#            result = self._class(self.values // other, **self.params_)
+#
+#        # other is instance of unyts
+#        elif is_Unit(other):
+#            if type(self.units) is str:
+#                if _convertible(other.unit, self.units):
+#                    params_['units'] = _unit_division(self.units, other.unit)
+#                    result = self._class(self.values // other.to(self.units).value, **params_)
+#                else:
+#                    params_['units'] = _unit_division(self.units, other.unit)
+#                    result = self._class(self.values // other.value, **params_)
+#            else:
+#                result = (self.as_dataframe() // other).as_simseries()
+#
+#        # other is Pandas Series
+#        elif isinstance(other, Series):
+#            result = self.as_pandas().truediv(other)
+#            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+#                                        intersection_character=operation)
+#            params_['name'] = new_name
+#            result = SimSeries(data=result, **params_)
+#
+#        # lets Pandas deal with other types, maintain units and dtype
+#        else:
+#            result = self.as_pandas() // other
+#
+#        try:
+#            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#        except ValueError:
+#            params_['dtype'] = result.dtype
+#        except TypeError:
+#            params_['dtype'] = result.dtype
+#        return self._class(data=result, **params_)
+        return self._arithmethic_operation(other, operation='//', fill_value=None, intersection_character='/')
     def __mod__(self, other):
-        params_ = self.params_.copy()
-        operation = '%'
-        # both are SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                newName = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
-                                           intersection_character=operation)
-                if self.units == other.units:
-                    result = self.mod(other)
-                elif _convertible(other.units, self.units):
-                    otherC = _converter(other, other.units, self.units, self.verbose)
-                    result = self.mod(otherC)
-                elif _convertible(self.units, other.units):
-                    selfC = _converter(self, self.units, other.units, self.verbose)
-                    result = other.mod(selfC)
-                    params_['units'] = other.units
-                else:
-                    result = self.mod(other)
-                try:
-                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params_['dtype'] = result.dtype
-                except TypeError:
-                    params_['dtype'] = result.dtype
-                params_['name'] = newName
-                return SimSeries(data=result, **params_)
-            else:
-                raise NotImplementedError
-
-        # other is int or float
-        elif type(other) in (int, float, complex):
-            result = self._class(self.values % other, **self.params_)
-        
-        # other is instance of unyts
-        elif is_Unit(other):
-            if type(self.units) is str:
-                if _convertible(other.unit, self.units):
-                    result = self._class(self.values % other.to(self.units).value, **self.params_)
-                else:
-                    result = self._class(self.values % other.value, **self.params_)
-            else:
-                result = (self.as_dataframe() % other).as_simseries()
-        
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            result = self.as_pandas().mod(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
-                                        intersection_character=operation)
-            params_['name'] = new_name
-            result = self._class(data=result, **params_)
-        
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_pandas() % other
-        
-        try:
-            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params_['dtype'] = result.dtype
-        except TypeError:
-            params_['dtype'] = result.dtype
-        return self._class(data=result, **params_)
+#        params_ = self.params_.copy()
+#        operation = '%'
+#        # both are SimSeries
+#        if isinstance(other, SimSeries):
+#            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+#                Warning(
+#                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+#            if type(self.units) is str and type(other.units) is str:
+#                newName = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+#                                           intersection_character=operation)
+#                if self.units == other.units:
+#                    result = self.mod(other)
+#                elif _convertible(other.units, self.units):
+#                    otherC = _converter(other, other.units, self.units, self.verbose)
+#                    result = self.mod(otherC)
+#                elif _convertible(self.units, other.units):
+#                    selfC = _converter(self, self.units, other.units, self.verbose)
+#                    result = other.mod(selfC)
+#                    params_['units'] = other.units
+#                else:
+#                    result = self.mod(other)
+#                try:
+#                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#                except ValueError:
+#                    params_['dtype'] = result.dtype
+#                except TypeError:
+#                    params_['dtype'] = result.dtype
+#                params_['name'] = newName
+#                return SimSeries(data=result, **params_)
+#            else:
+#                raise NotImplementedError
+#
+#        # other is int or float
+#        elif type(other) in (int, float, complex):
+#            result = self._class(self.values % other, **self.params_)
+#
+#        # other is instance of unyts
+#        elif is_Unit(other):
+#            if type(self.units) is str:
+#                if _convertible(other.unit, self.units):
+#                    result = self._class(self.values % other.to(self.units).value, **self.params_)
+#                else:
+#                    result = self._class(self.values % other.value, **self.params_)
+#            else:
+#                result = (self.as_dataframe() % other).as_simseries()
+#
+#        # other is Pandas Series
+#        elif isinstance(other, Series):
+#            result = self.as_pandas().mod(other)
+#            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+#                                        intersection_character=operation)
+#            params_['name'] = new_name
+#            result = self._class(data=result, **params_)
+#
+#        # lets Pandas deal with other types, maintain units and dtype
+#        else:
+#            result = self.as_pandas() % other
+#
+#        try:
+#            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#        except ValueError:
+#            params_['dtype'] = result.dtype
+#        except TypeError:
+#            params_['dtype'] = result.dtype
+#        return self._class(data=result, **params_)
+        return self._arithmethic_operation(other, operation='%', fill_value=None)
 
     def __pow__(self, other):
-        params_ = self.params_.copy()
-        operation = '**'
-        # both SimSeries
-        if isinstance(other, SimSeries):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            if type(self.units) is str and type(other.units) is str:
-                params_['units'] = self.units + '^' + other.units
-                newName = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
-                                           intersection_character=operation)
-                if self.units == other.units:
-                    result = self.pow(other)
-                elif _convertible(other.units, self.units):
-                    otherC = _converter(other, other.units, self.units, self.verbose)
-                    result = self.pow(otherC)
-                    params_['units'] = self.units + '^' + self.units
-                elif _convertible(self.units, other.units):
-                    selfC = _converter(self, self.units, other.units, self.verbose)
-                    result = other.pow(selfC)
-                    params_['units'] = other.units + '^' + other.units
-                else:
-                    result = self.pow(other)
-                try:
-                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-                except ValueError:
-                    params_['dtype'] = result.dtype
-                except TypeError:
-                    params_['dtype'] = result.dtype
-                params_['name'] = newName
-                return SimSeries(data=result, **params_)
-            else:
-                raise NotImplementedError
-
-        # if other is integer or float
-        elif type(other) in (int, float):
-            result = self.as_Series() ** other
-            params_ = self.params_.copy()
-            params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
-            return SimSeries(data=result, **params_)
-        
-        # other is instance of unyts
-        elif is_Unit(other):
-            if type(self.units) is str:
-                if _convertible(other.unit, self.units):
-                    params_['units'] = _unit_power(self.units, other.unit)
-                    result = self._class(self.values ** other.to(self.units).value, **params_)
-                else:
-                    params_['units'] = _unit_power(self.units, other.unit)
-                    result = self._class(self.values ** other.value, **params_)
-            else:
-                result = (self.as_dataframe() ** other).as_simseries()
-        
-        # other is Pandas Series
-        elif isinstance(other, Series):
-            result = self.as_pandas().pow(other)
-            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
-                                        intersection_character=operation)
-            params_['name'] = new_name
-            result = SimSeries(data=result, **params_)
-        
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_pandas() ** other
-        
-        try:
-            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        except ValueError:
-            params_['dtype'] = result.dtype
-        except TypeError:
-            params_['dtype'] = result.dtype
-        return self._class(data=result, **params_)
+#        params_ = self.params_.copy()
+#        operation = '**'
+#        # both SimSeries
+#        if isinstance(other, SimSeries):
+#            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+#                Warning(
+#                    "indexes of both SimSeries are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+#            if type(self.units) is str and type(other.units) is str:
+#                params_['units'] = self.units + '^' + other.units
+#                newName = _string_new_name(self._common_rename(other, intersection_character=operation, return_names_dict_only=True),
+#                                           intersection_character=operation)
+#                if self.units == other.units:
+#                    result = self.pow(other)
+#                elif _convertible(other.units, self.units):
+#                    otherC = _converter(other, other.units, self.units, self.verbose)
+#                    result = self.pow(otherC)
+#                    params_['units'] = self.units + '^' + self.units
+#                elif _convertible(self.units, other.units):
+#                    selfC = _converter(self, self.units, other.units, self.verbose)
+#                    result = other.pow(selfC)
+#                    params_['units'] = other.units + '^' + other.units
+#                else:
+#                    result = self.pow(other)
+#                try:
+#                    params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#                except ValueError:
+#                    params_['dtype'] = result.dtype
+#                except TypeError:
+#                    params_['dtype'] = result.dtype
+#                params_['name'] = newName
+#                return SimSeries(data=result, **params_)
+#            else:
+#                raise NotImplementedError
+#
+#        # if other is integer or float
+#        elif type(other) in (int, float):
+#            result = self.as_Series() ** other
+#            params_ = self.params_.copy()
+#            params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
+#            return SimSeries(data=result, **params_)
+#
+#        # other is instance of unyts
+#        elif is_Unit(other):
+#            if type(self.units) is str:
+#                if _convertible(other.unit, self.units):
+#                    params_['units'] = _unit_power(self.units, other.unit)
+#                    result = self._class(self.values ** other.to(self.units).value, **params_)
+#                else:
+#                    params_['units'] = _unit_power(self.units, other.unit)
+#                    result = self._class(self.values ** other.value, **params_)
+#            else:
+#                result = (self.as_dataframe() ** other).as_simseries()
+#
+#        # other is Pandas Series
+#        elif isinstance(other, Series):
+#            result = self.as_pandas().pow(other)
+#            new_name = _string_new_name(self._common_rename(SimSeries(other, **self.params_), intersection_character=operation, return_names_dict_only=True),
+#                                        intersection_character=operation)
+#            params_['name'] = new_name
+#            result = SimSeries(data=result, **params_)
+#
+#        # lets Pandas deal with other types, maintain units and dtype
+#        else:
+#            result = self.as_pandas() ** other
+#
+#        try:
+#            params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
+#        except ValueError:
+#            params_['dtype'] = result.dtype
+#        except TypeError:
+#            params_['dtype'] = result.dtype
+#        return self._class(data=result, **params_)
+        return self._arithmethic_operation(other, operation='**', fill_value=None)
 
     def set_index(self, name):
         self.set_index_name(name)

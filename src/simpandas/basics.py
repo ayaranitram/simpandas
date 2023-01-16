@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.1'
-__release__ = 20230111
+__version__ = '0.81.2'
+__release__ = 20230116
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -16,6 +16,7 @@ from sys import getsizeof
 from warnings import warn
 from unyts import is_Unit
 from unyts.converter import convertible as _convertible
+from unyts.operations import unit_inverse as _unit_inverse
 from simpandas.indexer import _SimLocIndexer
 from simpandas.common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
@@ -72,6 +73,10 @@ class SimBasics(object):
                        names=names, verify_integrity=verify_integrity,
                        sort=sort, copy=copy, squeeze=squeeze)
 
+    def _reverse(self):
+        self.reverse = not self.reverse
+        return self
+
     @property
     def params_(self):
         return {'units': self.units.copy() if type(self.units) is dict else self.units,
@@ -85,6 +90,7 @@ class SimBasics(object):
                 'auto_append': self.auto_append if hasattr(self, 'auto_append') else False,
                 'operate_per_name': self.operate_per_name if hasattr(self, 'operate_per_name') else False,
                 'transposed': self.transposed if hasattr(self, 'transposed') else False,
+                'reverse': self.reverse if hasattr(self, 'reverse') else False
                 }
 
     @property
@@ -172,6 +178,42 @@ class SimBasics(object):
     def int(self):
         return self.astype(int)
 
+    def inv(self):
+        params_ = self.params_.copy()
+        if type(self.units) is str:
+            params_['units'] = _unit_inverse(self.units)
+        elif type(self.units) is dict:
+            params_['units'] = {k: _unit_inverse(self.units[k]) for k in self.units}
+        return self._class(data=1/self.as_pandas(), **params_)
+
+    def neg(self):
+        return self.__neg__()
+
+    def add(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self._arithmethic_operation(other, operation='+', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def sub(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self._arithmethic_operation(other, operation='-', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def mul(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self._arithmethic_operation(other, operation='*', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def truediv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self._arithmethic_operation(other, operation='/', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def div(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self.truediv(other, level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def floordiv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self._arithmethic_operation(other, operation='//', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def mod(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self._arithmethic_operation(other, operation='%', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def pow(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        return self._arithmethic_operation(other, operation='**', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+
     def __neg__(self):
         return self._class(data=self.as_pandas().__neg__(), **self.params_)
 
@@ -181,36 +223,36 @@ class SimBasics(object):
     def __radd__(self, other):
         if is_Unit(other):
             if _convertible(self.units, other.units):
-                return self.to(other.units).__add__(other)
+                return self.to(other.units)._reverse().__add__(other)
             else:
                 raise NotImplementedError("Addition of SimSeries with not convertible Unyts is not implemented.")
-        return self.__add__(other)
+        return self._reverse().__add__(other)
 
     def __rsub__(self, other):
         if is_Unit(other):
             if _convertible(self.units, other.units):
-                return self.to(other.units).__neg__().__add__(other)
+                return self.to(other.units).__neg__()._reverse().add(other, intersection_character='-')
             else:
                 raise NotImplementedError("Subtraction of SimSeries with not convertible Unyts is not implemented.")
-        return self.__neg__().__add__(other)
+        return self.__neg__()._reverse().add(other, intersection_character='-')
 
     def __rmul__(self, other):
         if is_Unit(other):
-            return self.to(other.units).__mul__(other)
+            return self.to(other.units)._reverse().__mul__(other)
         else:
-            return self.__mul__(other)
+            return self._reverse().__mul__(other)
 
     def __rtruediv__(self, other):
         if is_Unit(other):
-            return self.to(other.units).__pow__(-1).__mul__(other)
+            return self.to(other.units).inv()._reverse().mul(other, intersection_character='/')
         else:
-            return self.__pow__(-1).__mul__(other)
+            return self.inv()._reverse().mul(other, intersection_character='/')
 
     def __rfloordiv__(self, other):
         if is_Unit(other):
-            return self.to(other.units).__pow__(-1).__mul__(other).astype(int)
+            return self.to(other.units).inv()._reverse().mul(other, intersection_character='/').astype(int)
         else:
-            return self.__pow__(-1).__mul__(other).astype(int)
+            return self.inv()._reverse().mul(other, intersection_character='/').astype(int)
 
     def avg(self, axis=0, **kwargs):
         return self.mean(axis=axis, **kwargs)
@@ -670,11 +712,18 @@ class SimBasics(object):
         elif other_name_separator is None:
             other_name_separator = self.name_separator
             print("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
-        return _common_rename(self, other,
-                             intersection_character=intersection_character,
-                             name_separator_2=other_name_separator,
-                             complex_names=complex_names,
-                             **kwargs)
+        if self.reverse:
+            return _common_rename(other, self,
+                                  intersection_character=intersection_character,
+                                  name_separator_2=other_name_separator,
+                                  complex_names=complex_names,
+                                  **kwargs)
+        else:
+            return _common_rename(self, other,
+                                  intersection_character=intersection_character,
+                                  name_separator_2=other_name_separator,
+                                  complex_names=complex_names,
+                                  **kwargs)
 
     def _joined_index(self, other, *, drop_duplicates=False, keep='first'):
         from .._common.merger import merge_Index
