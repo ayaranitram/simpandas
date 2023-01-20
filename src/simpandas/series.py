@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.81.1'
-__release__ = 20230115
+__version__ = '0.81.2'
+__release__ = 20230119
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -23,11 +23,12 @@ from unyts.operations import unit_product as _unit_product, unit_division as _un
     unit_power as _unit_power, unit_addition as _unit_addition
 from unyts import units, is_Unit
 
-from simpandas.basics import SimBasics
-from simpandas.common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
-from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
-from simpandas.common.slope import slope as _slope
-from simpandas.indexer import _SimLocIndexer
+from .basics import SimBasics
+from .common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
+from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
+from .common.slope import slope as _slope
+from .indexer import _SimLocIndexer
+from .index import SimIndex
 
 _SERIES_WARNING_MSG = """\
     You are passing unitless data to the SimSeries constructor. Currently,
@@ -94,7 +95,8 @@ class SimSeries(SimBasics, Series):
                  'operate_per_name',
                  'transposed',
                  'columns',
-                 'reverse']
+                 'reverse',
+                 'meta']
 
     def __init__(self,
                  data=None,
@@ -113,6 +115,7 @@ class SimSeries(SimBasics, Series):
                  auto_append=False,
                  operate_per_name=False,
                  transposed=False,
+                 meta=None,
                  *args, **kwargs):
 
         self.units = {}
@@ -125,6 +128,7 @@ class SimSeries(SimBasics, Series):
         self.spdLocator = _SimLocIndexer("loc", self)
         self.transposed = bool(transposed)
         self.reverse = kwargs['reverse'] if 'reverse' in kwargs else False
+        self.meta = meta
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -184,6 +188,9 @@ class SimSeries(SimBasics, Series):
             if type(self.units) is dict and self.index.name in self.units:
                 self.units[index_name] = self.units[self.index.name]
             self.index.name = index_name
+
+        # change pd.Index by SimIndex
+        self.index = SimIndex(self.index, units=self.index_units)
 
     @property
     def type(self):
@@ -482,8 +489,7 @@ class SimSeries(SimBasics, Series):
 
     def convert(self, units):
         """
-        returns the series converted to the requested units if possible,
-        else returns None
+        returns the index converted to the requested units if possible, if not, returns the original values.
         """
         if type(units) is str and type(self.units) is str:
             if _convertible(self.units, units):
