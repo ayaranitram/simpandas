@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.81.2'
-__release__ = 20230116
+__release__ = 20230119
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -17,11 +17,11 @@ from warnings import warn
 from unyts import is_Unit
 from unyts.converter import convertible as _convertible
 from unyts.operations import unit_inverse as _unit_inverse
-from simpandas.indexer import _SimLocIndexer
-from simpandas.common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
-from simpandas.common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
-from simpandas.common.renamer import right as _right, left as _left, common_rename as _common_rename
-from simpandas.common.helpers import clean_axis as _clean_axis
+from .indexer import _SimLocIndexer
+from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
+from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
+from .common.renamer import right as _right, left as _left, common_rename as _common_rename
+from .common.helpers import clean_axis as _clean_axis
 
 
 class SimBasics(object):
@@ -784,6 +784,22 @@ Copy of input object, shifted.
         returns the dataframe converted to the requested units if possible, if not, returns the original values.
         """
         return self.convert(units)
+
+    def index_to(self, units):
+        """
+        returns the dataframe with the index converted to the requested units if possible, if not, returns the original values.
+        """
+        if _convertible(self.index_units, units):
+            params_ = self.params_.copy()
+            params_['index_name'] = self.index_name if self.index.name is None else self.index.name
+            params_['index_units'] = units
+            if self.index.name in params_['units']:
+                params_['units'][self.index.name] = units
+            data = self.as_pandas().copy()
+            data.index = self.index.to(units)
+            return self._class(data=data, **params_)
+        else:
+            return self
     
     def like(self, units):
         """
