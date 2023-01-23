@@ -62,6 +62,7 @@ ss6 = SimSeries(
     units='m',
     name='pool',
     )
+s2 = ss4.as_pandas() + 2
 m = units(1.0, 'm')
 z = units(0.0, 'mm')
 y = units(1.0, 'yd')
@@ -786,7 +787,7 @@ assert (test == s1 // ss2.as_pandas()).all()
 assert test.name == s1.name + '/' + ss2.name
 assert test.units == ss2.units + '-1'
 
-### div int
+### floordiv int
 test = 0 // ss2
 assert (test == 0).all()
 assert test.name == ss2.name
@@ -813,7 +814,7 @@ assert (test - expected < 1e-6).all()
 assert test.name == ss2.name
 assert test.units == ss2.units + '-1'
 
-### div float
+### floordiv float
 test = ss2 // 5.0
 assert (test == ss2.to_numpy()//5.0).all()
 assert test.name == ss2.name
@@ -825,7 +826,7 @@ assert (test - expected < 1e-6).all()
 assert test.name == ss2.name
 assert test.units == ss2.units + '-1'
 
-### div Unyt
+### floordiv Unyt
 test = ss2 // y
 assert (test == ss2.to_numpy()//1).all()
 assert test.name == ss2.name
@@ -961,26 +962,36 @@ assert (test == ss2.as_pandas() % s1).all()
 assert test.name == ss2.name + '%' + s1.name
 assert test.units == ss2.units
 
-# test = s0%ss1
-# assert (test == ss1.as_pandas() % s0).all()
-# assert test.name is None
-# assert test.units == ss1.units
+test = ss4%s2
+assert (test == ss4.as_pandas() % s2).all()
+assert test.name == 'cookware%cookware:forks'
+assert test.units == ss4.units
 
-# test = s0%ss2
-# assert (test == ss2.as_pandas() % s0).all()
-# assert test.name == ss2.name
-# assert test.units == ss2.units
+test = s0%ss1
+assert (test ==  s0 % ss1.as_pandas()).all()
+assert test.name is None
+assert test.units == {}
 
-# test = s1%ss2
-# assert (test == ss2.as_pandas() % s1).all()
-# assert test.name == s1.name + '%' + ss2.name
-# assert test.units == ss2.units
+test = s0%ss2
+assert (test == s0 % ss2.as_pandas()).all()
+assert test.name == ss2.name
+assert test.units == {}
 
-### mul int
+test = s1%ss2
+assert (test == s1 % ss2.as_pandas()).all()
+assert test.name == s1.name
+assert test.units == {}
+
+test = s2%ss4
+assert (test == s2 % ss4.as_pandas()).all()
+assert test.name == s2.name
+assert test.units == {}
+
+### mod int
 test = 0 % ss2
 assert (test == 0).all()
 assert test.name == ss2.name
-assert test.units == ss2.units
+assert test.units == {}
 
 test = ss2 % 1
 assert (test == ss2.to_numpy() % 1).all()
@@ -990,7 +1001,7 @@ assert test.units == ss2.units
 test = 1 % ss2
 assert (test == 1 % ss2.to_numpy()).all()
 assert test.name == ss2.name
-assert test.units == ss2.units
+assert test.units == {}
 
 test = ss2 % 5
 assert (test == ss2.to_numpy()%5).all()
@@ -1000,9 +1011,9 @@ assert test.units == ss2.units
 test = 5 % ss2
 assert (test == 5%ss2.to_numpy()).all()
 assert test.name == ss2.name
-assert test.units == ss2.units
+assert test.units == {}
 
-### mul float
+### mod float
 test = ss2 % 5.0
 assert (test == ss2.to_numpy()%5.0).all()
 assert test.name == ss2.name
@@ -1011,9 +1022,9 @@ assert test.units == ss2.units
 test = 5.0 % ss2
 assert (test == 5.0%ss2.to_numpy()).all()
 assert test.name == ss2.name
-assert test.units == ss2.units
+assert test.units == {}
 
-### mul Unyt
+### mod Unyt
 test = ss2 % y
 assert (test == ss2.to_numpy()%1).all()
 assert test.name == ss2.name
@@ -1021,7 +1032,7 @@ assert test.units == ss2.units
 
 test = y % ss2
 assert (test == y.value % ss2.to_numpy()).all()
-assert test.name == ss2.name
+assert test.name == y.name
 assert test.units == y.units
 
 test = ss4 % y
@@ -1031,37 +1042,37 @@ assert test.units == ss4.units
 
 test = y % ss4
 assert (test == y.value % (ss4.to_numpy()/12/3)).all()
-assert test.name == ss4.name
+assert test.name == y.name
 assert test.units == y.units
 
-test = f * ss4
-assert (test == f.values * ss4.to_numpy()/12).all()
-assert test.name == ss4.name
+test = f % ss4
+assert (test == f.values % (ss4.to_numpy()/12)).all()
+assert test.name == f.name
 assert test.units == f.units
 
-test = ss4 * f
-assert (test == ss4.to_numpy() * f.values*12).all()
+test = ss4 % f
+assert (test == ss4.to_numpy() % (f.values*12)).all()
 assert test.name == ss4.name
 assert test.units == ss4.units
 
-test = m * ss3
-expected = (m.values * ss3.to_numpy()*0.3048).round(6)
-assert (test == expected).all()
-assert test.name == ss3.name
+test = m % ss3
+expected = (m.values % (ss3.to_numpy()*0.3048))
+assert (test.round(4).values == expected.round(4)).all()
+assert test.name == m.name
 assert test.units == m.units
 
-test = ss3 * m
-expected = (ss3.to_numpy() * m.values/0.3048).round(6)
+test = ss3 % m
+expected = (ss3.to_numpy() % (m.values/0.3048)).round(6)
 assert (test - expected < 1e-6).all()
 assert test.name == ss3.name
 assert test.units == ss3.units
 
-test = ss3 * t
-assert (test == ss3.to_numpy() * t.values).all()
+test = ss3 % t
+assert (test == ss3.to_numpy() % t.values).all()
 assert test.name == ss3.name
-assert test.units == ss3.units + '*' + t.units
+assert test.units == ss3.units
 
-test = t * ss3
-assert (test == t.values * ss3.to_numpy()).all()
-assert test.name == ss3.name
-assert test.units == t.units + '*' + ss3.units
+test = t % ss3
+assert (test == t.values % ss3.to_numpy()).all()
+assert test.name == t.name
+assert test.units == t.units
