@@ -343,7 +343,8 @@ class SimSeries(SimBasics, Series):
                             '/': [pd.Series.truediv, 'Division', None],
                             '//': [pd.Series.floordiv, 'Floor Division', None],
                             '%': [pd.Series.mod, 'Module', None],
-                            '**': [pd.Series.pow, 'Power', None]}
+                            '**': [pd.Series.pow, 'Power', None],
+                            '^': [pd.Series.pow, 'Power', None]}
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
