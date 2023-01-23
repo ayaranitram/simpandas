@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.80.2'
-__release__ = 20230104
+__release__ = 20230122
 __all__ = ['concat', 'merge']
 
 from simpandas.frame import SimDataFrame
@@ -291,7 +291,7 @@ def merge_SimParameters(left, right=None):
                     renameIntersectionLeft = True
                     renameIntersectionRight = True
 
-        merged['autoAppend'] = bool(int(left.auto_append) + int(right.auto_append))
+        merged['autoAppend'] = bool(int(left._auto_append_) + int(right._auto_append_))
 
     elif type(left) in [SimDataFrame, SimSeries] and type(right) not in [SimDataFrame, SimSeries]:
         merged = left._SimParameters.copy()

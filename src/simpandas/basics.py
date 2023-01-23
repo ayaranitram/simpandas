@@ -74,23 +74,28 @@ class SimBasics(object):
                        sort=sort, copy=copy, squeeze=squeeze)
 
     def _reverse(self):
-        self.reverse = not self.reverse
+        self._reverse_ = not self._reverse_
         return self
 
     @property
     def params_(self):
-        return {'units': self.units.copy() if type(self.units) is dict else self.units,
-                'name': self.name,
-                'verbose': self.verbose if hasattr(self, 'verbose') else False,
+        return {'name': self.name,
+                'units': self.units.copy() if type(self.units) is dict else self.units,
                 'index_name': self.index.name,
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
                 'intersection_character': self.intersection_character if hasattr(self,
                                                                                  'intersection_character') else '∩',
-                'auto_append': self.auto_append if hasattr(self, 'auto_append') else False,
-                'operate_per_name': self.operate_per_name if hasattr(self, 'operate_per_name') else False,
-                'transposed': self.transposed if hasattr(self, 'transposed') else False,
-                'reverse': self.reverse if hasattr(self, 'reverse') else False
+                'verbose': self.verbose if hasattr(self, 'verbose') else False,
+                'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
+                    self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'operate_per_name': self._operate_per_name_ if hasattr(self, '_operate_per_name_') else \
+                    self.operate_per_name if hasattr(self, 'operate_per_name') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'transposed': self._transposed_ if hasattr(self, '_transposed_') else \
+                    self.transposed if hasattr(self, 'transposed') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'reverse': self._reverse_ if hasattr(self, '_reverse_') else \
+                    self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'meta': self.meta if hasattr(self, 'meta') else False,
                 }
 
     @property
@@ -712,7 +717,7 @@ class SimBasics(object):
         elif other_name_separator is None:
             other_name_separator = self.name_separator
             print("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
-        if self.reverse:
+        if self._reverse_:
             return _common_rename(other, self,
                                   intersection_character=intersection_character,
                                   name_separator_2=other_name_separator,

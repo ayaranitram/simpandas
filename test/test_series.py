@@ -18,9 +18,9 @@ assert SimSeries().verbose is False
 assert SimSeries().index_units is None
 assert SimSeries().name_separator == ':'
 assert SimSeries().intersection_character == '∩'
-assert SimSeries().auto_append is False
-assert SimSeries().operate_per_name is False
-assert SimSeries().transposed is False
+assert SimSeries()._auto_append_ is False
+assert SimSeries()._operate_per_name_ is False
+assert SimSeries()._transposed_ is False
 assert str(SimSeries().dtype) == 'object'
 assert SimSeries()._class is SimSeries
 

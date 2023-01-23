@@ -6,7 +6,7 @@ Created on Wed Aug  3 20:24:36 2022
 """
 
 __version__ = '0.1.4'
-__release__ = 20221116
+__release__ = 20230122
 
 from simpandas.frame import SimDataFrame
 
@@ -155,7 +155,7 @@ def read_excel(io,
                                     name_separator=nameSeparator,
                                     intersection_character=intersectionCharacter,
                                     auto_append=autoAppend,
-                                    transposed=transposed,
+                                    transposed_=transposed,
                                     operate_per_name=operatePerName,
                                     *args, **kwargs)
 

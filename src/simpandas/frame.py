@@ -29,7 +29,7 @@ from .series import SimSeries
 from .common.helpers import clean_axis as _clean_axis
 
 
-def _series2frame(a_SimSeries):
+def _series_to_frame(a_SimSeries):
     """
     when a row is extracted from a DataFrame, Pandas returns a Series in wich
     the columns of the DataFrame are converted to the indexes of the Series and
@@ -45,18 +45,9 @@ def _series2frame(a_SimSeries):
         try:
             from simpandas.frame import SimDataFrame
             return SimDataFrame(data=dict(zip(list(a_SimSeries.index),
-                                              a_SimSeries.to_list()
-                                              )
-                                          ),
-                                units=a_SimSeries.get_units(),
-                                index=a_SimSeries.columns,
-                                verbose=a_SimSeries.verbose,
-                                index_name=a_SimSeries.index.name,
-                                index_units=a_SimSeries.index_units,
-                                name_separator=a_SimSeries.name_separator,
-                                intersection_character=a_SimSeries.intersection_character,
-                                auto_append=a_SimSeries.auto_append,
-                                operate_per_name=a_SimSeries.operate_per_name)
+                                              a_SimSeries.to_list())),
+                                **a_SimSeries.params_
+                                )
         except:
             return a_SimSeries
     if type(a_SimSeries) is pd.Series:
@@ -94,13 +85,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                  'index_units',
                  'name_separator',
                  'intersection_character',
-                 'auto_append',
                  'spdLocator',
-                 'operate_per_name',
-                 'transposed',
                  'name',
-                 'reverse',
-                 'meta']
+                 'meta',
+                 '_auto_append_',
+                 '_operate_per_name_',
+                 '_transposed_',
+                 '_reverse_']
 
     def __init__(self,
                  data=None,
@@ -117,7 +108,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                  intersection_character='∩',
                  auto_append=False,
                  operate_per_name=False,
-                 transposed=False,
+                 transposed_=False,
                  meta=None,
                  *args, **kwargs):
 
@@ -126,13 +117,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         self.index_units = None
         self.name_separator = None
         self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
-        self.auto_append = bool(auto_append)
-        self.operate_per_name = bool(operate_per_name)
-        self.transposed = bool(transposed)
         self.spdLocator = _SimLocIndexer("loc", self)
         self.name = name
-        self.reverse = kwargs['reverse'] if 'reverse' in kwargs else False
         self.meta = meta
+        self._auto_append_ = bool(auto_append)
+        self._operate_per_name_ = bool(operate_per_name)
+        self._transposed_ = bool(transposed_)
+        self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
 
         # get units from data if it is SimDataFrame or SimSeries
         if units is None or (type(units) in [list, dict] and len(units) == 0):
@@ -235,7 +226,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             else:
                 result = SimDataFrame(data=self._get_by_index(key), **self.params_)
                 if len(result) == 1:
-                    result = _series2frame(result)
+                    result = _series_to_frame(result)
                 return result
 
         # here below we try to guess what the user is requesting
@@ -359,10 +350,10 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         # apply indexes and slices
         if bool(indexes) or bool(slices):
             index_slices = indexes + slices
-            i_result = _series2frame(result._get_by_index(index_slices[0]))
+            i_result = _series_to_frame(result._get_by_index(index_slices[0]))
             if len(index_slices) > 1:
                 for i in index_slices[1:]:
-                    i_result = i_result.append(_series2frame(result._get_by_index(i)))
+                    i_result = i_result.append(_series_to_frame(result._get_by_index(i)))
             try:
                 result = i_result.sort_index()
             except:
@@ -370,7 +361,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         # if is a single row return it as a DataFrame instead of a pd.Series
         if by_index:
-            result = _series2frame(result)
+            result = _series_to_frame(result)
 
         if type(result) is pd.DataFrame:
             result = SimDataFrame(result, **self.params_)
@@ -480,11 +471,11 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
                     # if no columns has common names
                     if new_names is None:
-                        if len(other_c.columns) == 1 and not self.auto_append:  # just in case there is only one column in the second operand
+                        if len(other_c.columns) == 1 and not self._auto_append_:  # just in case there is only one column in the second operand
                             return self_c + other_c.to_simseries()
-                        elif not self.auto_append:
+                        elif not self._auto_append_:
                             raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-                        else:  # self.auto_append is True
+                        else:  # self._auto_append_ is True
                             for col in other_i.columns:
                                 result[col] = other_i[col]
                     else:
@@ -493,7 +484,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                             result_x.rename(columns=new_names, inplace=True)
                         else:
                             result_x = result
-                        if self.auto_append:
+                        if self._auto_append_:
                             for col in new_names.values():
                                 result[col] = result_x[col]
                         else:
@@ -507,9 +498,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             self_i, other_i = self._joined_index(other)
             other_i = other_i.to_simseries()
             result = self_i.copy()
-            if self.operate_per_name and other_i.name in self_i.columns:
+            if self._operate_per_name_ and other_i.name in self_i.columns:
                 result[other_i.name] = self_i[other_i.name] + other_i
-            elif self_i.auto_append:
+            elif self_i._auto_append_:
                 result[other_i.name] = other_i
             else:
                 for col in self_i.columns:
@@ -559,7 +550,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
                     resultX = selfC - otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.auto_append:
+                    if self._auto_append_:
                         for col in newNames.values():
                             result[col] = resultX[col]
                     else:
@@ -572,9 +563,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
-            if self.operate_per_name and otherI.name in selfI.columns:
+            if self._operate_per_name_ and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] - otherI
-            if self.auto_append:  # elif self.auto_append:
+            if self._auto_append_:  # elif self._auto_append_:
                 result[otherI.name] = -otherI
             else:
                 for col in selfI.columns:
@@ -623,7 +614,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
                     result_x = self_c * other_c
                     result_x.rename(columns=new_names, inplace=True)
-                    if self.auto_append:
+                    if self._auto_append_:
                         for col in new_names.values():
                             if self.intersection_character in col:  # intersection_character = '∩'
                                 result[col] = result_x[col]
@@ -638,7 +629,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 other = SimSeries(other, **self.params_)
             self_i, other_i = self._joined_index(other)
             result = self_i.copy()
-            if self.operate_per_name and other_i.name in self_i.columns:
+            if self._operate_per_name_ and other_i.name in self_i.columns:
                 result[other_i.name] = self[other_i.name] * other_i
             else:
                 for col in self_i.columns:
@@ -684,7 +675,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
                     resultX = selfC / otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.auto_append:
+                    if self._auto_append_:
                         for col in newNames.values():
                             if self.intersection_character in col:  # intersection_character = '∩'
                                 result[col] = resultX[col]
@@ -698,7 +689,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
-            if self.operate_per_name and otherI.name in selfI.columns:
+            if self._operate_per_name_ and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] / otherI
             else:
                 for col in selfI.columns:
@@ -744,7 +735,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
                     resultX = selfC // otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.auto_append:
+                    if self._auto_append_:
                         for col in newNames.values():
                             if self.intersection_character in col:  # intersection_character = '∩'
                                 result[col] = resultX[col]
@@ -758,7 +749,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
-            if self.operate_per_name and otherI.name in selfI.columns:
+            if self._operate_per_name_ and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[otherI.name] // otherI
             else:
                 for col in self.columns:
@@ -804,7 +795,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
                     resultX = selfC % otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.auto_append:
+                    if self._auto_append_:
                         for col in newNames.values():
                             if self.intersection_character in col:  # intersection_character = '∩'
                                 result[col] = resultX[col]
@@ -819,7 +810,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
-            if self.operate_per_name and otherI.name in selfI.columns:
+            if self._operate_per_name_ and otherI.name in selfI.columns:
                 result[otherI.name] = selfI[other.name] % otherI
             else:
                 for col in selfI.columns:
@@ -865,7 +856,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
                     resultX = selfC ** otherC
                     resultX.rename(columns=newNames, inplace=True)
-                    if self.auto_append:
+                    if self._auto_append_:
                         for col in newNames.values():
                             if self.intersection_character in col:  # intersection_character = '∩'
                                 result[col] = resultX[col]
@@ -880,7 +871,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
-            if self.operate_per_name and otherI.name in selfI.columns:
+            if self._operate_per_name_ and otherI.name in selfI.columns:
                 result[otherI.name] = self[otherI.name] ** otherI
             else:
                 for col in selfI.columns:
@@ -931,7 +922,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
     def transpose(self):
         params_ = self.params_.copy()
-        params_['transposed'] = not self.transposed
+        params_['transposed'] = not self._transposed_
         return SimDataFrame(data=self.as_pandas().T, **params_)
 
     def to_pandas(self):
@@ -976,7 +967,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         returns the dataframe converted to the requested units if possible,
         else returns None
         """
-        if self.transposed:
+        if isinstance(units, (Unit, SimSeries, SimDataFrame)):
+            units = units.units
+        if self._transposed_:
             return self.transpose().convert(units).transpose()
         elif type(units) is str:
             if len(set(self.units.values())) == 1:
@@ -1854,7 +1847,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         return out
 
     def _DataFrame_with_MultiIndex(self):
-        if self.transposed:
+        if self._transposed_:
             result = self.as_pandas().copy()
             units = []
             for i in result.index:
@@ -2066,8 +2059,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             units = units.to_dict()
 
         if type(units) is dict:
-            if len([k for k in units.keys() if k in (self.index if self.transposed else self.columns)]) >= len(
-                    [u for u in units.values() if u in (self.index if self.transposed else self.columns)]):
+            if len([k for k in units.keys() if k in (self.index if self._transposed_ else self.columns)]) >= len(
+                    [u for u in units.values() if u in (self.index if self._transposed_ else self.columns)]):
                 ku = True
             else:
                 ku = False
@@ -2084,7 +2077,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             self.units = {}
 
         if type(self.units) is dict:
-            if not self.transposed:
+            if not self._transposed_:
                 if item is None and len(self.columns) > 1:
                     raise ValueError("This SimDataFrame has multiple columns, item parameter must be provided.")
                 elif item is None and len(self.columns) == 1:
@@ -2102,7 +2095,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                         self.units[item] = units.strip()
                     if item in self.index.names:
                         self.units[item] = units.strip()
-            else:  # if self.transposed:
+            else:  # if self._transposed_:
                 if item is None and len(self.index) > 1:
                     raise ValueError("item must not be None")
                 elif item is None and len(self.index) == 1:

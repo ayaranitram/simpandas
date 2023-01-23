@@ -21,7 +21,8 @@ import warnings
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
     unit_power as _unit_power, unit_addition as _unit_addition
-from unyts import units, is_Unit
+from unyts.dictionaries import unitless_names as _unitless_names
+from unyts import units, is_Unit, Unit
 
 from .basics import SimBasics
 from .common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
@@ -90,13 +91,13 @@ class SimSeries(SimBasics, Series):
                  'index_units',
                  'name_separator',
                  'intersection_character',
-                 'auto_append',
                  'spdLocator',
-                 'operate_per_name',
-                 'transposed',
                  'columns',
-                 'reverse',
-                 'meta']
+                 'meta',
+                 '_auto_append_',
+                 '_operate_per_name_',
+                 '_transposed_',
+                 '_reverse_',]
 
     def __init__(self,
                  data=None,
@@ -123,12 +124,12 @@ class SimSeries(SimBasics, Series):
         self.index_units = None
         self.name_separator = None
         self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
-        self.auto_append = bool(auto_append)
-        self.operate_per_name = bool(operate_per_name)
         self.spdLocator = _SimLocIndexer("loc", self)
-        self.transposed = bool(transposed)
-        self.reverse = kwargs['reverse'] if 'reverse' in kwargs else False
         self.meta = meta
+        self._auto_append_ = bool(auto_append)
+        self._operate_per_name_ = bool(operate_per_name)
+        self._transposed_ = bool(transposed)
+        self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -276,10 +277,33 @@ class SimSeries(SimBasics, Series):
             return self[key].values
 
     def __getitem__(self, key=None):
+        # ensure self.index is SimIndex
+        if not hasattr(self.index, 'units'):
+            self.index = SimIndex(self.index, units=self.index_units)
+        def index_params_():
+            params_ = self.params_.copy()
+            params_['name'] = self.index.name
+            params_['units'] = self.index.units
+            params_['index_name'] = None
+            params_['index_units'] = None
+            return params_
+
         if key is None:
             return self
-        if type(key) is str and key.strip() == self.name and not key.strip() in self.index:
+        elif type(key) is str and key.strip() == self.name and not key.strip() in self.index:
             return self
+        elif type(key) is str and key == self.index.name:
+            params_ = index_params_()
+            return SimSeries(data=self.index.to_numpy(),
+                             index=range(len(self.index)),
+                             **params_)
+        elif type(key) is list and key in [[], [self.name]]:
+            return self.as_simdataframe()
+        elif type(key) is list and key == [self.index.name]:
+            params_ = index_params_()
+            return SimDataFrame(data={self.index.name: self.index.to_numpy()},
+                                index=range(len(self.index)),
+                                **params_)
         else:
             try:
                 return self.loc[key]
@@ -392,7 +416,7 @@ class SimSeries(SimBasics, Series):
         # other is instance of unyts
         elif is_Unit(other):
             if type(self.units) is str:
-                if self.reverse:
+                if self._reverse_:
                     params_['units'] = _units_operation(other.units, self.units, operation)
                 else:
                     params_['units'] = _units_operation(self.units, other.units, operation)
@@ -413,7 +437,7 @@ class SimSeries(SimBasics, Series):
             params_['dtype'] = result.dtype
         else:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
-        self.reverse = False
+        self._reverse_ = False
         return self._class(data=result, **params_)
 
     def __add__(self, other):
