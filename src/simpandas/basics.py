@@ -259,6 +259,42 @@ class SimBasics(object):
         else:
             return self.inv()._reverse().mul(other, intersection_character='/').astype(int)
 
+    def __rmod__(self, other):
+        params_ = self.params_.copy()
+        if hasattr(other, 'name') and type(other.name) is str:
+            params_['name'] = other.name
+        if is_Unit(other):
+            params_['units'] = other.units
+            result = self.to(other.units).as_pandas().__rmod__(other.value)
+            return self._class(data=result, **params_)
+        else:
+            params_['units'] = None
+            return self._class(data=self.as_pandas().__rmod__(other), **params_)
+
+    def __matmul__(self, other):
+        if is_Unit(other):
+            result = self.__truediv__(other.value)
+            if other.units not in _unitless_names:
+                if type(self.units) is str:
+                    result.units = self.units + '/' + other.units
+                elif type(self.units) is dict:
+                    result.units = {k: (str(u) + '/' + other.units) for k, u in self.units.items()}
+            return result
+        else:
+            return super().__matmul__(other)
+
+    def __rmatmul__(self, other):
+        if is_Unit(other):
+            result = self.inv().__mul__(other.value)
+            if other.units not in _unitless_names:
+                if type(self.units) is str:
+                    result.units = other.units + '/' + self.units
+                elif type(self.units) is dict:
+                    result.units = {k: (other.units + '/' + str(u)) for k, u in self.units.items()}
+            return result
+        else:
+            return super().__rmatmul__(other)
+
     def avg(self, axis=0, **kwargs):
         return self.mean(axis=axis, **kwargs)
 
