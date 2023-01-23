@@ -102,6 +102,16 @@ class SimBasics(object):
     def _SimParameters(self):
         return self.params_
 
+    def auto_append(self, switch: bool = None) -> None:
+        if switch is not None:
+            self._auto_append_ = bool(switch)
+        print("`auto_append` is", self._auto_append_)
+
+    def operate_per_name(self, switch: bool = None) -> None:
+        if switch is not None:
+            self._operate_per_name_ = bool(switch)
+        print("`operate_per_name` is", self._operate_per_name_)
+
     def describe(self, *args, **kwargs):
         return self._class(data=self.to_Pandas().describe(*args, **kwargs),
                            **self.params_)
