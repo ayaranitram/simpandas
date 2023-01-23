@@ -350,11 +350,27 @@ class SimSeries(SimBasics, Series):
         op_label = valid_operations[operation][1]
         fill_value = valid_operations[operation][1] if fill_value is True else fill_value
 
+        # ensure self.index is SimIndex
+        if not hasattr(self.index, 'units'):
+            self.index = SimIndex(self.index, units=self.index_units)
+
         # both SimSeries
         if isinstance(other, SimSeries):
             if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
                 warnings.warn("indexes of both SimSeries are not of the same kind:\n   '" +
                               self.index.name + "' != '" + other.index.name + "'")
+
+            # ensure other.index is SimIndex
+            if not hasattr(other.index, 'units'):
+                other.index = SimIndex(other.index, units=other.index_units)
+
+            # convert other.index.units if required and possible
+            if self.index.units == other.index.units:
+                pass
+            elif self.index.units not in _unitless_names and other.index.units not in _unitless_names and \
+                    _convertible(other.index.units, self.index.units):
+                other = other.index_to(self.index.units)
+
             if type(self.units) is str and type(other.units) is str:
                 new_name = _string_new_name(
                     self._common_rename(other, intersection_character=intersection_character, return_names_dict_only=True),
