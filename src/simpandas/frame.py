@@ -964,7 +964,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
     def convert(self, units):
         """
-        returns the dataframe converted to the requested units if possible,
+        returns the SimDataFrame converted to the requested units if possible,
         else returns None
         """
         if isinstance(units, (Unit, SimSeries, SimDataFrame)):

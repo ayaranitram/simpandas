@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.81.2'
-__release__ = 20230119
+__version__ = '0.81.3'
+__release__ = 20230121
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -532,8 +532,10 @@ class SimSeries(SimBasics, Series):
 
     def convert(self, units):
         """
-        returns the index converted to the requested units if possible, if not, returns the original values.
+        returns the SimSeries converted to the requested units if possible, if not, returns the original values.
         """
+        if isinstance(units, (Unit, SimSeries)):
+            units = units.units
         if type(units) is str and type(self.units) is str:
             if _convertible(self.units, units):
                 params_ = self.params_.copy()
