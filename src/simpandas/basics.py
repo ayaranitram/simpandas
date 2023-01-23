@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.2'
-__release__ = 20230119
+__version__ = '0.81.4'
+__release__ = 20230123
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -17,6 +17,8 @@ from warnings import warn
 from unyts import is_Unit
 from unyts.converter import convertible as _convertible
 from unyts.operations import unit_inverse as _unit_inverse
+from unyts.dictionaries import unitless_names as _unitless_names
+from unyts import Unit
 from .indexer import _SimLocIndexer
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
@@ -24,7 +26,12 @@ from .common.renamer import right as _right, left as _left, common_rename as _co
 from .common.helpers import clean_axis as _clean_axis
 
 
-class SimBasics(object):
+class SimType(type):
+    def __repr__(self):
+        return self.__name__
+
+
+class SimBasics(object, metaclass=SimType):
     """
 
     """
@@ -54,7 +61,7 @@ class SimBasics(object):
         from simpandas.common.merger import concat as _concat
         from simpandas import SimDataFrame, SimSeries
         from pandas import DataFrame, Series
-        
+
         if type(objs) is list:
             for each in objs:
                 if not isinstance(each, (SimDataFrame, DataFrame, SimSeries, Series)):
@@ -63,11 +70,11 @@ class SimBasics(object):
             raise TypeError("objs must be a list of DataFrames or SimDataFrames")
         else:
             objs = [objs]
-        
+
         if len(objs) == 1:
             warn("WARNING: only 1 DataFrame received, nothing to concatenate!")
             return [objs][0]
-        
+
         return _concat([self] + objs, axis=axis, join=join,
                        ignore_index=ignore_index, keys=keys, levels=levels,
                        names=names, verify_integrity=verify_integrity,
@@ -229,7 +236,6 @@ class SimBasics(object):
 
     def pow(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self._arithmethic_operation(other, operation='**', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
-
 
     def __neg__(self):
         return self._class(data=self.as_pandas().__neg__(), **self.params_)
@@ -853,7 +859,7 @@ Copy of input object, shifted.
             return self._class(data=data, **params_)
         else:
             return self
-    
+
     def like(self, units):
         """
         returns the dataframe replacing its units by the requested `units`.
@@ -1223,7 +1229,7 @@ Copy of input object, shifted.
             if tb in group_by:
                 _ = group_by.remove(tb)
         by = time_by if group_by is None else time_by + group_by
-        
+
         result = self.copy()
 
         if len(by) > 3:  # user criteria to group by
@@ -1784,7 +1790,7 @@ Copy of input object, shifted.
 
         if method[0] in 't' or (method[0] in 'ac' and at == 'next'):
             if str(dt.dtype).startswith('timedelta'):
-                first_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), 
+                first_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
                                          index=['0']).set_index(pd.DatetimeIndex([self.index[0]]))
             else:
                 first_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
@@ -1804,7 +1810,7 @@ Copy of input object, shifted.
         Calculates numerical differentiation of the columns values over the index values.
 
         Returns a new SimDataFrame
-        """      
+        """
         if len(self) < 2:
             print("less than two rows, nothing to differenciate.")
             return self
