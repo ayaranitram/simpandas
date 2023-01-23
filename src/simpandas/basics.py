@@ -187,6 +187,8 @@ class SimBasics(object):
             return True
         elif item in self.index:
             return True
+        elif item == self.index.name:
+            return True
         else:
             return False
 
