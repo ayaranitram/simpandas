@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.81.2'
-__release__ = 20230119
+__release__ = 20230121
 __all__ = ['SimDataFrame']
 
 from warnings import warn
@@ -18,6 +18,7 @@ import datetime as dt
 import matplotlib.pyplot as plt
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_power as _unit_power
+from unyts.dictionaries import unitless_names as _unitless_names
 
 from .basics import SimBasics
 from .common.slope import slope as _slope
@@ -446,6 +447,106 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     self.new_units(self.columns[c], u_dict[self.columns[c]])
                 else:
                     self.new_units(self.columns[c], 'unitless')
+
+    def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
+                               intersection_character=None):
+        def _units_operation(a, b, operation):
+            if operation in ['+', '-', '%']:
+                return _unit_addition(a, b)
+            elif operation in ['*']:
+                return _unit_product(a, b)
+            elif operation in ['/', '//']:
+                return _unit_division(a, b)
+            elif operation in ['**']:
+                return _unit_power(a, b)
+            else:
+                raise ValueError("Unknown operation")
+
+        params_ = self.params_.copy()
+        _products = ['*', '/', '//']
+        valid_operations = {# operator, pd.Series.method, proposed fill_value
+                            '+': [pd.Series.add, 'Addition', 0],
+                            '-': [pd.Series.sub, 'Subtraction', 0],
+                            '*': [pd.Series.mul, 'Product', 1],
+                            '/': [pd.Series.truediv, 'Division', None],
+                            '//': [pd.Series.floordiv, 'Floor Division', None],
+                            '%': [pd.Series.mod, 'Module', None],
+                            '**': [pd.Series.pow, 'Power', None],
+                            '^': [pd.Series.pow, 'Power', None]}
+        assert operation in valid_operations
+        intersection_character = operation if intersection_character is None else intersection_character
+        op_method = valid_operations[operation][0]
+        op_label = valid_operations[operation][1]
+        fill_value = valid_operations[operation][1] if fill_value is True else fill_value
+
+        # ensure self.index is SimIndex
+        if not hasattr(self.index, 'units'):
+            self.index = SimIndex(self.index, units=self.index_units)
+
+        # both are SimDataFrame
+        if isinstance(other, SimDataFrame):
+            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
+                Warning(
+                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
+
+            # ensure other.index is SimIndex
+            if not hasattr(other.index, 'units'):
+                other.index = SimIndex(other.index, units=other.index_units)
+
+            # convert other.index.units if required and possible
+            if self.index.units == other.index.units:
+                pass
+            elif self.index.units not in _unitless_names and other.index.units not in _unitless_names and \
+                    _convertible(other.index.units, self.index.units):
+                other = other.index_to(self.index.units)
+
+            not_fount = 0
+            self_i, other_i = self._joined_index(other)
+            result = self_i.copy()
+
+            for col in other_i.columns:
+                if col in self_i.columns:
+                    result[col] = self_i[col]._arithmethic_operation(other_i[col],
+                                                                     operation=operation,
+                                                                     level=level,
+                                                                     fill_value=fill_value,
+                                                                     axis=0,
+                                                                     intersection_character=intersection_character)
+                else:
+                    not_fount += 1
+                    result[col] = other_i[col]
+
+            if not_fount == len(other_i.columns):
+                if self_i.name_separator is not None and other_i.name_separator is not None:
+                    self_c, other_c, new_names = self_i._common_rename(other_i)
+
+                    # if no columns has common names
+                    if new_names is None:
+                        if len(other_c.columns) == 1 and not self._auto_append_:  # just in case there is only one column in the second operand
+                            return self_c._arithmethic_operation(other_c.to_simseries(),
+                                                                 operation=operation,
+                                                                 level=level,
+                                                                 fill_value=fill_value,
+                                                                 axis=0,
+                                                                 intersection_character=intersection_character)
+                        elif not self._auto_append_:
+                            raise NotImplementedError("Not possible to operate SimDataFrames if there aren't common columns.")
+                        else:  # self._auto_append_ is True
+                            for col in other_i.columns:
+                                result[col] = other_i[col]
+                    else:
+                        if (self_i.columns != self_c.columns).any() or (other_i.columns != other_c.columns).any():
+                            result_x = self_c + other_c
+                            result_x.rename(columns=new_names, inplace=True)
+                        else:
+                            result_x = result
+                        if self._auto_append_:
+                            for col in new_names.values():
+                                result[col] = result_x[col]
+                        else:
+                            result = result_x
+            return result
+
 
     def __add__(self, other):
         # both are SimDataFrame
