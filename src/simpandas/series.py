@@ -321,7 +321,7 @@ class SimSeries(SimBasics, Series):
     def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
-            if operation in ['+', '-', '%']:
+            if operation in ['+', '-']:
                 return _unit_addition(a, b)
             elif operation in ['*']:
                 return _unit_product(a, b)
@@ -329,11 +329,13 @@ class SimSeries(SimBasics, Series):
                 return _unit_division(a, b)
             elif operation in ['**']:
                 return _unit_power(a, b)
+            elif operation in ['%']:
+                return a
             else:
                 raise ValueError("Unknown operation")
 
         params_ = self.params_.copy()
-        _products = ['*', '/', '//']
+        _products = ['*', '/', '//', '%']
         valid_operations = {# operator, pd.Series.method, proposed fill_value
                             '+': [pd.Series.add, 'Addition', 0],
                             '-': [pd.Series.sub, 'Subtraction', 0],
