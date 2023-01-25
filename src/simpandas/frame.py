@@ -89,6 +89,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                  'spdLocator',
                  'name',
                  'meta',
+                 'source_path',
                  '_auto_append_',
                  '_operate_per_name_',
                  '_transposed_',
@@ -111,6 +112,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                  operate_per_name=False,
                  transposed_=False,
                  meta=None,
+                 source_path=None,
                  *args, **kwargs):
 
         self.units = {}
@@ -121,6 +123,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         self.spdLocator = _SimLocIndexer("loc", self)
         self.name = name
         self.meta = meta
+        self.source_path = source_path
         self._auto_append_ = bool(auto_append)
         self._operate_per_name_ = bool(operate_per_name)
         self._transposed_ = bool(transposed_)

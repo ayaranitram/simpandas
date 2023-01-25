@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.81.3'
-__release__ = 20230121
+__version__ = '0.81.5'
+__release__ = 20230124
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -94,6 +94,7 @@ class SimSeries(SimBasics, Series):
                  'spdLocator',
                  'columns',
                  'meta',
+                 'source_path',
                  '_auto_append_',
                  '_operate_per_name_',
                  '_transposed_',
@@ -117,6 +118,7 @@ class SimSeries(SimBasics, Series):
                  operate_per_name=False,
                  transposed=False,
                  meta=None,
+                 source_path=None,
                  *args, **kwargs):
 
         self.units = {}
@@ -126,6 +128,7 @@ class SimSeries(SimBasics, Series):
         self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
         self.spdLocator = _SimLocIndexer("loc", self)
         self.meta = meta
+        self.source_path = source_path
         self._auto_append_ = bool(auto_append)
         self._operate_per_name_ = bool(operate_per_name)
         self._transposed_ = bool(transposed)

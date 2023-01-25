@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.4'
-__release__ = 20230123
+__version__ = '0.81.5'
+__release__ = 20230124
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -103,6 +103,7 @@ class SimBasics(object, metaclass=SimType):
                 'reverse': self._reverse_ if hasattr(self, '_reverse_') else \
                     self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
                 'meta': self.meta if hasattr(self, 'meta') else False,
+                'source_path': self.source_path if hasattr(self, 'source_path') else None,
                 }
 
     @property
