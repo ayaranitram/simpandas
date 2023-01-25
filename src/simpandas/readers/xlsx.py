@@ -6,9 +6,9 @@ Created on Wed Aug  3 20:24:36 2022
 """
 
 __version__ = '0.1.4'
-__release__ = 20221116
+__release__ = 20230122
 
-from ..frame import SimDataFrame
+from simpandas.frame import SimDataFrame
 
 __all__ = ['read_excel']
 
@@ -150,13 +150,13 @@ def read_excel(io,
         output[name] = SimDataFrame(data=df,
                                     units=dataunits,
                                     verbose=verbose,
-                                    indexName=indexName,
-                                    indexUnits=indexUnits,
-                                    nameSeparator=nameSeparator,
-                                    intersectionCharacter=intersectionCharacter,
-                                    autoAppend=autoAppend,
-                                    transposed=transposed,
-                                    operatePerName=operatePerName,
+                                    index_name=indexName,
+                                    index_units=indexUnits,
+                                    name_separator=nameSeparator,
+                                    intersection_character=intersectionCharacter,
+                                    auto_append=autoAppend,
+                                    transposed_=transposed,
+                                    operate_per_name=operatePerName,
                                     *args, **kwargs)
 
         if bool(squeeze):

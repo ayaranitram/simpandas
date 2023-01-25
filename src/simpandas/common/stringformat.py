@@ -6,10 +6,10 @@ Created on Wed Sep 18 12:33:46 2019
 """
 
 __version__ = '0.15.3'
-__release__ = 20221103
+__release__ = 20230104
 __all__ = ['multisplit', 'is_numeric', 'get_number', 'is_date', 'date']
 
-from ..errors import UndefinedDateFormatError
+from simpandas.errors import UndefinedDateFormatError
 
 import numpy as np
 import pandas as pd

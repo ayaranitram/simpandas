@@ -5,58 +5,107 @@ Created on Sat Oct 24 18:24:20 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-from simpandas.common.renamer import left, right, renameLeft, renameRight, commonRename
+from simpandas.common.renamer import left, right, rename_left, rename_right, common_rename
 from simpandas import SimSeries, SimDataFrame
 from pandas import Series, DataFrame
 
 s = Series(range(4), index=list('abcd'), name='abcd:0-3')
-
-assert left(s) == {'abcd:0-3': 'abcd:0-3'}
-assert right(s) == {'abcd:0-3': 'abcd:0-3'}
-assert left(s, ':') == {'abcd:0-3': 'abcd'}
-assert right(s, ':') == {'abcd:0-3': '0-3'}
-assert left(s, '_') == {'abcd:0-3': 'abcd:0-3'}
-assert right(s, '_') == {'abcd:0-3': 'abcd:0-3'}
-assert renameLeft(s).name == s.name
-assert renameRight(s).name == s.name
-assert renameLeft(s, ':').name == s.name.split(':')[0]
-assert renameRight(s, ':').name == s.name.split(':')[1]
-
 d = DataFrame({'abcd:0-3': [0, 1, 2, 3], '1234:a-d': list('abcd')}, index=range(4))
+ss = SimSeries(range(4), index=list('abcd'), name='abcd:0-3', units='m', name_separator=':')
+sd = SimDataFrame({'abcd:0-3': [0, 1, 2, 3], '1234:a-d': list('abcd')}, index=range(4),
+                  units={'abcd:0-3': 'm', '1234:a-d': ''}, name_separator=':')
 
-assert left(d) == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
-assert right(d) == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
-assert left(d, ':') == {'abcd:0-3': 'abcd', '1234:a-d': '1234'}
-assert right(d, ':') == {'abcd:0-3': '0-3', '1234:a-d': 'a-d'}
-assert left(d, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
-assert right(d, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
-assert list(renameLeft(d).columns) == ['abcd:0-3', '1234:a-d']
-assert list(renameRight(d).columns) == ['abcd:0-3', '1234:a-d']
-assert list(renameLeft(d, ':').columns) == ['abcd', '1234']
-assert list(renameRight(d, ':').columns) == ['0-3', 'a-d']
 
-ss = SimSeries(range(4), index=list('abcd'), name='abcd:0-3', units='m', nameSeparator=':')
+def test_left():
+    assert left(s) == {'abcd:0-3': 'abcd:0-3'}
+    assert left(s, ':') == {'abcd:0-3': 'abcd'}
+    assert left(s, '_') == {'abcd:0-3': 'abcd:0-3'}
+    assert left(d) == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
+    assert left(d, ':') == {'abcd:0-3': 'abcd', '1234:a-d': '1234'}
+    assert left(d, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
+    assert left(ss) == {'abcd:0-3': 'abcd'}
+    assert left(ss, ':') == {'abcd:0-3': 'abcd'}
+    assert left(ss, '_') == {'abcd:0-3': 'abcd:0-3'}
+    assert left(sd) == {'abcd:0-3': 'abcd', '1234:a-d': '1234'}
+    assert left(sd, ':') == {'abcd:0-3': 'abcd', '1234:a-d': '1234'}
+    assert left(sd, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
 
-assert left(ss) == {'abcd:0-3': 'abcd'}
-assert right(ss) == {'abcd:0-3': '0-3'}
-assert left(ss, ':') == {'abcd:0-3': 'abcd'}
-assert right(ss, ':') == {'abcd:0-3': '0-3'}
-assert left(ss, '_') == {'abcd:0-3': 'abcd:0-3'}
-assert right(ss, '_') == {'abcd:0-3': 'abcd:0-3'}
-assert renameLeft(ss).name == s.name
-assert renameRight(ss).name == s.name
-assert renameLeft(ss, ':').name == s.name.split(':')[0]
-assert renameRight(ss, ':').name == s.name.split(':')[1]
 
-sd = SimDataFrame({'abcd:0-3': [0, 1, 2, 3], '1234:a-d': list('abcd')}, index=range(4), units={'abcd:0-3': 'm', '1234:a-d': ''}, nameSeparator=':')
+def test_right():
+    assert right(s) == {'abcd:0-3': 'abcd:0-3'}
+    assert right(s, ':') == {'abcd:0-3': '0-3'}
+    assert right(s, '_') == {'abcd:0-3': 'abcd:0-3'}
+    assert right(d) == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
+    assert right(d, ':') == {'abcd:0-3': '0-3', '1234:a-d': 'a-d'}
+    assert right(d, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
+    assert right(ss) == {'abcd:0-3': '0-3'}
+    assert right(ss, ':') == {'abcd:0-3': '0-3'}
+    assert right(ss, '_') == {'abcd:0-3': 'abcd:0-3'}
+    assert right(sd) == {'abcd:0-3': '0-3', '1234:a-d': 'a-d'}
+    assert right(sd, ':') == {'abcd:0-3': '0-3', '1234:a-d': 'a-d'}
+    assert right(sd, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
 
-assert left(sd) == {'abcd:0-3': 'abcd', '1234:a-d': '1234'}
-assert right(sd) == {'abcd:0-3': '0-3', '1234:a-d': 'a-d'}
-assert left(sd, ':') == {'abcd:0-3': 'abcd', '1234:a-d': '1234'}
-assert right(sd, ':') == {'abcd:0-3': '0-3', '1234:a-d': 'a-d'}
-assert left(sd, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
-assert right(sd, '_') == {'abcd:0-3': 'abcd:0-3', '1234:a-d': '1234:a-d'}
-assert list(renameLeft(sd).columns) == ['abcd:0-3', '1234:a-d']
-assert list(renameRight(d).columns) == ['abcd:0-3', '1234:a-d']
-assert list(renameLeft(d, ':').columns) == ['abcd', '1234']
-assert list(renameRight(d, ':').columns) == ['0-3', 'a-d']
+
+def test_rename_left():
+    assert rename_left(s).name == s.name
+    assert rename_left(s, ':').name == s.name.split(':')[0]
+    assert rename_left(ss).name == s.name.split(':')[0]
+    assert rename_left(ss, ':').name == s.name.split(':')[0]
+    assert rename_left(ss, '_').name == s.name
+    assert list(rename_left(d).columns) == ['abcd:0-3', '1234:a-d']
+    assert list(rename_left(d, ':').columns) == ['abcd', '1234']
+    assert list(rename_left(sd).columns) == ['abcd', '1234']
+    assert list(rename_left(sd, ':').columns) == ['abcd', '1234']
+    assert list(rename_left(sd, '_').columns) == ['abcd:0-3', '1234:a-d']
+
+
+def test_rename_right():
+    assert rename_right(s).name == s.name
+    assert rename_right(s, ':').name == s.name.split(':')[1]
+    assert rename_right(ss).name == s.name.split(':')[1]
+    assert rename_right(ss, ':').name == s.name.split(':')[1]
+    assert rename_right(ss, '_').name == s.name
+    assert list(rename_right(d).columns) == ['abcd:0-3', '1234:a-d']
+    assert list(rename_right(d, ':').columns) == ['0-3', 'a-d']
+    assert list(rename_right(sd).columns) == ['0-3', 'a-d']
+    assert list(rename_right(sd, ':').columns) == ['0-3', 'a-d']
+    assert list(rename_right(sd, '_').columns) == ['abcd:0-3', '1234:a-d']
+
+
+df1 = DataFrame(data={'p1:a1': [1, 2, 3], 'p1:a2': [3, 4, 5]})
+df2 = DataFrame(data={'p2:a1': [1, 2, 3], 'p2:a2': [3, 4, 5]})
+df3 = DataFrame(data={'p1:a1': [1, 2, 3], 'p2:a1': [5, 6, 7]})
+df4 = DataFrame(data={'p1:a2': [1, 2, 3], 'p2:a2': [5, 6, 7]})
+
+
+def test_common_rename():
+    test = common_rename(df1, df2, name_separator_1=':', name_separator_2=':', return_names_dict_only=True)
+    assert test == {'a1': 'p1&p2:a1', 'a2': 'p1&p2:a2'}
+
+    test = common_rename(df1, df2, name_separator_1=':', name_separator_2=':', complex_names=True)
+    assert list(test[0].columns) == ['p1&p2:a1', 'p1&p2:a2']
+    assert list(test[1].columns) == ['p1&p2:a1', 'p1&p2:a2']
+    assert test[2] == {'a1': 'p1&p2:a1', 'a2': 'p1&p2:a2'}
+
+    test = common_rename(df1, df2, name_separator_1=':', name_separator_2=':')
+    assert list(test[0].columns) == ['a1', 'a2']
+    assert list(test[1].columns) == ['a1', 'a2']
+    assert test[2] == {'a1': 'p1&p2:a1', 'a2': 'p1&p2:a2'}
+
+    test = common_rename(df3, df4, name_separator_1=':', name_separator_2=':', return_names_dict_only=True)
+    assert test == {'p1': 'p1:a1&a2', 'p2': 'p2:a1&a2'}
+
+    test = common_rename(df3, df4, name_separator_1=':', name_separator_2=':', complex_names=True)
+    assert list(test[0].columns) == ['p1', 'p2']
+    assert list(test[1].columns) == ['p1', 'p2']
+    assert test[2] == {'p1': 'p1:a1&a2', 'p2': 'p2:a1&a2'}
+
+    test = common_rename(df3, df4, name_separator_1=':', name_separator_2=':')
+    assert list(test[0].columns) == ['p1', 'p2']
+    assert list(test[1].columns) == ['p1', 'p2']
+    assert test[2] == {'p1': 'p1:a1&a2', 'p2': 'p2:a1&a2'}
+
+    test = common_rename(df1, df3, name_separator_1=':', name_separator_2=':')
+    assert list(test[0].columns) == ['p1:a1', 'p1:a2']
+    assert list(test[1].columns) == ['p1:a1', 'p2:a1']
+    assert test[2] == {'p1': 'p1:a1&a2', 'p2': 'p2:a1&a2'}

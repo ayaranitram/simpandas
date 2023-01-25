@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simpandas"
-version = "0.80.9"
+version = "0.82.1"
 authors = [
   { name="Martin Carlos Araya", email="martinaraya@gmail.com" },
 ]
@@ -21,10 +21,10 @@ dependencies = [
     'numpy',
     'pandas',
     'matplotlib',
+    'seaborn',
     'datetime',
-    'unyts >= 0.4.4',
+    'unyts >= 0.5.10',
 ]
-
 [project.urls]
 "Homepage" = "https://github.com/ayaranitram/simpandas"
 "Bug Tracker" = "https://github.com/ayaranitram/simpandas/issues"
