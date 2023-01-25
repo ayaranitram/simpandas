@@ -193,7 +193,7 @@ class SimSeries(SimBasics, Series):
                 self.units[index_name] = self.units[self.index.name]
             self.index.name = index_name
 
-        # change pd.Index by SimIndex
+        # change pd.Index to SimIndex
         self.index = SimIndex(self.index, units=self.index_units)
 
     @property

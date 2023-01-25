@@ -29,7 +29,7 @@ class SimIndex(pd.Index, ABC):
 
     def __new__(cls, *args, **kwargs):
         def to_(units):
-            return convert(obj.values, obj.units, units)
+            return SimIndex(convert(obj.values, obj.units, units))
         if 'units' in kwargs:
             units = kwargs['units']
             del kwargs['units']

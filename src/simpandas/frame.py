@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.2'
-__release__ = 20230121
+__version__ = '0.81.5'
+__release__ = 20230124
 __all__ = ['SimDataFrame']
 
 from warnings import warn
@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_power as _unit_power
 from unyts.dictionaries import unitless_names as _unitless_names
+from unyts import Unit
 
 from .basics import SimBasics
 from .common.slope import slope as _slope
@@ -151,12 +152,24 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if data is None and dtype is None:
             dtype = object
 
+        # catch index name as index argument
+        if type(index) is str:
+            set_index_, index = index, None
+            if index_name is None:
+                index_name = set_index_
+        else:
+            set_index_ = False
+
         # initialize pd.DataFrame
         if isinstance(data, SimBasics):
             pd_data = data.to_pandas()
         else:
             pd_data = data
         super().__init__(data=pd_data, index=index, columns=columns, dtype=dtype, copy=copy)
+
+        # set catched index (if catched)
+        if bool(set_index_) and set_index_ in self.columns:
+            super().set_index(set_index_, inplace=True)
 
         # override index.name with index_name
         if index_name is not None:
@@ -179,7 +192,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if self.index.name in self.units:
                 self.units[self.index.name] = index_units
 
-        # change pd.Index by SimIndex
+        # change pd.Index to SimIndex
         self.index = SimIndex(self.index, units=self.index_units)
 
     @property
@@ -2125,6 +2138,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         None.
 
         """
+        if units is None and item is None:
+            return None
+
         if item is not None and \
             units is not None and \
             type(item) is not str and hasattr(units, '__iter__') and \
