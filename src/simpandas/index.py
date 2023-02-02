@@ -5,8 +5,8 @@ Created on Thu Jan 19 21:48:27 2023
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.1'
-__release__ = 20230119
+__version__ = '0.0.2'
+__release__ = 20230202
 __all__ = ['SimIndex']
 
 from abc import ABC
@@ -30,6 +30,15 @@ class SimIndex(pd.Index, ABC):
     def __new__(cls, *args, **kwargs):
         def to_(units):
             return SimIndex(convert(obj.values, obj.units, units))
+
+        def set_units_(units):
+            if hasattr(units, 'unit') and type(units.unit) is str:
+                units = units.unit
+            elif hasattr(units, 'units') and type(units.units) is str:
+                units = units.units
+            if type(units) is str:
+                obj.units = units.split()
+
         if 'units' in kwargs:
             units = kwargs['units']
             del kwargs['units']
@@ -38,6 +47,7 @@ class SimIndex(pd.Index, ABC):
         obj = pd.Index.__new__(cls, *args, **kwargs)
         obj.units = units
         obj.to = to_
+        obj.set_units = set_units_
         return obj
 
     def __array_finalize__(self, obj):

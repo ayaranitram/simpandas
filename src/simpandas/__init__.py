@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.82.3'
-__release__ = 20230123
+__version__ = '0.82.4'
+__release__ = 20230202
 __all__ = ['SimSeries', 'SimDataFrame', 'read_excel', 'concat']
 
 from .series import SimSeries

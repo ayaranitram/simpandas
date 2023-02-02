@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.5'
-__release__ = 20230124
+__version__ = '0.81.6'
+__release__ = 20230202
 __all__ = ['SimDataFrame']
 
 from warnings import warn
@@ -159,6 +159,10 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 index_name = set_index_
         else:
             set_index_ = False
+
+        # catch index units if index is instance of SimIndex
+        if index_units is None and hasattr(index, 'units'):
+            index_units = index.units
 
         # initialize pd.DataFrame
         if isinstance(data, SimBasics):
@@ -1032,10 +1036,18 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                                        verify_integrity=verify_integrity, **kwargs), **params_)
 
     def set_index_units(self, units):
+        if hasattr(units, 'units') and type(units.units) is str:
+            units = units.units
+        elif hasattr(units, 'unit') and type(units.unit) is str:
+            units = units.unit
         if type(units) is str and len(units.strip()) > 0:
             self.index_units = units.strip()
         else:
             raise TypeError("`units` must be a string.")
+        if not isinstance(self.index, SimIndex) and type(self.index_units) is str:
+            self.index = SimIndex(self.index, units=self.index_units)
+        elif type(self.index_units) is str:
+            self.index.set_units(self.index_units)
 
     def transpose(self):
         params_ = self.params_.copy()

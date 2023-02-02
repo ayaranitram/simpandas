@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.81.5'
-__release__ = 20230124
+__version__ = '0.81.6'
+__release__ = 20230202
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -161,6 +161,10 @@ class SimSeries(SimBasics, Series):
         # define default dtype
         if data is None and dtype is None:
             dtype = object
+
+        # catch index units if index is instance of SimIndex
+        if index_units is None and hasattr(index, 'units'):
+            index_units = index.units
 
         # initialize pd.Series
         super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy, fastpath=fastpath)
@@ -485,12 +489,20 @@ class SimSeries(SimBasics, Series):
         self.set_index_name(name)
 
     def set_index_units(self, units):
+        if hasattr(units, 'units') and type(units.units) is str:
+            units = units.units
+        elif hasattr(units, 'unit') and type(units.unit) is str:
+            units = units.unit
         if type(units) is str and len(units.strip()) > 0:
             self.index_units = units.strip()
         elif type(units) is dict and len(units) == len(self.index):
             self.index_units = units
         else:
             raise TypeError("`units` must be a string or a dictionary with pair key: units for each item in the index.")
+        if not isinstance(self.index, SimIndex) and type(self.index_units) is str:
+            self.index = SimIndex(self.index, units=self.index_units)
+        elif type(self.index_units) is str:
+            self.index.set_units(self.index_units)
 
     def transpose(self):
         return self
