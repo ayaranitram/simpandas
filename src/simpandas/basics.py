@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.5'
-__release__ = 20230124
+__version__ = '0.81.6'
+__release__ = 20230208
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -1806,7 +1806,7 @@ Copy of input object, shifted.
         else:
             return self._class(data=np.cumsum(cumulative), **params_)
 
-    def differenciate(self, na_position='last'):
+    def differentiate(self, na_position='last'):
         """
         Calculates numerical differentiation of the columns values over the index values.
 
