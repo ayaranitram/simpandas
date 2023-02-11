@@ -52,7 +52,7 @@ class _SimLocIndexer(_LocIndexer):
     def __setitem__(self, key, value):  #, units=None):
         from .frame import SimDataFrame
         from .series import SimSeries
-        if isinstance(value, unit):
+        if isinstance(value, Unit):
             if key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is not None:
                 value = value.to(self.spd.get_units_string(key[1])).value
             elif key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is None:
