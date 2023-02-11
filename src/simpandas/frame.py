@@ -1015,7 +1015,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             result = self.as_DataFrame() ** other
             return SimDataFrame(data=result, **self.params_)
 
-    def set_index(self, key, drop=False, append=False, inplace=False, verify_integrity=False, **kwargs):
+    def set_index(self, key, drop=True, append=False, inplace=False, verify_integrity=False, **kwargs):
         if type(key) is list:
             if False in [k in self.columns for k in key]:
                 k = [str(k) for k in key if k not in self.columns]
@@ -1023,15 +1023,15 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         elif key not in self.columns:
             raise ValueError("The key '" + str(key) + "' is not a column name of this SimDataFrame.")
         if inplace:
-            index_units = self.get_units(key)
+            index_units = self.get_units(key)[key]
             super().set_index(key, drop=drop, append=append, inplace=inplace, verify_integrity=verify_integrity,
                               **kwargs)
             self.set_index_units(index_units)
         else:
             params_ = self.params_.copy()
             params_['index'] = None
-            params_['index_name'] = None
-            params_['index_units'] = self.get_units(key)  # [key]
+            params_['index_name'] = key
+            params_['index_units'] = self.get_units(key)[key]
             return SimDataFrame(data=self.as_pandas().set_index(key, drop=drop, append=append, inplace=inplace,
                                                        verify_integrity=verify_integrity, **kwargs), **params_)
 
