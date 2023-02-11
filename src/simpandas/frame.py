@@ -2000,6 +2000,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             result = self.to_dataframe()
             new_name = self._columns_name_and_units_to_MultiIndex()
             result.columns = new_name
+            result.index = self.index
             return result
 
     def _repr_html_(self):
