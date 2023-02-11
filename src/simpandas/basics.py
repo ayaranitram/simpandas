@@ -1213,8 +1213,7 @@ Copy of input object, shifted.
             result = self.cumsum()
         else:
             raise ValueError("`agg` parameter is not valid.")
-        self._class(data=result, **params_)
-        return result
+        return self._class(data=result, **params_)
 
     def fill_daily(self, group_by=None, fillna_method=False, raise_by_error=True, **kwargs):
         """
