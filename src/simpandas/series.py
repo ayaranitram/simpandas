@@ -201,8 +201,8 @@ class SimSeries(SimBasics, Series):
         self.index = SimIndex(self.index, units=self.index_units)
 
     @property
-    def type(self):
-        return 'SimSeries'    
+    def _class(self):
+        return SimSeries
 
     @property
     def _constructor(self):
@@ -213,9 +213,90 @@ class SimSeries(SimBasics, Series):
         from simpandas.frame import SimDataFrame
         return SimDataFrame
 
-    @property
-    def _class(self):
-        return SimSeries
+    def to_pandas(self):
+        return self.to_series()
+
+    def as_pandas(self):
+        return self.as_series()
+
+    def to_series(self):
+        return Series(self.copy())
+
+    def as_series(self):
+        return Series(self)
+
+    def to_simseries(self):
+        return self
+
+    def as_simseries(self):
+        return self
+
+    def to_dataframe(self):
+        return self.to_simdataframe().to_dataframe()
+
+    def as_dataframe(self):
+        return self.as_simdataframe().as_dataframe()
+
+    def to_simdataframe(self):
+        from .frame import SimDataFrame
+        if type(self.units) is str:
+            return SimDataFrame(data=self)
+        elif type(self.units) is dict:
+            return SimDataFrame(
+                data=self.values.reshape(1, self.values.size),
+                index=[self.name],
+                columns=self.index,
+                **self.params_)
+
+    def as_simdataframe(self):
+        return self.to_simdataframe()
+
+    def __call__(self, key=None):
+        """
+        Returns the series values, a NumPy array or number without units.
+        """
+        if key is None:
+            return self.values
+        else:
+            return self[key].values
+
+    def __getitem__(self, key=None):
+        # ensure self.index is SimIndex
+        if not hasattr(self.index, 'units'):
+            self.index = SimIndex(self.index, units=self.index_units)
+        def index_params_():
+            params_ = self.params_.copy()
+            params_['name'] = self.index.name
+            params_['units'] = self.index.units
+            params_['index_name'] = None
+            params_['index_units'] = None
+            return params_
+
+        if key is None:
+            return self
+        elif type(key) is str and key.strip() == self.name and not key.strip() in self.index:
+            return self
+        elif type(key) is str and key == self.index.name:
+            params_ = index_params_()
+            return SimSeries(data=self.index.to_numpy(),
+                             index=range(len(self.index)),
+                             **params_)
+        elif type(key) is list and key in [[], [self.name]]:
+            return self.as_simdataframe()
+        elif type(key) is list and key == [self.index.name]:
+            params_ = index_params_()
+            return SimDataFrame(data={self.index.name: self.index.to_numpy()},
+                                index=range(len(self.index)),
+                                **params_)
+        else:
+            try:
+                result = self.loc[key]
+            except KeyError:
+                try:
+                    result = self.iloc[key]
+                except IndexError:
+                    raise KeyError("the requested Key is not a valid index or name: " + str(key))
+        return result
 
     def __repr__(self) -> str:
         """
@@ -274,57 +355,6 @@ class SimSeries(SimBasics, Series):
         else:
             return result
 
-    def __call__(self, key=None):
-        """
-        Returns the series values, a NumPy array or number without units.
-        """
-        if key is None:
-            return self.values
-        else:
-            return self[key].values
-
-    def __getitem__(self, key=None):
-        # ensure self.index is SimIndex
-        if not hasattr(self.index, 'units'):
-            self.index = SimIndex(self.index, units=self.index_units)
-        def index_params_():
-            params_ = self.params_.copy()
-            params_['name'] = self.index.name
-            params_['units'] = self.index.units
-            params_['index_name'] = None
-            params_['index_units'] = None
-            return params_
-
-        if key is None:
-            return self
-        elif type(key) is str and key.strip() == self.name and not key.strip() in self.index:
-            return self
-        elif type(key) is str and key == self.index.name:
-            params_ = index_params_()
-            return SimSeries(data=self.index.to_numpy(),
-                             index=range(len(self.index)),
-                             **params_)
-        elif type(key) is list and key in [[], [self.name]]:
-            return self.as_simdataframe()
-        elif type(key) is list and key == [self.index.name]:
-            params_ = index_params_()
-            return SimDataFrame(data={self.index.name: self.index.to_numpy()},
-                                index=range(len(self.index)),
-                                **params_)
-        else:
-            try:
-                return self.loc[key]
-            except KeyError:
-                try:
-                    return self.iloc[key]
-                except IndexError:
-                    raise KeyError("the requested Key is not a valid index or name: " + str(key))
-
-    def astype(self, dtype, copy=True, errors='raise'):
-        params_ = self.params_.copy()
-        params_['dtype'] = dtype
-        return self._class(data=self.as_pandas().astype(dtype), **params_)
-
     def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
@@ -344,14 +374,14 @@ class SimSeries(SimBasics, Series):
         params_ = self.params_.copy()
         _products = ['*', '/', '//', '%']
         valid_operations = {# operator, pd.Series.method, proposed fill_value
-                            '+': [pd.Series.add, 'Addition', 0],
-                            '-': [pd.Series.sub, 'Subtraction', 0],
-                            '*': [pd.Series.mul, 'Product', 1],
-                            '/': [pd.Series.truediv, 'Division', None],
-                            '//': [pd.Series.floordiv, 'Floor Division', None],
-                            '%': [pd.Series.mod, 'Module', None],
-                            '**': [pd.Series.pow, 'Power', None],
-                            '^': [pd.Series.pow, 'Power', None]}
+            '+': [pd.Series.add, 'Addition', 0],
+            '-': [pd.Series.sub, 'Subtraction', 0],
+            '*': [pd.Series.mul, 'Product', 1],
+            '/': [pd.Series.truediv, 'Division', None],
+            '//': [pd.Series.floordiv, 'Floor Division', None],
+            '%': [pd.Series.mod, 'Module', None],
+            '**': [pd.Series.pow, 'Power', None],
+            '^': [pd.Series.pow, 'Power', None]}
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
@@ -468,9 +498,9 @@ class SimSeries(SimBasics, Series):
 
     def __add__(self, other):
         return self._arithmethic_operation(other, operation='+', fill_value=0)
+
     def __sub__(self, other):
         return self._arithmethic_operation(other, operation='-', fill_value=0)
-
     def __mul__(self, other):
         return self._arithmethic_operation(other, operation='*', fill_value=1)
 
@@ -479,71 +509,23 @@ class SimSeries(SimBasics, Series):
 
     def __floordiv__(self, other):
         return self._arithmethic_operation(other, operation='//', fill_value=None, intersection_character='/')
+
     def __mod__(self, other):
         return self._arithmethic_operation(other, operation='%', fill_value=None)
-
     def __pow__(self, other):
         return self._arithmethic_operation(other, operation='**', fill_value=None)
 
-    def set_index(self, name):
-        self.set_index_name(name)
+    def astype(self, dtype, copy=True, errors='raise'):
+        params_ = self.params_.copy()
+        params_['dtype'] = dtype
+        return self._class(data=self.as_pandas().astype(dtype), **params_)
 
-    def set_index_units(self, units):
-        if hasattr(units, 'units') and type(units.units) is str:
-            units = units.units
-        elif hasattr(units, 'unit') and type(units.unit) is str:
-            units = units.unit
-        if type(units) is str and len(units.strip()) > 0:
-            self.index_units = units.strip()
-        elif type(units) is dict and len(units) == len(self.index):
-            self.index_units = units
-        else:
-            raise TypeError("`units` must be a string or a dictionary with pair key: units for each item in the index.")
-        if not isinstance(self.index, SimIndex) and type(self.index_units) is str:
-            self.index = SimIndex(self.index, units=self.index_units)
-        elif type(self.index_units) is str:
-            self.index.set_units(self.index_units)
-
-    def transpose(self):
-        return self
-
-    def to_pandas(self):
-        return self.to_series()
-
-    def as_pandas(self):
-        return self.as_series()
-
-    def to_series(self):
-        return Series(self.copy())
-
-    def as_series(self):
-        return Series(self)
-
-    def to_simseries(self):
-        return self
-
-    def as_simseries(self):
-        return self
-
-    def to_dataframe(self):
-        return self.to_simdataframe().to_dataframe()
-
-    def as_dataframe(self):
-        return self.as_simdataframe().as_dataframe()
-
-    def to_simdataframe(self):
-        from .frame import SimDataFrame
-        if type(self.units) is str:
-            return SimDataFrame(data=self)
-        elif type(self.units) is dict:
-            return SimDataFrame(
-                data=self.values.reshape(1, self.values.size),
-                index=[self.name],
-                columns=self.index,
-                **self.params_)
-
-    def as_simdataframe(self):
-        return self.to_simdataframe()
+    def copy(self):
+        if type(self.units) is dict:
+            params_ = self.params_.copy()
+            params_['units'] = self.units.copy()
+            return SimSeries(data=self.as_pandas().copy(True), **params_)
+        return SimSeries(data=self.as_pandas().copy(True), **self.params_)
 
     def convert(self, units):
         """
@@ -566,22 +548,6 @@ class SimSeries(SimBasics, Series):
             return self.to_simdataframe().convert(units).to_simseries()
         else:
             return self
-
-    def reindex(self, index=None, **kwargs):
-        """
-        wrapper for pandas.Series.reindex
-
-        index : array-like, optional
-            New labels / index to conform to, should be specified using keywords.
-            Preferably an Index object to avoid duplicating data.
-        """
-        return SimSeries(data=self.to_pandas().reindex(index=index, **kwargs), **self.params_)
-
-
-    # not shared methods
-    #@property
-    #def columns(self):
-    #    return Index([self.name])
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
         axis = _clean_axis(axis)
@@ -611,270 +577,6 @@ class SimSeries(SimBasics, Series):
             self.drop(columns=filt[filt == True].index, inplace=True)
         else:
             return self.drop(columns=filt[filt == True].index, inplace=False)
-
-    def rms(self, axis=0, **kwargs):
-        return units((((self.as_pandas()) ** 2).mean(axis=axis, **kwargs)) ** 0.5,
-                     self.get_UnitsString())
-
-    def min(self, axis=0, **kwargs):
-        return units(self.as_pandas().min(axis=axis, **kwargs), self.get_UnitsString())
-
-    def max(self, axis=0, **kwargs):
-        return units(self.as_pandas().max(axis=axis, **kwargs), self.get_UnitsString())
-
-    def mean(self, axis=0, **kwargs):
-        return units(self.as_pandas().mean(axis=axis, **kwargs), self.get_UnitsString())
-
-    def mode(self, axis=0, **kwargs):
-        return units(self.as_pandas().mode(axis=axis, **kwargs), self.get_UnitsString())
-
-    def prod(self, axis=0, **kwargs):
-        from unyts.operations import unit_base_power
-        from unyts.units.unitless import unitless_names
-        unit_base, unit_power = unit_base_power(self.get_UnitsString())
-        prod_units = unit_base if unit_base in unitless_names else (unit_base + str(unit_power * len(self)))
-        return units(self.as_pandas().prod(axis=axis, **kwargs), prod_units)
-
-    def quantile(self, q=0.5, axis=0, **kwargs):
-        return units(self.as_pandas().quantile(q, axis=axis, **kwargs), self.get_UnitsString())
-
-    def sum(self, axis=0, **kwargs):
-        return units(self.as_pandas().sum(axis=axis, **kwargs), self.get_UnitsString())
-
-    def std(self, axis=0, **kwargs):
-        return units(self.as_pandas().std(axis=axis, **kwargs), self.get_UnitsString())
-
-    def var(self, axis=0, **kwargs):
-        return units(self.as_pandas().var(axis=axis, **kwargs), self.get_UnitsString())
-
-    def round(self, decimals=0, **kwargs):
-        return units(self.as_pandas().round(decimals=decimals, **kwargs), self.get_UnitsString())
-
-    def rename(self, index=None, *, axis=None, copy=True, inplace=False, level=None, errors='ignore', **kwargs):
-        """
-        wrapper of rename function from Pandas.
-
-        Alter Series index labels or name.
-
-        Function / dict values must be unique (1-to-1).
-        Labels not contained in a dict / Series will be left as-is.
-        Extra labels listed don’t throw an error.
-
-        Alternatively, change Series.name with a scalar value.
-
-        See the user guide for more.
-
-        Parameters
-        axis{0 or “index”}
-        Unused. Accepted for compatibility with DataFrame method only.
-
-        indexscalar, hashable sequence, dict-like or function, optional
-        Functions or dict-like are transformations to apply to the index.
-        Scalar or hashable sequence-like will alter the Series.name attribute.
-
-        **kwargs
-        Additional keyword arguments passed to the function. Only the “inplace” keyword is used.
-
-        Returns
-        Series or None
-        Series with index labels or name altered or None if inplace=True.
-        """
-
-        # for compatibility with SimDataFrame
-        if 'columns' in kwargs and index is None:
-            index = kwargs['columns']
-            del kwargs['columns']
-
-        if type(index) is dict:
-            if len(index) == 1 and list(index.keys())[0] not in self.index:
-                return self.rename(list(index.values())[0], axis=axis, copy=copy, inplace=inplace, level=level,
-                                   errors=errors)
-            col_before = list(self.index)
-            if inplace:
-                super().rename(index=index, axis=axis, copy=copy, inplace=inplace, level=level, errors=errors)
-                col_after = list(self.index)
-            else:
-                catch = super().rename(index=index, axis=axis, copy=copy, inplace=inplace, level=level, errors=errors)
-                col_after = list(catch.index)
-
-            new_units = {}
-            for i in range(len(col_before)):
-                new_units[col_after[i]] = self.units[col_before[i]]
-            if inplace:
-                self.units = new_units
-                self.spdLocator = _SimLocIndexer("loc", self)
-                return None
-            else:
-                catch.units = new_units
-                catch.spdLocator = _SimLocIndexer("loc", catch)
-                return catch
-        elif type(index) is str:
-            if inplace:
-                self.name = index.strip()
-                self.spdLocator = _SimLocIndexer("loc", self)
-                return None
-            else:
-                catch = self.copy()
-                catch.name = index
-                catch.spdLocator = _SimLocIndexer("loc", catch)
-                return catch
-
-    def get_keys(self, pattern=None):
-        """
-        Will return a tuple of all the key names in case.
-
-        If the pattern variable is different from None only keys
-        matching the pattern will be returned; the matching is based
-        on fnmatch():
-            Pattern     Meaning
-            *           matches everything
-            ?           matches any single character
-            [seq]       matches any character in seq
-            [!seq]      matches any character not in seq
-
-        """
-        if pattern is not None and type(pattern) is not str:
-            raise TypeError(
-                'pattern argument must be a string.\nreceived ' + str(type(pattern)) + ' with value ' + str(pattern))
-        if type(self.name) is str:
-            keys = [self.name]
-        else:
-            keys = list(self.index)
-        if pattern is None:
-            return keys
-        else:
-            return list(fnmatch.filter(keys, pattern))
-
-    def get_Units(self, items=None):
-        return self.get_units()
-
-    def get_units(self, items=None):
-        """
-        returns the units for the selected 'items' or for all the columns in the SimDataFrame.
-
-        Parameters
-        ----------
-        items : str or list of str, optional
-            Ignored, this parameter is kept for compatibility with SimDataFrame. The default is None.
-
-        Returns
-        -------
-        TYPE
-            DESCRIPTION.
-
-        """
-        if self.units is None:
-            units_dict = {self.name: 'unitless'}
-        elif type(self.units) is str:
-            units_dict = {self.name: self.units}
-        elif type(self.units) is dict:
-            units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index }
-        else:
-            units_dict = self.units.copy() if type(self.units) is dict else {self.name: self.units}
-        return units_dict
-
-    def set_units(self, units, item=None):
-        """
-        This method can be used to define the units related to the values of a column (item).
-
-        Parameters
-        ----------
-        units : str or list of str
-            the units to be assigned
-        item : str, optional
-            The name of the column to apply the units.
-            The default is None. In this case the unit
-
-        Raises
-        ------
-        ValueError
-            when units can't be applied.
-        TypeError
-            when units or item has the wrong format.
-
-        Returns
-        -------
-        None.
-
-        """
-        if item is not None and type(item) in (str, int, float) and item not in self.columns and item not in self.index:
-            raise ValueError("the required item '" + str(item) + "' is not in this SimSeries")
-
-        if self.units is None or type(self.units) is str:
-            if units is None:
-                self.units = None
-            elif type(units) is str:
-                self.units = units.strip()
-            elif type(units) is dict:
-                old_units = self.units
-                try:
-                    self.units = {}
-                    return self.set_units(units)
-                except:
-                    self.units = old_units
-                    raise ValueError("not able to process dictionary of units.")
-            else:
-                raise TypeError("units must be a string.")
-
-        elif type(self.units) is dict:
-            if type(units) not in (str, dict) and hasattr(units, '__iter__'):
-                if item is not None and type(item) not in (str, dict) and hasattr(item, '__iter__'):
-                    if len(item) == len(units):
-                        return self.set_units(dict(zip(item, units)))
-                    else:
-                        raise ValueError("both units and item must have the same length.")
-                elif item is None:
-                    if len(units) == len(self.columns):
-                        return self.set_units(dict(zip(list(self.columns), units)))
-                    else:
-                        raise ValueError(
-                            "units list must be the same length of columns in the SimSeries or must be followed by a list of items.")
-                else:
-                    raise TypeError("if units is a list, items must be a list of the same length.")
-            elif type(units) is dict:
-                for k, u in units.items():
-                    self.set_units(u, k)
-            elif type(units) is str:
-                if item is None:
-                    self.units = units.strip()
-                else:
-                    if type(item) not in (str, dict) and hasattr(item, '__iter__'):
-                        units = units.strip()
-                        for i in item:
-                            if i in self.units:
-                                self.units[i] = units
-                    elif type(item) is str:
-                        if item in self.units:
-                            self.units[item] = units
-                        elif item in self.columns or item in self.index:
-                            self.units[item] = units
-
-            if item is None and len(self.columns) > 1:
-                raise ValueError("More than one column in this SimSeries, item must not be None")
-            elif item is None and len(self.columns) == 1:
-                return self.set_units(units, list(self.columns)[0])
-            elif item is not None:
-                if item in self.columns:
-                    if units is None:
-                        self.units[item] = None
-                    elif type(units) is str:
-                        self.units[item] = units.strip()
-                    else:
-                        raise TypeError("units must be a string.")
-                if item == self.index.name:
-                    self.index_units = units.strip()
-                    self.units[item] = units.strip()
-                elif item in self.index.names:
-                    self.units[item] = units.strip()
-                elif item in self.index:
-                    self.units[item] = units.strip()
-
-    def copy(self):
-        if type(self.units) is dict:
-            params_ = self.params_.copy()
-            params_['units'] = self.units.copy()
-            return SimSeries(data=self.as_pandas().copy(True), **params_)
-        return SimSeries(data=self.as_pandas().copy(True), **self.params_)
 
     def filter(self, conditions=None, **kwargs):
         """
@@ -1059,22 +761,193 @@ class SimSeries(SimBasics, Series):
         else:
             return tuple(ret_tuple)
 
-    def sort_values(self, axis=0, ascending=True, inplace=False, kind='quicksort',
-                    na_position='last', ignore_index=False, key=None):
-        if inplace:
-            super().sort_values(axis=axis, ascending=ascending, inplace=inplace,
-                                kind=kind, na_position=na_position, ignore_index=ignore_index, key=key)
-            return None
+    def rms(self, axis=0, **kwargs):
+        return units((((self.as_pandas()) ** 2).mean(axis=axis, **kwargs)) ** 0.5,
+                     self.get_UnitsString())
+
+    def min(self, axis=0, **kwargs):
+        return units(self.as_pandas().min(axis=axis, **kwargs), self.get_UnitsString())
+
+    def max(self, axis=0, **kwargs):
+        return units(self.as_pandas().max(axis=axis, **kwargs), self.get_UnitsString())
+
+    def mean(self, axis=0, **kwargs):
+        return units(self.as_pandas().mean(axis=axis, **kwargs), self.get_UnitsString())
+
+    def mode(self, axis=0, **kwargs):
+        return units(self.as_pandas().mode(axis=axis, **kwargs), self.get_UnitsString())
+
+    def prod(self, axis=0, **kwargs):
+        from unyts.operations import unit_base_power
+        from unyts.units.unitless import unitless_names
+        unit_base, unit_power = unit_base_power(self.get_UnitsString())
+        prod_units = unit_base if unit_base in unitless_names else (unit_base + str(unit_power * len(self)))
+        return units(self.as_pandas().prod(axis=axis, **kwargs), prod_units)
+
+    def quantile(self, q=0.5, axis=0, **kwargs):
+        return units(self.as_pandas().quantile(q, axis=axis, **kwargs), self.get_UnitsString())
+
+    def sum(self, axis=0, **kwargs):
+        return units(self.as_pandas().sum(axis=axis, **kwargs), self.get_UnitsString())
+
+    def std(self, axis=0, **kwargs):
+        return units(self.as_pandas().std(axis=axis, **kwargs), self.get_UnitsString())
+
+    def var(self, axis=0, **kwargs):
+        return units(self.as_pandas().var(axis=axis, **kwargs), self.get_UnitsString())
+
+    def round(self, decimals=0, **kwargs):
+        return units(self.as_pandas().round(decimals=decimals, **kwargs), self.get_UnitsString())
+
+    def get_keys(self, pattern=None):
+        """
+        Will return a tuple of all the key names in case.
+
+        If the pattern variable is different from None only keys
+        matching the pattern will be returned; the matching is based
+        on fnmatch():
+            Pattern     Meaning
+            *           matches everything
+            ?           matches any single character
+            [seq]       matches any character in seq
+            [!seq]      matches any character not in seq
+
+        """
+        if pattern is not None and type(pattern) is not str:
+            raise TypeError(
+                'pattern argument must be a string.\nreceived ' + str(type(pattern)) + ' with value ' + str(pattern))
+        if type(self.name) is str:
+            keys = [self.name]
         else:
-            return SimSeries(
-                data=self.as_Series().sort_values(axis=axis, ascending=ascending,
-                                                  inplace=inplace, kind=kind,
-                                                  na_position=na_position,
-                                                  ignore_index=ignore_index,
-                                                  key=key),
-                **self.params_)
+            keys = list(self.index)
+        if pattern is None:
+            return keys
+        else:
+            return list(fnmatch.filter(keys, pattern))
 
+    def get_Units(self, items=None):
+        return self.get_units()
 
+    def get_units(self, items=None):
+        """
+        returns the units for the selected 'items' or for all the columns in the SimDataFrame.
+
+        Parameters
+        ----------
+        items : str or list of str, optional
+            Ignored, this parameter is kept for compatibility with SimDataFrame. The default is None.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        """
+        if self.units is None:
+            units_dict = {self.name: 'unitless'}
+        elif type(self.units) is str:
+            units_dict = {self.name: self.units}
+        elif type(self.units) is dict:
+            units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index }
+        else:
+            units_dict = self.units.copy() if type(self.units) is dict else {self.name: self.units}
+        return units_dict
+
+    def set_units(self, units, item=None):
+        """
+        This method can be used to define the units related to the values of a column (item).
+
+        Parameters
+        ----------
+        units : str or list of str
+            the units to be assigned
+        item : str, optional
+            The name of the column to apply the units.
+            The default is None. In this case the unit
+
+        Raises
+        ------
+        ValueError
+            when units can't be applied.
+        TypeError
+            when units or item has the wrong format.
+
+        Returns
+        -------
+        None.
+
+        """
+        if item is not None and type(item) in (str, int, float) and item not in self.columns and item not in self.index:
+            raise ValueError("the required item '" + str(item) + "' is not in this SimSeries")
+
+        if self.units is None or type(self.units) is str:
+            if units is None:
+                self.units = None
+            elif type(units) is str:
+                self.units = units.strip()
+            elif type(units) is dict:
+                old_units = self.units
+                try:
+                    self.units = {}
+                    return self.set_units(units)
+                except:
+                    self.units = old_units
+                    raise ValueError("not able to process dictionary of units.")
+            else:
+                raise TypeError("units must be a string.")
+
+        elif type(self.units) is dict:
+            if type(units) not in (str, dict) and hasattr(units, '__iter__'):
+                if item is not None and type(item) not in (str, dict) and hasattr(item, '__iter__'):
+                    if len(item) == len(units):
+                        return self.set_units(dict(zip(item, units)))
+                    else:
+                        raise ValueError("both units and item must have the same length.")
+                elif item is None:
+                    if len(units) == len(self.columns):
+                        return self.set_units(dict(zip(list(self.columns), units)))
+                    else:
+                        raise ValueError(
+                            "units list must be the same length of columns in the SimSeries or must be followed by a list of items.")
+                else:
+                    raise TypeError("if units is a list, items must be a list of the same length.")
+            elif type(units) is dict:
+                for k, u in units.items():
+                    self.set_units(u, k)
+            elif type(units) is str:
+                if item is None:
+                    self.units = units.strip()
+                else:
+                    if type(item) not in (str, dict) and hasattr(item, '__iter__'):
+                        units = units.strip()
+                        for i in item:
+                            if i in self.units:
+                                self.units[i] = units
+                    elif type(item) is str:
+                        if item in self.units:
+                            self.units[item] = units
+                        elif item in self.columns or item in self.index:
+                            self.units[item] = units
+
+            if item is None and len(self.columns) > 1:
+                raise ValueError("More than one column in this SimSeries, item must not be None")
+            elif item is None and len(self.columns) == 1:
+                return self.set_units(units, list(self.columns)[0])
+            elif item is not None:
+                if item in self.columns:
+                    if units is None:
+                        self.units[item] = None
+                    elif type(units) is str:
+                        self.units[item] = units.strip()
+                    else:
+                        raise TypeError("units must be a string.")
+                if item == self.index.name:
+                    self.index_units = units.strip()
+                    self.units[item] = units.strip()
+                elif item in self.index.names:
+                    self.units[item] = units.strip()
+                elif item in self.index:
+                    self.units[item] = units.strip()
 
     def daily(self, agg='mean', datetime_index=False):
         """
@@ -1138,6 +1011,107 @@ class SimSeries(SimBasics, Series):
         """
         return self.to_SimDataFrame().yearly(agg=agg, datetime_index=datetime_index).to_simseries()
 
+    def reindex(self, index=None, **kwargs):
+        """
+        wrapper for pandas.Series.reindex
+
+        index : array-like, optional
+            New labels / index to conform to, should be specified using keywords.
+            Preferably an Index object to avoid duplicating data.
+        """
+        return SimSeries(data=self.to_pandas().reindex(index=index, **kwargs), **self.params_)
+
+    def rename(self, index=None, *, axis=None, copy=True, inplace=False, level=None, errors='ignore', **kwargs):
+        """
+        wrapper of rename function from Pandas.
+
+        Alter Series index labels or name.
+
+        Function / dict values must be unique (1-to-1).
+        Labels not contained in a dict / Series will be left as-is.
+        Extra labels listed don’t throw an error.
+
+        Alternatively, change Series.name with a scalar value.
+
+        See the user guide for more.
+
+        Parameters
+        axis{0 or “index”}
+        Unused. Accepted for compatibility with DataFrame method only.
+
+        indexscalar, hashable sequence, dict-like or function, optional
+        Functions or dict-like are transformations to apply to the index.
+        Scalar or hashable sequence-like will alter the Series.name attribute.
+
+        **kwargs
+        Additional keyword arguments passed to the function. Only the “inplace” keyword is used.
+
+        Returns
+        Series or None
+        Series with index labels or name altered or None if inplace=True.
+        """
+
+        # for compatibility with SimDataFrame
+        if 'columns' in kwargs and index is None:
+            index = kwargs['columns']
+            del kwargs['columns']
+
+        if type(index) is dict:
+            if len(index) == 1 and list(index.keys())[0] not in self.index:
+                return self.rename(list(index.values())[0], axis=axis, copy=copy, inplace=inplace, level=level,
+                                   errors=errors)
+            col_before = list(self.index)
+            if inplace:
+                super().rename(index=index, axis=axis, copy=copy, inplace=inplace, level=level, errors=errors)
+                col_after = list(self.index)
+            else:
+                catch = super().rename(index=index, axis=axis, copy=copy, inplace=inplace, level=level, errors=errors)
+                col_after = list(catch.index)
+
+            new_units = {}
+            for i in range(len(col_before)):
+                new_units[col_after[i]] = self.units[col_before[i]]
+            if inplace:
+                self.units = new_units
+                self.spdLocator = _SimLocIndexer("loc", self)
+                return None
+            else:
+                catch.units = new_units
+                catch.spdLocator = _SimLocIndexer("loc", catch)
+                return catch
+        elif type(index) is str:
+            if inplace:
+                self.name = index.strip()
+                self.spdLocator = _SimLocIndexer("loc", self)
+                return None
+            else:
+                catch = self.copy()
+                catch.name = index
+                catch.spdLocator = _SimLocIndexer("loc", catch)
+                return catch
+
+    def set_index(self, name):
+        self.set_index_name(name)
+
+    def set_index_units(self, units):
+        if hasattr(units, 'units') and type(units.units) is str:
+            units = units.units
+        elif hasattr(units, 'unit') and type(units.unit) is str:
+            units = units.unit
+        if type(units) is str and len(units.strip()) > 0:
+            self.index_units = units.strip()
+        elif type(units) is dict and len(units) == len(self.index):
+            self.index_units = units
+        else:
+            raise TypeError("`units` must be a string or a dictionary with pair key: units for each item in the index.")
+        if not isinstance(self.index, SimIndex) and type(self.index_units) is str:
+            self.index = SimIndex(self.index, units=self.index_units)
+        elif type(self.index_units) is str:
+            self.index.set_units(self.index_units)
+
+    def transpose(self):
+        return self
+
     def slope(self, x=None, y=None, window=None, slope=True, intercept=False):
         """
         calculates the slope of the series vs its index.
@@ -1179,6 +1153,25 @@ class SimSeries(SimBasics, Series):
         params_['name'] = 'slope_of_' + (self.name)
         slope_series= _slope(df=self, x=x, y=y, window=window, slope=slope, intercept=intercept)
         return SimSeries(data=slope_series, index=self.index, **params_)
+
+    def sort_values(self, axis=0, ascending=True, inplace=False, kind='quicksort',
+                    na_position='last', ignore_index=False, key=None):
+        if inplace:
+            super().sort_values(axis=axis, ascending=ascending, inplace=inplace,
+                                kind=kind, na_position=na_position, ignore_index=ignore_index, key=key)
+            return None
+        else:
+            return SimSeries(
+                data=self.as_Series().sort_values(axis=axis, ascending=ascending,
+                                                  inplace=inplace, kind=kind,
+                                                  na_position=na_position,
+                                                  ignore_index=ignore_index,
+                                                  key=key),
+                **self.params_)
+
+    @property
+    def type(self):
+        return 'SimSeries'
 
     def plot(self, y=None, x=None, others=None, **kwargs):
         """

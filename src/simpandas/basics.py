@@ -35,6 +35,25 @@ class SimBasics(object, metaclass=SimType):
     """
 
     """
+
+    def __contains__(self, item):
+        if item in self.columns:
+            return True
+        elif item in self.index:
+            return True
+        elif item == self.index.name:
+            return True
+        else:
+            return False
+
+    def _reverse(self):
+        self._reverse_ = not self._reverse_
+        return self
+
+    @property
+    def _SimParameters(self):
+        return self.params_
+
     @property
     def loc(self) -> _SimLocIndexer:
         """
@@ -80,45 +99,32 @@ class SimBasics(object, metaclass=SimType):
                        names=names, verify_integrity=verify_integrity,
                        sort=sort, copy=copy, squeeze=squeeze)
 
-    def _reverse(self):
-        self._reverse_ = not self._reverse_
-        return self
-
-    @property
-    def params_(self):
-        return {'name': self.name,
-                'units': self.units.copy() if type(self.units) is dict else self.units,
-                'index_name': self.index.name,
-                'index_units': self.index_units if hasattr(self, 'index_units') else None,
-                'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
-                'intersection_character': self.intersection_character if hasattr(self,
-                                                                                 'intersection_character') else '∩',
-                'verbose': self.verbose if hasattr(self, 'verbose') else False,
-                'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
-                    self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'operate_per_name': self._operate_per_name_ if hasattr(self, '_operate_per_name_') else \
-                    self.operate_per_name if hasattr(self, 'operate_per_name') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'transposed': self._transposed_ if hasattr(self, '_transposed_') else \
-                    self.transposed if hasattr(self, 'transposed') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'reverse': self._reverse_ if hasattr(self, '_reverse_') else \
-                    self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'meta': self.meta if hasattr(self, 'meta') else False,
-                'source_path': self.source_path if hasattr(self, 'source_path') else None,
-                }
-
-    @property
-    def _SimParameters(self):
-        return self.params_
-
     def auto_append(self, switch: bool = None) -> None:
         if switch is not None:
             self._auto_append_ = bool(switch)
         print("`auto_append` is", self._auto_append_)
 
-    def operate_per_name(self, switch: bool = None) -> None:
-        if switch is not None:
-            self._operate_per_name_ = bool(switch)
-        print("`operate_per_name` is", self._operate_per_name_)
+    def cumsum(self, skipna=True, *args, **kwargs):
+        """
+        Return cumulative sum over a SimDataFrame.
+
+        Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
+
+        Parameters:
+            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+                The index or the name of the axis. 0 is equivalent to None or ‘index’.
+
+        skipna: bool, default True
+            Exclude NA/null values. If an entire row/column is NA, the result will be NA.
+
+        *args, **kwargs
+            Additional keywords have no effect but might be accepted for compatibility with NumPy.
+
+        Returns
+            SimSeries or SimDataFrame
+            Return cumulative sum of Series or DataFrame.
+        """
+        return self._class(data=self.as_Pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
 
     def describe(self, *args, **kwargs):
         return self._class(data=self.to_Pandas().describe(*args, **kwargs),
@@ -144,6 +150,37 @@ class SimBasics(object, metaclass=SimType):
         """
         return self._class(data=self.to_pandas().head(n), **self.params_)
 
+    def operate_per_name(self, switch: bool = None) -> None:
+        if switch is not None:
+            self._operate_per_name_ = bool(switch)
+        print("`operate_per_name` is", self._operate_per_name_)
+
+    @property
+    def params_(self):
+        return {'name': self.name,
+                'units': self.units.copy() if type(self.units) is dict else self.units,
+                'index_name': self.index.name,
+                'index_units': self.index_units if hasattr(self, 'index_units') else None,
+                'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
+                'intersection_character': self.intersection_character if hasattr(self,
+                                                                                 'intersection_character') else '∩',
+                'verbose': self.verbose if hasattr(self, 'verbose') else False,
+                'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
+                    self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'operate_per_name': self._operate_per_name_ if hasattr(self, '_operate_per_name_') else \
+                    self.operate_per_name if hasattr(self, 'operate_per_name') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'transposed': self._transposed_ if hasattr(self, '_transposed_') else \
+                    self.transposed if hasattr(self, 'transposed') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'reverse': self._reverse_ if hasattr(self, '_reverse_') else \
+                    self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'meta': self.meta if hasattr(self, 'meta') else False,
+                'source_path': self.source_path if hasattr(self, 'source_path') else None,
+                }
+
+    def set_index_name(self, name):
+        if type(name) is str and len(name.strip()) > 0:
+            self.index.name = name.strip()
+
     def tail(self, n=5):
         """
         Return the last n rows.
@@ -163,42 +200,6 @@ class SimBasics(object, metaclass=SimType):
             The last n rows of the caller object.
         """
         return self._class(data=self.to_pandas().tail(n), **self.params_)
-
-    def cumsum(self, skipna=True, *args, **kwargs):
-        """
-        Return cumulative sum over a SimDataFrame.
-
-        Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
-
-        Parameters:
-            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
-                The index or the name of the axis. 0 is equivalent to None or ‘index’.
-
-        skipna: bool, default True
-            Exclude NA/null values. If an entire row/column is NA, the result will be NA.
-
-        *args, **kwargs
-            Additional keywords have no effect but might be accepted for compatibility with NumPy.
-
-        Returns
-            SimSeries or SimDataFrame
-            Return cumulative sum of Series or DataFrame.
-        """
-        return self._class(data=self.as_Pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
-
-    def set_index_name(self, name):
-        if type(name) is str and len(name.strip()) > 0:
-            self.index.name = name.strip()
-
-    def __contains__(self, item):
-        if item in self.columns:
-            return True
-        elif item in self.index:
-            return True
-        elif item == self.index.name:
-            return True
-        else:
-            return False
 
     def int(self):
         return self.astype(int)
@@ -1530,19 +1531,30 @@ Copy of input object, shifted.
         if datetime_index:
             if user_by is None:
                 output.index = pd.to_datetime(
-                    [str(YYYY) + '-' + str(MM).zfill(2) + (day if day != '-last' else '-' + str(days_in_month(MM, YYYY)))
+                    [str(YYYY) + '-' +
+                     str(MM).zfill(2) +
+                     (day if day != '-last' else '-' + str(days_in_month(MM, YYYY)))
                      for YYYY, MM in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
                 if 'DATE' not in output.get_units():
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
-                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + (
-                    day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))), i[2],) for i in output.index])
+                output.index = pd.MultiIndex.from_tuples([
+                    (pd.to_datetime(
+                        str(i[0]) + '-' +
+                        str(i[1]).zfill(2) +
+                        (day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))
+                    ), i[2],)
+                    for i in output.index])
             else:
-                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + (
-                    day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))),) + tuple(i[2:]) for i in
-                                                          output.index])
+                output.index = pd.MultiIndex.from_tuples([
+                    (pd.to_datetime(
+                        str(i[0]) + '-' +
+                        str(i[1]).zfill(2) +
+                        (day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))
+                    ), ) + tuple(i[2:])
+                    for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
                 output.index.name = 'DATE' + '_' + '_'.join(map(str, user_by))
@@ -1650,6 +1662,13 @@ Copy of input object, shifted.
             agg, datetime_index = 'mean', agg
         elif type(agg) is bool and type(datetime_index) is not bool:
             agg, datetime_index = datetime_index, agg
+
+        if type(datetime_index) is not bool:
+            if day is None:
+                day = datetime_index
+            if month is None:
+                month = datetime_index
+            datetime_index = True
 
         day = check_day(day)
         month = check_month(month)
