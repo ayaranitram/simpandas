@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.81.6'
-__release__ = 20230202
+__version__ = '0.83.0'
+__release__ = 20230211
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -22,6 +22,7 @@ from unyts.converter import convertible as _convertible, convert_for_SimPandas a
 from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
     unit_power as _unit_power, unit_addition as _unit_addition
 from unyts.dictionaries import unitless_names as _unitless_names
+from unyts.helpers.common_classes import number
 from unyts import units, is_Unit, Unit
 
 from .basics import SimBasics
@@ -296,6 +297,11 @@ class SimSeries(SimBasics, Series):
                     result = self.iloc[key]
                 except IndexError:
                     raise KeyError("the requested Key is not a valid index or name: " + str(key))
+        if isinstance(result, pd.Series) and len(result) == 1:
+            if type(result.iloc[0]) in number:
+                result = units(result.iloc[0], result.get_units_string())
+            else:
+                result = result.iloc[0]
         return result
 
     def __repr__(self) -> str:

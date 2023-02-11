@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.6'
-__release__ = 20230202
+__version__ = '0.83.0'
+__release__ = 20230211
 __all__ = ['SimDataFrame']
 
 from warnings import warn
@@ -19,7 +19,8 @@ import matplotlib.pyplot as plt
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_power as _unit_power
 from unyts.dictionaries import unitless_names as _unitless_names
-from unyts import Unit
+from unyts.helpers.common_classes import number
+from unyts import Unit, units
 
 from .basics import SimBasics
 from .common.slope import slope as _slope
@@ -384,11 +385,15 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if by_index:
             result = _series_to_frame(result)
 
-        if type(result) is pd.DataFrame:
+        if isinstance(result, pd.Series) and len(result) == 1:
+            if type(result.iloc[0]) in number:
+                result = units(result.iloc[0], result.get_units_string())
+            else:
+                result = result.iloc[0]
+        elif type(result) is pd.DataFrame:
             result = SimDataFrame(result, **self.params_)
         elif type(result) is pd.Series:
             result = SimSeries(result, **self.params_)
-
         return result
 
     def __setitem__(self, key, value, units=None):
