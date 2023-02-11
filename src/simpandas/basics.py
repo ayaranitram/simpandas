@@ -1376,7 +1376,7 @@ Copy of input object, shifted.
 
         raise_by_error = bool(raise_by_error)
 
-        by, user_by = self._timely_common_check_by(by, raise_by_error=raise_by_error)
+        by, user_by = self._check_by(by, raise_by_error=raise_by_error)
         by = [self.index.year, self.index.month, self.index.day] + by
 
         output = self._aggregated_calculation(by, agg)
