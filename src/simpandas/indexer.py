@@ -18,7 +18,6 @@ from unyts.helpers.common_classes import number
 
 class _SimLocIndexer(_LocIndexer):
 
-
     def __init__(self, *args):
         from .frame import SimDataFrame
         from .series import SimSeries
