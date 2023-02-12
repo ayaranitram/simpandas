@@ -25,14 +25,12 @@ def check_day(day):
             day = day.strip()
             if int(day) > 31 or int(day) < 1:
                 raise ValueError("`day` must be between 1 and 31")
-        elif day.strip().lower() == 'first':
-            day = '01'
-        elif day.strip().lower() == 'last':
-            day = 'last'
+        elif day.strip().lower() in ['first', 'last', 'max']:
+            day = day.strip().lower()
         else:
-            raise ValueError("`day` parameter must be an integer or the string 'first'")
+            raise ValueError("`day` parameter must be an integer or the strings 'first', 'last' or 'max'")
     else:
-        raise ValueError("`day` parameter must be an integer or the string 'first'")
+        raise ValueError("`day` parameter must be an integer or the string 'first', 'last' or 'max'")
     day = '-' + day.zfill(2)
     return day
 
@@ -62,10 +60,8 @@ def check_month(month):
             month = month.strip()
             if int(month) > 12 or int(month) < 1:
                 raise ValueError("`month` must be between 1 and 12")
-        elif month.lower() == 'first':
-            month = '01'
-        elif month.lower() == 'last':
-            month = '12'
+        elif month.strip().lower() in ['first', 'last']:
+            month = month.strip().lower()
         elif month.strip().upper()[:3] in months_names:
             month = str(months_names[month.strip().upper()[:3]])
         else:

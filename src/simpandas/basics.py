@@ -1427,7 +1427,23 @@ Copy of input object, shifted.
                 output.set_units('day', 'DAY')
         return output
 
-    def monthly(self, agg='mean', datetime_index=False, by=None, day='first',
+    def _make_day(self, day: str, MM:int, YYYY: int) -> str:
+        if day not in ['-first', '-last', '-max']:
+            if int(day.strip('-')) <= 28:
+                return day
+            last_day_of_month = days_in_month(MM, YYYY)
+            if int(day.strip('-')) <= last_day_of_month:
+                return day
+            else:
+                return '-' + str(last_day_of_month)
+        if day == '-first':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).min().day).zfill(2)
+        elif day ==  '-last':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
+        elif day == '-max':
+            return '-' + str(days_in_month(MM, YYYY))
+
+    def monthly(self, agg='mean', datetime_index=False, by=None, day=None,
                 complete_index=False, fillna_method=None, raise_by_error=True):
         """
         Return a dataframe with a single row per month.
