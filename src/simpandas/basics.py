@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.6'
-__release__ = 20230208
+__version__ = '0.83.0'
+__release__ = 20230211
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -32,9 +32,6 @@ class SimType(type):
 
 
 class SimBasics(object, metaclass=SimType):
-    """
-
-    """
 
     def __contains__(self, item):
         if item in self.columns:
@@ -1479,8 +1476,9 @@ Copy of input object, shifted.
         day : str or int
             The day of the month to write on the datetime index.
             If integer or string number, this number will be used as the day for the index.
-            If string 'first' the first day of the month will be used, always 1.
-            If string 'last' the last day of each month will be used.
+            If string 'first' the first day in the data for the month will be used.
+            If string 'last' the last day in the data for each month will be used.
+            If string 'max' the number of days of each month will be used (28, 29, 30 or 31).
             Ignored if datetimeIndex is False.
 
         complete_index : bool, optional. Default False
@@ -1522,10 +1520,15 @@ Copy of input object, shifted.
         if type(self.index) is not pd.DatetimeIndex:
             raise TypeError('index must be of datetime type.')
 
-        if type(agg) is bool:
+        if type(agg) in [bool, str, int] and datetime_index is None:
             agg, datetime_index = 'mean', agg
-        elif type(agg) is bool and type(datetime_index) is not bool:
+        elif type(agg) in [bool, str, int] and type(datetime_index) is not bool:
             agg, datetime_index = datetime_index, agg
+
+        if type(datetime_index) is not bool:
+            if day is None:
+                day = datetime_index
+            datetime_index = True
 
         day = check_day(day)
         by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
@@ -1549,7 +1552,7 @@ Copy of input object, shifted.
                 output.index = pd.to_datetime(
                     [str(YYYY) + '-' +
                      str(MM).zfill(2) +
-                     (day if day != '-last' else '-' + str(days_in_month(MM, YYYY)))
+                     self._make_day(day, MM, YYYY)
                      for YYYY, MM in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
@@ -1560,7 +1563,7 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        (day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))
+                        self._make_day(day, MM, YYYY)
                     ), i[2],)
                     for i in output.index])
             else:
@@ -1568,8 +1571,8 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        (day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))
-                    ), ) + tuple(i[2:])
+                        self._make_day(day, MM, YYYY)),
+                    ) + tuple(i[2:])
                     for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
@@ -1586,7 +1589,7 @@ Copy of input object, shifted.
             if 'MONTH' not in output.get_units():
                 output.set_units('month', 'MONTH')
         return output
-    def yearly(self, agg='mean', datetime_index=False, by=None, day='first', month=None,
+    def yearly(self, agg='mean', datetime_index=False, by=None, day=None, month=None,
                complete_index=False, fillna_method=None, raise_by_error=True):
         """
         return a dataframe with a single row per year.
