@@ -277,14 +277,14 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     try:  # to evaluate as an index value
                         result = self._get_by_index(key)
                     except:
-                        raise ValueError(
-                            'requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
+                        raise KeyError(
+                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
                 if result is None:
                     try:
                         result = self._get_by_index(key)
                     except:
-                        raise ValueError(
-                            'requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
+                        raise KeyError(
+                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
 
         # key is a list, have to check every item in the list
         elif type(key) is list:
@@ -335,10 +335,21 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             try:
                 result = self._get_by_column(key)
             except:
-                result = self._get_by_index(key)
-                if result is not None: by_index = True
+                try:
+                    result = self._get_by_index(key)
+                    if result is not None: by_index = True
+                except:
+                    if key is None:
+                        raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
+                    else:
+                        raise KeyError(
+                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
         else:
-            result = SimDataFrame(data=self, **self.params_)
+            if key is None:
+                raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
+            else:
+                raise KeyError(
+                    'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
 
         # convert returned object to SimDataFrame or SimSeries accordingly
         if type(result) is pd.DataFrame:
