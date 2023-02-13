@@ -2124,25 +2124,35 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             self.units = {col: 'unitless' for col in self.columns}
 
         if items is None:
-            return self.units.copy()
-        units_dict = {}
-        if not isinstance(items, (list, tuple, dict, set, pd.Index)):
-            items = [items]
-        for each in items:
-            if each in self.units:
-                units_dict[each] = self.units[each]
-            elif each in self.wells or each in self.groups or each in self.regions:
-                for Key in self.get_keys('*' + self.name_separator + each):
+            units_dict = self.units.copy()
+            if self.index_name not in units_dict:
+                units_dict[self.index_name] = self.index_units
+            elif self.index_units != units_dict[self.index_name]:
+                if self.index_name not in self.columns:
+                    self.units[self.index_name] = self.index_units
+                else:
+                    units_dict[str(self.index_name) + '_index_'] = self.index_units
+        else:
+            units_dict = {}
+            if not isinstance(items, (list, tuple, dict, set, pd.Index)):
+                items = [items]
+            for each in items:
+                if each in self.units:
                     units_dict[each] = self.units[each]
-            elif each in self.attributes:
-                for att in self.keygen(each, self.attributes[each]):
-                    if att in self.units:
-                        units_dict[att] = self.units[att]
-                    else:
-                        units_dict[att] = 'unitless'
-            elif len(self.get_keys(each)) > 0:
-                for key in self.get_keys(each):
-                    units_dict[key] = self.units[key] if key in self.units else ''
+                elif each in self.wells or each in self.groups or each in self.regions:
+                    for Key in self.get_keys('*' + self.name_separator + each):
+                        units_dict[each] = self.units[each]
+                elif each in self.attributes:
+                    for att in self.keygen(each, self.attributes[each]):
+                        if att in self.units:
+                            units_dict[att] = self.units[att]
+                        else:
+                            units_dict[att] = 'unitless'
+                elif len(self.get_keys(each)) > 0:
+                    for key in self.get_keys(each):
+                        units_dict[key] = self.units[key] if key in self.units else ''
+                elif each == self.index.name:
+                    units_dict[each] == self.index_units
         return units_dict
 
     def set_units(self, units, item=None):
