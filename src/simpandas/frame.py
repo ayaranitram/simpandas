@@ -26,7 +26,7 @@ from .basics import SimBasics
 from .common.slope import slope as _slope
 from .common.stringformat import multisplit as _multisplit, is_date as _is_date, date as _date
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
-from .indexer import _SimLocIndexer
+from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
 from .series import SimSeries
 from .common.helpers import clean_axis as _clean_axis
@@ -89,6 +89,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                  'name_separator',
                  'intersection_character',
                  'spdLocator',
+                 'spdiLocator',
                  'name',
                  'meta',
                  'source_path',
@@ -123,6 +124,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         self.name_separator = None
         self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
         self.spdLocator = _SimLocIndexer("loc", self)
+        self.spdiLocator = _iSimLocIndexer("iloc", self)
         self.name = name
         self.meta = meta
         self.source_path = source_path

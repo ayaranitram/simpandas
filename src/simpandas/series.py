@@ -29,7 +29,7 @@ from .basics import SimBasics
 from .common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.slope import slope as _slope
-from .indexer import _SimLocIndexer
+from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
 
 _SERIES_WARNING_MSG = """\
@@ -93,6 +93,7 @@ class SimSeries(SimBasics, Series):
                  'name_separator',
                  'intersection_character',
                  'spdLocator',
+                 'spdiLocator',
                  'columns',
                  'meta',
                  'source_path',
@@ -128,6 +129,7 @@ class SimSeries(SimBasics, Series):
         self.name_separator = None
         self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
         self.spdLocator = _SimLocIndexer("loc", self)
+        self.spdiLocator = _iSimLocIndexer("iloc", self)
         self.meta = meta
         self.source_path = source_path
         self._auto_append_ = bool(auto_append)
@@ -190,7 +192,7 @@ class SimSeries(SimBasics, Series):
         elif type(index_units) is str:
             self.index_units = index_units
         else:
-            raise TypeError("`indexUnitx` must be a string.")
+            raise TypeError("`index_units` must be a string.")
 
         # override index.name with index_name
         if index_name is not None:
