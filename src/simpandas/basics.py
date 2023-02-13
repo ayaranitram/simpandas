@@ -19,7 +19,7 @@ from unyts.converter import convertible as _convertible
 from unyts.operations import unit_inverse as _unit_inverse
 from unyts.dictionaries import unitless_names as _unitless_names
 from unyts import Unit
-from .indexer import _SimLocIndexer
+from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
@@ -58,12 +58,12 @@ class SimBasics(object, metaclass=SimType):
         """
         return self.spdLocator
 
-    # @property
-    # def iloc(self) -> _iSimLocIndexer:
-    #     """
-    #     wrapper for .iloc indexing
-    #     """
-    #     return self.spdiLocator
+    @property
+    def iloc(self) -> _iSimLocIndexer:
+        """
+        wrapper for .iloc indexing
+        """
+        return self.spdiLocator
 
     def concat(self, objs, axis=0, join='outer', ignore_index=False,
                keys=None, levels=None, names=None, verify_integrity=False,
