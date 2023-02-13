@@ -155,7 +155,7 @@ class SimBasics(object, metaclass=SimType):
     @property
     def params_(self):
         return {'name': self.name,
-                'units': self.units.copy() if type(self.units) is dict else self.units,
+                'units': self.get_units() if type(self.units) is dict else self.units,
                 'index_name': self.index.name,
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
