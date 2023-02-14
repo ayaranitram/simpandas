@@ -24,12 +24,12 @@ class _SimLocIndexer(_LocIndexer):
         super().__init__(*args)
 
     def __getitem__(self, *args):
-        from .frame import SimDataFrame
+        from .frame import SimDataFrame, _series_to_frame
         from .series import SimSeries
         if type(args[0]) is not slice and type(args[0]) is tuple and len(args[0]) == 2:
             result = super().__getitem__(args[0][0])
             if type(self.spd) is SimDataFrame:
-                result = result.as_simdataframe()
+                result = _series_to_frame(result, self.spd.params_)
             return result.__getitem__(args[0][1])
         else:
             result = super().__getitem__(*args)

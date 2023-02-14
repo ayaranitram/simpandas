@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.83.0'
-__release__ = 20230211
+__release__ = 20230213
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -264,7 +264,7 @@ class SimSeries(SimBasics, Series):
             return self[key].values
 
     def __getitem__(self, key=None):
-        # ensure self.index is SimIndex
+        from .frame import SimDataFrame
         if not hasattr(self.index, 'units'):
             self.index = SimIndex(self.index, units=self.index_units)
         def index_params_():
@@ -277,7 +277,7 @@ class SimSeries(SimBasics, Series):
 
         if key is None:
             return self
-        elif type(key) is str and key.strip() == self.name and not key.strip() in self.index:
+        elif type(key) is str and key not in self.index and key == self.name:
             return self
         elif type(key) is str and key == self.index.name:
             params_ = index_params_()
@@ -298,7 +298,10 @@ class SimSeries(SimBasics, Series):
                 try:
                     result = self.iloc[key]
                 except IndexError:
-                    raise KeyError("the requested Key is not a valid index or name: " + str(key))
+                    try:
+                        result = self.as_simdataframe()[key]
+                    except:
+                        raise KeyError("the requested Key is not a valid index or name: " + str(key))
         if isinstance(result, pd.Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
                 result = units(result.iloc[0], result.get_units_string())

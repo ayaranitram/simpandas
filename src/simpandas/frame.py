@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.83.0'
-__release__ = 20230211
+__release__ = 20230213
 __all__ = ['SimDataFrame']
 
 import logging
@@ -33,7 +33,7 @@ from .series import SimSeries
 from .common.helpers import clean_axis as _clean_axis
 
 
-def _series_to_frame(a_SimSeries):
+def _series_to_frame(a_SimSeries, params_=None):
     """
     when a row is extracted from a DataFrame, Pandas returns a Series in wich
     the columns of the DataFrame are converted to the indexes of the Series and
@@ -44,14 +44,20 @@ def _series_to_frame(a_SimSeries):
     Works with SimSeries as well as with Pandas standard Series
     """
     if isinstance(a_SimSeries, pd.DataFrame):
-        return a_SimSeries
+        if params_ is None:
+            return a_SimSeries
+        else:
+            return SimDataFrame(a_SimSeries, **params_)
+    if type(a_SimSeries) is pd.Series and params_ is not None:
+        a_SimSeries = SimSeries(a_SimSeries)
     if type(a_SimSeries) is SimSeries:
+        if params_ is None:
+            params_ = a_SimSeries.params_
         try:
-            from simpandas.frame import SimDataFrame
             return SimDataFrame(data=dict(zip(list(a_SimSeries.index),
                                               a_SimSeries.to_list())),
-                                **a_SimSeries.params_
-                                )
+                                index=[a_SimSeries.name],
+                                **params_)
         except:
             return a_SimSeries
     if type(a_SimSeries) is pd.Series:
@@ -234,14 +240,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         return result
 
     def __getitem__(self, key):
-        # if key in columns:
-        if key in self.columns:
-            return SimDataFrame(data=self._get_by_column(key), **self.params_)
-
-        # if key in index:
-        if key in self.index:
-            return SimDataFrame(data=self._get_by_column(key), **self.params_)
-
         # if key is boolean filter, return the filtered SimDataFrame
         if isinstance(key, pd.Series) or type(key) is np.ndarray:
             if str(key.dtype) == 'bool':
@@ -257,23 +255,19 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if key_cols:
                 return SimDataFrame(data=self._get_by_column(key), **self.params_)
             else:
-                result = SimDataFrame(data=self._get_by_index(key), **self.params_)
-                if len(result) == 1:
-                    result = _series_to_frame(result)
+                result, by_index = self._get_by_index(key)
+                if by_index:
+                    result = _series_to_frame(result, self.params_)
+                else:
+                    result = SimDataFrame(data=result, **self.params_)
                 return result
-
-        # key is the name of the index
-        if type(key) is str and key not in self.columns and key == self.index.name:
-            return SimSeries(data=self.index.values,
-                             name=self.index.name,
-                             units=self.index.units if type(self.index) is SimIndex else self.index_units)
 
         # here below we try to guess what the user is requesting
         by_index = False
         index_filter = None
         indexes = None
         slices = None
-        result = None
+        result = None  # initialize variable
 
         # convert tuple argument to list
         if type(key) is tuple:
@@ -283,42 +277,52 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if type(key) is str and key not in self.columns:
             if bool(self.find_keys(key)):  # catch the column names this key represent
                 key = list(self.find_keys(key))
+            elif key in [self.index.name, self.index_name]:  # key is the name of the index
+                return SimSeries(data=self.index.values,
+                                 name=self.index.name,
+                                 units=self.index.units if type(self.index) is SimIndex else self.index_units)
             else:  # key is not a column name
                 try:  # to evaluate as a filter
                     result = self._get_by_criteria(key)
                 except:
                     try:  # to evaluate as an index value
-                        result = self._get_by_index(key)
-                        if result is not None: by_index = True
+                        result, by_index = self._get_by_index(key)
                     except:
                         raise KeyError(
-                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   '
-                            + str(key))
+                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
 
         # key is a list, have to check every item in the list
         elif type(key) is list:
-            key_list, key, filters, indexes, slices, index_name = key, [], [], [], [], False
+            key_list, key, filters, indexes = key, [], [], []
             for each in key_list:
+                # the key is a column name
                 if type(each) is slice:
-                    slices += [each]
+                    _temp_result, _temp_by_index  = self._get_by_index(each)
+                    if _temp_by_index:
+                        indexes += list(_temp_result.index)
+                    else:
+                        key += list(_temp_result.columns)
                 elif each in self.columns:
                     key += [each]
-                elif type(each) is str: # if key is a string but not a column name, check if it is an item, attribute, pattern, filter or index
+                # if key is a string but not a column name, check if it is an item, attribute, pattern, filter or index
+                elif type(each) is str:
                     if bool(self.find_keys(each)):  # catch the column names this key represent
                         key += list(self.find_keys(each))
-                    elif each == self.index.name:
-                        index_name = True
                     else:  # key is not a column name, might be a filter or index
                         try:  # to evaluate as a filter
                             _ = self.filter(each, returnFilter=True)
                             filters += [each]
                         except:
                             try:  # to evaluate as an index value
-                                _ = self._get_by_index(each)
-                                indexes += [each]
+                                _temp_result, _temp_by_index  = self._get_by_index(each)
+                                if _temp_by_index:
+                                    indexes += list(_temp_result.index)
+                                else:
+                                    key += list(_temp_result.columns)
                             except:
                                 # discard this item
-                                logging.warning(' the parameter ' + str(each) + ' is not valid.')
+                                print(' the parameter ' + str(each) + ' is not valid.')
+
                 # must be an index, not a column name o relative, not a filter, not in the index
                 else:
                     indexes += [each]
@@ -328,38 +332,36 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 try:
                     index_filter = self.filter(filters, returnFilter=True)
                 except:
-                    logging.warning('filter conditions are not valid:\n   ' + ' and '.join(filters))
+                    warn('filter conditions are not valid:\n   ' + ' and '.join(filters))
                 if index_filter is not None and not index_filter.any():
-                    logging.warning('filter conditions removed every row :\n   ' + ' and '.join(filters))
+                    warn('filter conditions removed every row :\n   ' + ' and '.join(filters))
 
-        # attempt to get the desired keys, first as column names, then as indexes
+        # in case already got results, postprocess it
         if result is not None:
             params_ = self.params_
-            params_['index_name'] = None
-            if isinstance(result, pd.DataFrame):
+            if by_index:
+                result = _series_to_frame(result, params_)
+            else:
                 result = SimDataFrame(data=result, **params_)
-            elif isinstance(result, pd.Series):
-                params_['name'] = result.name
-                result = SimSeries(data=result, **params_)
         elif bool(key) or key == 0:
+            # attempt to get the desired keys, first as column names, then as indexes
             try:
                 result = self._get_by_column(key)
             except:
                 try:
-                    result = self._get_by_index(key)
-                    if result is not None: by_index = True
+                    result, by_index = self._get_by_index(key)
                 except:
                     if key is None:
                         raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
                     else:
                         raise KeyError(
-                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + str(key))
+                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
         else:
             if key is None:
                 raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
             else:
                 raise KeyError(
-                    'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + str(key))
+                    'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
 
         # convert returned object to SimDataFrame or SimSeries accordingly
         if type(result) is pd.DataFrame:
@@ -388,20 +390,18 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 result = result[index_filter.array]
 
         # apply indexes and slices
-        if bool(indexes) or bool(slices):
-            index_slices = indexes + slices
-            i_result = _series_to_frame(result._get_by_index(index_slices[0]))
-            if len(index_slices) > 1:
-                for i in index_slices[1:]:
-                    i_result = i_result.append(_series_to_frame(result._get_by_index(i)))
+        if bool(indexes):
+            i_result, by_index = result._get_by_index(indexes)
+            if by_index and isinstance(i_result, (pd.Series, SimSeries)):
+                i_result = _series_to_frame(i_result, self.params_)
             try:
                 result = i_result.sort_index()
             except:
                 result = i_result
 
         # if is a single row return it as a DataFrame instead of a pd.Series
-        if by_index:
-            result = _series_to_frame(result, **self.params_)
+        if by_index and isinstance(result, (pd.Series, SimSeries)):
+            result = _series_to_frame(result)
 
         if isinstance(result, pd.Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
@@ -412,9 +412,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             result = SimDataFrame(result, **self.params_)
         elif type(result) is pd.Series:
             result = SimSeries(result, **self.params_)
-
-
-
         return result
 
     def __setitem__(self, key, value, units=None):
@@ -1909,23 +1906,23 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         # if index is date try to undestand key as a date
         if type(self.index) is pd.DatetimeIndex and type(key) not in [pd.DatetimeIndex, pd.Timestamp, int, float, np.ndarray]:
             try:
-                return self._get_by_dateIndex(key)
+                return (self._get_by_dateIndex(key), True)
             except:
                 pass
 
         # try to find key by index value using .loc
         try:
-            return self.as_pandas().loc[key]
+            return (self.as_pandas().loc[key], True,)
         except:
             # try to find key by index position using .loc
             try:
-                return self.as_pandas().iloc[key]
+                return (self.as_pandas().iloc[key], True,)
             except:
                 try:
-                    return self.as_pandas().loc[:, key]
+                    return (self.as_pandas().loc[:, key], False,)
                 except:
                     try:
-                        return self.as_pandas().iloc[:, key]
+                        return (self.as_pandas().iloc[:, key], False,)
                     except:
                         raise ValueError(' ' + str(key) + ' is not a valid index value or position.')
 
