@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.80.2'
-__release__ = 20230104
+__release__ = 20230214
 
 import datetime as dt
 from pandas import Timestamp, DatetimeIndex, Series, to_datetime
@@ -25,7 +25,7 @@ def check_day(day):
             day = day.strip()
             if int(day) > 31 or int(day) < 1:
                 raise ValueError("`day` must be between 1 and 31")
-        elif day.strip().lower() in ['first', 'last', 'max']:
+        elif day.strip().lower() in ['first', 'last', 'max', 'mid']:
             day = day.strip().lower()
         else:
             raise ValueError("`day` parameter must be an integer or the strings 'first', 'last' or 'max'")
@@ -49,8 +49,7 @@ def check_month(month):
                     'NOV': 11,
                     'DEC': 12, 'DIC': 12, }
     if month is None:
-        if str(day).strip().lower() not in ['first', 'last']:
-            raise ValueError("please provide `month` when requesting a particular day")
+        month = '01'
     elif type(month) in [int, float]:
         if month > 12 or month < 1:
             raise ValueError("`month` must be between 1 and 12")
@@ -60,7 +59,7 @@ def check_month(month):
             month = month.strip()
             if int(month) > 12 or int(month) < 1:
                 raise ValueError("`month` must be between 1 and 12")
-        elif month.strip().lower() in ['first', 'last']:
+        elif month.strip().lower() in ['first', 'last', 'max', 'mid']:
             month = month.strip().lower()
         elif month.strip().upper()[:3] in months_names:
             month = str(months_names[month.strip().upper()[:3]])
@@ -72,6 +71,7 @@ def check_month(month):
             "`month` parameter must be an integer or the string representing a month, or 'first' or 'last'")
     month = '-' + month.zfill(2)
     return month
+
 
 def days_in_year(year):
     """

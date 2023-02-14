@@ -1433,9 +1433,11 @@ Copy of input object, shifted.
         return output
 
     def _make_day(self, day: str, MM:int, YYYY: int) -> str:
-        if day not in ['-first', '-last', '-max']:
-            if int(day.strip('-')) <= 28:
+        if day not in ['-first', '-last', '-max', '-mid']:
+            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 28:
                 return day
+            if int(day.strip('-')) <= 0:
+                return '-01'
             last_day_of_month = days_in_month(MM, YYYY)
             if int(day.strip('-')) <= last_day_of_month:
                 return day
@@ -1447,6 +1449,31 @@ Copy of input object, shifted.
             return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
         elif day == '-max':
             return '-' + str(days_in_month(MM, YYYY))
+        elif day == '-mid':
+            return '-14' if MM == 2 else '-15'
+
+    def _make_month(self, month: str, YYYY: int) -> str:
+        if month not in ['-first', '-last', '-max', '-mid']:
+            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 12:
+                return month
+            if int(day.strip('-')) <= 0:
+                return '-01'
+            else:  # int(day.strip('-')) > 12
+                return '-12'
+        if month == '-first':
+            return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
+        elif month ==  '-last':
+            return '-' + str(self.index.where(self.index.year == YYYY).max().month).zfill(2)
+        elif month == '-max':
+            return '-12'
+        elif month == '-mid':
+            return '-07'
+
+    def _make_month_day(self, day: str, month: str, YYYY: int) -> str:
+        MM = self._make_month(month, YYYY)
+        DD = '-01' if month == '-mid' else self._make_day(day, int(MM[1:]), YYYY)
+        return MM + DD
+
 
     def monthly(self, agg='mean', datetime_index=False, by=None, day=None,
                 complete_index=False, fillna_method=None, raise_by_error=True):
@@ -1571,7 +1598,7 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        self._make_day(day, MM, YYYY)
+                        self._make_day(day, i[1], i[0])
                     ), i[2],)
                     for i in output.index])
             else:
@@ -1579,7 +1606,7 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        self._make_day(day, MM, YYYY)),
+                        self._make_day(day, i[1], i[0])),
                     ) + tuple(i[2:])
                     for i in output.index])
             if user_by is not None:
@@ -1719,20 +1746,20 @@ Copy of input object, shifted.
 
         if datetime_index:
             if user_by is None:
-                output.index = pd.to_datetime(
-                    [str(YYYY) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], YYYY))) for YYYY
-                     in output.index])
+                output.index = pd.to_datetime([str(YYYY) +
+                                               self._make_month_day(day, month, YYYY)
+                                               for YYYY in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
                 if 'DATE' not in output.get_units():
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], i[0])))), i[1],)
+                    str(i[0]) + self._make_month_day(day, month, i[0])), i[1],)
                     for i in output.index])
             else:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], i[0])))),) + tuple(
+                    str(i[0]) + self._make_month_day(day, month, i[0])),) + tuple(
                     i[1:]) for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
