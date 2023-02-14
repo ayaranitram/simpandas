@@ -603,6 +603,14 @@ class SimBasics(object, metaclass=SimType):
         return self.as_dataframe()
 
     @property
+    def ss(self):
+        return self.to_simseries()
+
+    @property
+    def SS(self):
+        return self.to_simseries()
+
+    @property
     def SimDataFrame(self):
         return self.as_simdataframe()
 
