@@ -921,7 +921,10 @@ class SimSeries(SimBasics, Series):
                     raise TypeError("if units is a list, items must be a list of the same length.")
             elif type(units) is dict:
                 for k, u in units.items():
-                    self.set_units(u, k)
+                    try:
+                        self.set_units(u, k)
+                    except:
+                        pass
             elif type(units) is str:
                 if item is None:
                     self.units = units.strip()
@@ -939,7 +942,7 @@ class SimSeries(SimBasics, Series):
 
             if item is None and len(self.columns) > 1:
                 raise ValueError("More than one column in this SimSeries, item must not be None")
-            elif item is None and len(self.columns) == 1:
+            elif item is None and type(units) is str and len(self.columns) == 1:
                 return self.set_units(units, list(self.columns)[0])
             elif item is not None:
                 if item in self.columns:
