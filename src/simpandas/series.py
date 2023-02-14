@@ -326,7 +326,7 @@ class SimSeries(SimBasics, Series):
         )
         show_dimensions = get_option("display.show_dimensions")
 
-        self.to_string(
+        self.as_series().to_string(
             buf=buf,
             name=self.name,
             dtype=self.dtype,
