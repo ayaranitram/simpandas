@@ -17,7 +17,30 @@ from unyts import units, Unit
 from unyts.helpers.common_classes import number
 
 
-class _SimLocIndexer(_LocIndexer):
+class _SimBaseIndexer(object):
+    def _postprocess(self, result, args):
+        from .frame import SimDataFrame, _series_to_frame
+        from .series import SimSeries
+        if isinstance(result, pd.Series) and len(result) == 1:
+            result = result.iloc[0]
+        if type(result) in number:
+            return units(result, self.spd.get_units_string(args[0]))
+        if isinstance(result, (pd.Series, pd.DataFrame)):
+            if type(result) is pd.DataFrame:
+                return SimDataFrame(data=result, **self.spd.params_)
+            if type(self.spd) is SimSeries:
+                return SimSeries(data=result, **self.spd.params_)
+            elif type(*args) is not tuple and isinstance(result, pd.Series):  # type(self.spd) is SimDataFrame
+                return _series_to_frame(result, self.spd.params_)
+            elif type(*args) is tuple and len(*args) == 2:
+                return SimSeries(data=result, **self.spd.params_)
+            else:
+                return self.spd._class(data=result, **self.spd.params_)
+        else:
+            return result
+
+
+class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
 
     def __init__(self, *args):
         self.spd = args[1]
@@ -28,33 +51,12 @@ class _SimLocIndexer(_LocIndexer):
         from .series import SimSeries
         if type(args[0]) is not slice and type(args[0]) is tuple and len(args[0]) == 2:
             result = super().__getitem__(args[0][0])
-            if type(self.spd) is SimDataFrame:
+            if type(self.spd) is SimDataFrame and type(result) is SimSeries:
                 result = _series_to_frame(result, self.spd.params_)
             return result.__getitem__(args[0][1])
         else:
             result = super().__getitem__(*args)
-        if isinstance(result, pd.Series) and len(result) == 1:
-            result = result.iloc[0]
-        if isinstance(result, (pd.Series, pd.DataFrame)):
-            if type(self.spd) is SimSeries:
-                return self.spd._class(data=result, **self.spd.params_)
-            elif type(self.spd) is SimDataFrame and type(*args) is not tuple and isinstance(result, pd.Series):
-                return self.spd._class(data=dict(zip(result.index, result.values)), index=[result.name],
-                                       **self.spd.params_)
-            elif type(self.spd) is SimDataFrame and type(*args) is not tuple and isinstance(result, pd.DataFrame):
-                return self.spd._class(data=result, **self.spd.params_)
-            elif type(self.spd) is SimDataFrame and type(*args) is tuple and len(*args) > 1 and type(args[0][-1]) in (
-                    list, tuple, slice) and isinstance(result, pd.DataFrame):
-                return self.spd._class(data=result, **self.spd.params_)
-            else:
-                result = self.spd._class(data=result.values, columns=[result.name], index=result.index, **self.spd.params_)
-                # result.rename(columns=dict(zip(result.columns, self.spd[[args[0][-1]]].columns)), inplace=True)
-                # result.set_units(self.spd.get_units(self.spd[[args[0][-1]]].columns))
-                return result
-        elif type(result) in number:
-            return units(result, self.spd.get_units_string(args[0]))
-        else:
-            return result
+        return self._postprocess(result, args)
 
     def __setitem__(self, key, value):
         from .frame import SimDataFrame
@@ -95,36 +97,14 @@ class _SimLocIndexer(_LocIndexer):
             self.spd.set_units({key[1]: units})
 
 
-class _iSimLocIndexer(_iLocIndexer):
+class _iSimLocIndexer(_SimBaseIndexer, _iLocIndexer):
     def __init__(self, *args):
         self.spd = args[1]
         super().__init__(*args)
 
     def __getitem__(self, *args):
-        from .frame import SimDataFrame
-        from .series import SimSeries
-        result = self.spd.df.iloc[args[0]]
-        if isinstance(result, pd.Series) and len(result) == 1:
-            result = result.iloc[0]
-        if isinstance(result, (pd.Series, pd.DataFrame)):
-            if type(self.spd) is SimSeries:
-                return self.spd._class(data=result, **self.spd.params_)
-            elif type(self.spd) is SimDataFrame and type(*args) is not tuple and isinstance(result, pd.Series):
-                return self.spd._class(data=dict(zip(result.index, result.values)), index=[result.name],
-                                       **self.spd.params_)
-            elif type(self.spd) is SimDataFrame and type(*args) is not tuple and isinstance(result, pd.DataFrame):
-                return self.spd._class(data=result, **self.spd.params_)
-            elif type(self.spd) is SimDataFrame and type(*args) is tuple and len(*args) > 1 and type(args[0][-1]) in (
-                    list, tuple, slice) and isinstance(result, pd.DataFrame):
-                return self.spd._class(data=result, **self.spd.params_)
-            else:
-                print('aqui')
-                result = self.spd._class(data=result.values, columns=[result.name], index=result.index, **self.spd.params_)
-                return result
-        elif type(result) in number:
-            return units(result, self.spd.get_units_string(list(self.spd.columns)[args[0]]))
-        else:
-            return result
+        result = self.spd.as_pandas().iloc[args[0]]
+        return self._postprocess(result, args)
 
     def __setitem__(self, key, value):
         from .frame import SimDataFrame

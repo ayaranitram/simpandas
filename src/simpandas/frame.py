@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.83.0'
-__release__ = 20230213
+__release__ = 20230215
 __all__ = ['SimDataFrame']
 
 import logging
@@ -266,7 +266,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         by_index = False
         index_filter = None
         indexes = None
-        slices = None
         result = None  # initialize variable
 
         # convert tuple argument to list
@@ -316,7 +315,12 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                             try:  # to evaluate as an index value
                                 _temp_result, _temp_by_index  = self._get_by_index(each)
                                 if _temp_by_index:
-                                    indexes += list(_temp_result.index)
+                                    if isinstance(_temp_result, pd.DataFrame):
+                                        indexes += list(_temp_result.index)
+                                    elif isinstance(self, pd.DataFrame):
+                                        indexes += [_temp_result.name]
+                                    else:
+                                        indexes += list(_temp_result.index)
                                 else:
                                     key += list(_temp_result.columns)
                             except:
@@ -337,6 +341,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     warn('filter conditions removed every row :\n   ' + ' and '.join(filters))
 
         # in case already got results, postprocess it
+        if type(key) is list and len(key) == 1:
+            key = key[0]
         if result is not None:
             params_ = self.params_
             if by_index:
@@ -391,7 +397,10 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         # apply indexes and slices
         if bool(indexes):
-            i_result, by_index = result._get_by_index(indexes)
+            if type(result) is SimDataFrame:
+                i_result, by_index = result._get_by_index(indexes)
+            else:
+                i_result, by_index = result[indexes], False
             if by_index and isinstance(i_result, (pd.Series, SimSeries)):
                 i_result = _series_to_frame(i_result, self.params_)
             try:
@@ -1951,10 +1960,10 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if type(key) is str and len(
                     _multisplit(key, ('==', '!=', '>=', '<=', '<>', '><', '>', '<', '=', ' '))) == 1 and _is_date(key):
                 try:
-                    key = _date(key)
+                    key = _date(key, speak=self.verbose)
                 except:
                     try:
-                        key = _date(key, formatIN=_is_date(key, returnFormat=True), formatOUT='DD-MMM-YYYY')
+                        key = _date(key, formatIN=_is_date(key, returnFormat=True), formatOUT='DD-MMM-YYYY', speak=self.verbose)
                     except:
                         raise Warning('\n Not able to undertand the key as a date.\n')
                 try:
@@ -1973,7 +1982,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                         keySearch += ' D' + str(P)
                         datesDict['D' + str(P)] = keyParts[P]
                         temporal.__setitem__('D' + str(P), pd.DatetimeIndex([pd.Timestamp(
-                            _date(keyParts[P], formatIN=_is_date(keyParts[P], returnFormat=True),
+                            _date(keyParts[P], formatIN=_is_date(keyParts[P], returnFormat=True, speak=self.verbose),
                                   formatOUT='YYYY-MMM-DD'))] * datesN).to_numpy())
                     else:
                         keySearch += ' ' + keyParts[P]

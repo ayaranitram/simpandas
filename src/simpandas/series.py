@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.83.0'
-__release__ = 20230213
+__release__ = 20230215
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -294,10 +294,15 @@ class SimSeries(SimBasics, Series):
         else:
             try:
                 result = self.loc[key]
-            except KeyError:
+            except (KeyError, pd.IndexingError):
                 try:
                     result = self.iloc[key]
                 except IndexError:
+                    if type(key) is tuple:
+                        try:
+                            return self[list(key)]
+                        except (IndexError, InvalidIndexError):
+                            pass
                     try:
                         result = self.as_simdataframe()[key]
                     except:
