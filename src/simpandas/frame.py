@@ -2249,47 +2249,44 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 for u, k in units.items():
                     self.set_units(u, k)
                 return None
+            
+        elif type(units) is str:
+            self.units[item] = units.strip().strip('[').strip(']')
+        elif units is None:
+            pass  # units = 'unitless'
+        else:
+            raise TypeError("units must be a string.")
 
         if self.units is None:
             self.units = {}
 
-        if type(self.units) is dict:
-            if not self._transposed_:
-                if item is None and len(self.columns) > 1:
-                    raise ValueError("This SimDataFrame has multiple columns, item parameter must be provided.")
-                elif item is None and len(self.columns) == 1:
-                    return self.set_units(units, [list(self.columns)[0]])
-                elif item is not None:
-                    if item in self.columns:
-                        if units is None:
-                            self.units[item] = None
-                        elif type(units) is str:
-                            self.units[item] = units.strip()
-                        else:
-                            raise TypeError("units must be a string.")
-                    if item == self.index.name:
-                        self.index_units = units.strip()
-                        self.units[item] = units.strip()
-                    if item in self.index.names:
-                        self.units[item] = units.strip()
-            else:  # if self._transposed_:
-                if item is None and len(self.index) > 1:
-                    raise ValueError("item must not be None")
-                elif item is None and len(self.index) == 1:
-                    return self.set_units(units, [list(self.index)[0]])
-                elif item is not None:
-                    if item in self.index:
-                        if units is None:
-                            self.units[item] = None
-                        elif type(units) is str:
-                            self.units[item] = units.strip()
-                        else:
-                            raise TypeError("units must be a string.")
-                    if item == self.index.name:
-                        self.index_units = units.strip()
-                        self.units[item] = units.strip()
-                    if item in self.index.names:
-                        self.units[item] = units.strip()
+        # if type(self.units) is dict:
+        if not self._transposed_:
+            if item is None and units is not None and len(self.columns) > 1:
+                raise ValueError("This SimDataFrame has multiple columns, item parameter must be provided.")
+            elif item is None and len(self.columns) == 1:
+                return self.set_units(units, [list(self.columns)[0]])
+            elif item is not None:
+                if item in self.columns:
+                    self.units[item] = units
+                elif item == self.index.name:
+                    self.index_units = units
+                    self.units[item] = units
+                elif item in self.index.names:
+                    self.units[item] = units
+        else:  # if self._transposed_:
+            if item is None and len(self.index) > 1:
+                raise ValueError("item must not be None")
+            elif item is None and len(self.index) == 1:
+                return self.set_units(units, [list(self.index)[0]])
+            elif item is not None:
+                if item in self.index:
+                    self.units[item] = units
+                elif item == self.index.name:
+                    self.index_units = units
+                    self.units[item] = units
+                elif item in self.index.names:
+                    self.units[item] = units
 
     def keys_by_units(self):
         """
