@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.0'
-__release__ = 20230215
+__version__ = '0.83.1'
+__release__ = 20230216
 __all__ = ['SimDataFrame']
 
 import logging
@@ -18,7 +18,8 @@ import numpy as np
 import datetime as dt
 import matplotlib.pyplot as plt
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
-from unyts.operations import unit_power as _unit_power
+from unyts.operations import unit_power as _unit_power, unit_addition as _unit_addition, unit_product as _unit_product, \
+    unit_division as _unit_division
 from unyts.dictionaries import unitless_names as _unitless_names
 from unyts.helpers.common_classes import number
 from unyts import Unit, units
