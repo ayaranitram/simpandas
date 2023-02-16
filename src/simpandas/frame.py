@@ -5,7 +5,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.1'
+__version__ = '0.83.2'
 __release__ = 20230216
 __all__ = ['SimDataFrame']
 
@@ -342,8 +342,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     warn('filter conditions removed every row :\n   ' + ' and '.join(filters))
 
         # in case already got results, postprocess it
-        if type(key) is list and len(key) == 1:
-            key = key[0]
+        # if type(key) is list and len(key) == 1:
+        #     key = key[0]
         if result is not None:
             params_ = self.params_
             if by_index:
@@ -418,6 +418,11 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 result = units(result.iloc[0], result.get_units_string())
             else:
                 result = result.iloc[0]
+        elif isinstance(result, pd.DataFrame) and len(result) == 1 and len(result.columns) == 1:
+            if type(result.iloc[0, 0]) in number:
+                result = units(result.iloc[0, 0], self.get_units_string(list(result.columns)[0]))
+            else:
+                result = result.iloc[0, 0]
         elif type(result) is pd.DataFrame:
             result = SimDataFrame(result, **self.params_)
         elif type(result) is pd.Series:

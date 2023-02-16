@@ -5,8 +5,8 @@ Created on Thu Jan 19 21:48:27 2023
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.2'
-__release__ = 20230202
+__version__ = '0.0.3'
+__release__ = 20230216
 __all__ = ['SimIndex']
 
 from abc import ABC
@@ -24,7 +24,7 @@ def convert(values, from_units, to_units):
         return SimIndex(data=values, units=from_units)
 
 
-class SimIndex(pd.Index, ABC):
+class SimIndex(pd.MultiIndex, ABC):
     _metadata = ['units']
 
     def __new__(cls, *args, **kwargs):
@@ -45,6 +45,9 @@ class SimIndex(pd.Index, ABC):
         else:
             units = None
         obj = pd.Index.__new__(cls, *args, **kwargs)
+        if type(args[0]) is pd.MultiIndex or (
+                hasattr(args[0], '__iter__') and sum([type(each) is tuple for each in args[0]]) == len(args[0])):
+            obj = pd.MultiIndex.from_tuples(args[0])
         obj.units = units
         obj.to = to_
         obj.set_units = set_units_
