@@ -5,7 +5,7 @@ Created on Thu Jan 19 21:48:27 2023
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 __release__ = 20230216
 __all__ = ['SimIndex']
 
@@ -45,7 +45,7 @@ class SimIndex(pd.MultiIndex, ABC):
         else:
             units = None
         obj = pd.Index.__new__(cls, *args, **kwargs)
-        if type(args[0]) is pd.MultiIndex or (
+        if len(args) > 0 and type(args[0]) is pd.MultiIndex or (
                 hasattr(args[0], '__iter__') and sum([type(each) is tuple for each in args[0]]) == len(args[0])):
             obj = pd.MultiIndex.from_tuples(args[0])
         obj.units = units
