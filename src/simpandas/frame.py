@@ -1215,14 +1215,16 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='')
             if type(index_units) in (str, dict) and index_name is not None:
                 self.set_units(index_units, index_name)
-            self.index.name = None
+            self.index = SimIndex(self.index, units=None)
         else:
+            params_ = self.params_
+            params_['index_name'] = None
+            params_['index_units'] = None
             result = SimDataFrame(
                 data=self.as_pandas().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill=''),
-                **self.params_)
+                **params_)
             if not drop and type(self.index_units) in (str, dict) and self.index.name is not None:
                 result.set_units(self.index_units, item=self.index.name)
-            result.index.name = None
             return result
 
     def append(self, other, ignore_index=False, verify_integrity=False, sort=False):
