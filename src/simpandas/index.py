@@ -5,8 +5,8 @@ Created on Thu Jan 19 21:48:27 2023
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.4'
-__release__ = 20230216
+__version__ = '0.0.7'
+__release__ = 20230218
 __all__ = ['SimIndex']
 
 from abc import ABC
@@ -45,8 +45,9 @@ class SimIndex(pd.MultiIndex, ABC):
         else:
             units = None
         obj = pd.Index.__new__(cls, *args, **kwargs)
-        if len(args) > 0 and type(args[0]) is pd.MultiIndex or (
-                hasattr(args[0], '__iter__') and sum([type(each) is tuple for each in args[0]]) == len(args[0])):
+        if (len(args) > 0 and type(args[0]) is pd.MultiIndex) or (
+                len(args) > 0 and len(args[0]) > 0 and hasattr(args[0], '__iter__')
+                and sum([type(each) is tuple for each in args[0]]) == len(args[0])):
             obj = pd.MultiIndex.from_tuples(args[0])
         obj.units = units
         obj.to = to_
@@ -59,12 +60,14 @@ class SimIndex(pd.MultiIndex, ABC):
         self.units = getattr(obj, 'units', None)
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
-        results = super().__array_ufunc__(ufunc, method, *args, **kwargs)
+        results = super().__array_ufunc__(ufunc, method, *inputs, **kwargs)
         results = SimIndex(results, units=self.units)
         return results
 
     def __array_wrap__(self, out_arr, context=None):
         return super().__array_wrap__(self, out_arr, context)
 
-    def _constructor(self):
+    def _constructor(self, *args, **kwargs):
+        if 'units' in kwargs:
+            del kwargs['units']
         return SimIndex(*args, units=self.units, **kwargs)
