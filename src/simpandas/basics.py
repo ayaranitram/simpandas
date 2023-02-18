@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.0'
-__release__ = 20230213
+__version__ = '0.83.6'
+__release__ = 20230218
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -792,20 +792,20 @@ class SimBasics(object, metaclass=SimType):
                                   **kwargs)
 
     def _joined_index(self, other, *, drop_duplicates=False, keep='first'):
-        from .._common.merger import merge_Index
-        return merge_Index(self, other, how='outer', drop_duplicates=drop_duplicates, keep=keep)
+        from .common.merger import merge_index
+        return merge_index(self, other, how='outer', drop_duplicates=drop_duplicates, keep=keep)
 
     def _common_index(self, other, *, drop_duplicates=True, keep='first'):
-        from .._common.merger import merge_Index
-        return merge_Index(self, other, how='inner', drop_duplicates=drop_duplicates, keep=keep)
+        from .common.merger import merge_index
+        return merge_index(self, other, how='inner', drop_duplicates=drop_duplicates, keep=keep)
 
     def _merge_index(self, other, how='outer', *, drop_duplicates=True, keep='first'):
-        from .._common.merger import merge_Index
-        return merge_Index(self, other, how=how, drop_duplicates=drop_duplicates, keep=keep)
+        from .common.merger import merge_index
+        return merge_index(self, other, how=how, drop_duplicates=drop_duplicates, keep=keep)
 
     def merge(self, right, how='inner', on=None, left_on=None, right_on=None, left_index=None, right_index=None,
               sort=False, suffixes=('_x', '_y'), copy=True, indicator=False, validate=None):
-        from .._common.merger import merge as _merge
+        from .common.merger import merge as _merge
         if on is None and left_on is None and right_on is None and right_index is None and left_index is None:
             left_index, right_index = True, True
         return _merge(self, right, how='inner', on=on, left_on=left_on, right_on=right_on, left_index=left_index,
