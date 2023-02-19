@@ -89,7 +89,7 @@ class SimSeries(SimBasics, Series):
     """
     _metadata = ['units',
                  'verbose',
-                 'index_units',
+                 'index_units_',
                  'name_separator',
                  'intersection_character',
                  'spdLocator',
@@ -125,7 +125,7 @@ class SimSeries(SimBasics, Series):
 
         self.units = {}
         self.verbose = bool(verbose)
-        self.index_units = None
+        self.index_units_ = None
         self.name_separator = None
         self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
         self.spdLocator = _SimLocIndexer("loc", self)
@@ -186,11 +186,11 @@ class SimSeries(SimBasics, Series):
         # get index_units
         if index_units is None:
             if self.index.name is not None and self.index.name in self.units:
-                self.index_units = self.units[self.index.name]
+                self.index_units_ = self.units[self.index.name]
             elif hasattr(data, 'index_units'):
-                self.index_units = data.index_units.copy() if type(data.index_units) is dict else data.index_units
+                self.index_units_ = data.index_units.copy() if type(data.index_units) is dict else data.index_units
         elif type(index_units) is str:
-            self.index_units = index_units
+            self.index_units_ = index_units
         else:
             raise TypeError("`index_units` must be a string.")
 
@@ -1120,13 +1120,13 @@ class SimSeries(SimBasics, Series):
         if type(units) is str and len(units.strip()) > 0:
             self.index_units = units.strip()
         elif type(units) is dict and len(units) == len(self.index):
-            self.index_units = units
+            self.index_units_ = units
         else:
             raise TypeError("`units` must be a string or a dictionary with pair key: units for each item in the index.")
-        if not isinstance(self.index, SimIndex) and type(self.index_units) is str:
-            self.index = SimIndex(self.index, units=self.index_units)
-        elif type(self.index_units) is str:
-            self.index.set_units(self.index_units)
+        if not isinstance(self.index, SimIndex) and type(self.index_units_) is str:
+            self.index = SimIndex(self.index, units=self.index_units_)
+        elif type(self.index_units_) is str:
+            self.index.set_units(self.index_units_)
 
     def transpose(self):
         return self

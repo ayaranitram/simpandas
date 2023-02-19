@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.6'
-__release__ = 20230218
+__version__ = '0.83.7'
+__release__ = 20230219
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -881,6 +881,14 @@ Copy of input object, shifted.
     @index_name.setter
     def index_name(self, name):
         self.set_index_name(name)
+
+    @property
+    def index_units(self):
+        return self.index_units_
+
+    @index_units.setter
+    def index_units(self, units):
+        return self.set_index_units(units)
 
     def set_index_name(self, name):
         if type(name) is str and len(name.strip()) > 0:
