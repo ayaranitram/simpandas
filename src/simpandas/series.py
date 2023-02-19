@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.0'
-__release__ = 20230215
+__version__ = '0.83.1'
+__release__ = 20230219
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -294,7 +294,7 @@ class SimSeries(SimBasics, Series):
         else:
             try:
                 result = self.loc[key]
-            except (KeyError, pd.IndexingError):
+            except (KeyError, pd.errors.IndexingError):
                 try:
                     result = self.iloc[key]
                 except IndexError:

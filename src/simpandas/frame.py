@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.2'
-__release__ = 20230216
+__version__ = '0.83.3'
+__release__ = 20230219
 __all__ = ['SimDataFrame']
 
 import logging
@@ -350,7 +350,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 result = _series_to_frame(result, params_)
             else:
                 result = SimDataFrame(data=result, **params_)
-        elif bool(key) or key == 0:
+        elif bool(key) or key is 0:
             # attempt to get the desired keys, first as column names, then as indexes
             try:
                 result = self._get_by_column(key)

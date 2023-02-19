@@ -10,6 +10,8 @@ __release__ = 20230218
 __all__ = ['SimBasics']
 
 import fnmatch
+import logging
+
 import numpy as np
 import pandas as pd
 from sys import getsizeof
@@ -173,10 +175,6 @@ class SimBasics(object, metaclass=SimType):
                 'meta': self.meta if hasattr(self, 'meta') else False,
                 'source_path': self.source_path if hasattr(self, 'source_path') else None,
                 }
-
-    def set_index_name(self, name):
-        if type(name) is str and len(name.strip()) > 0:
-            self.index.name = name.strip()
 
     def tail(self, n=5):
         """
@@ -879,6 +877,23 @@ Copy of input object, shifted.
     @property
     def index_name(self):
         return self.index.name
+
+    @index_name.setter
+    def index_name(self, name):
+        self.set_index_name(name)
+
+    def set_index_name(self, name):
+        if type(name) is str and len(name.strip()) > 0:
+            self.index.name = name.strip()
+        elif name is None:
+            logging.warning("The index_name has been set to `None`.")
+        elif name == '':
+            logging.warning("The index_name has been set to an empty string.")
+        else:
+            try:
+                self.index.name = name
+            except:
+                raise ValueError("Not valid index name.")
 
     def get_wells(self, pattern=None):
         """
