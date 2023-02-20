@@ -5,13 +5,13 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.0'
-__release__ = 20230111
+__version__ = '0.83.1'
+__release__ = 20230220
 __all__ = ['_SimLocIndexer']
 
+import logging
 from pandas.core.indexing import _LocIndexer, _iLocIndexer
 import pandas as pd
-from warnings import warn
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts import units, Unit
 from unyts.helpers.common_classes import number
@@ -49,6 +49,13 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
     def __getitem__(self, *args):
         from .frame import SimDataFrame, _series_to_frame
         from .series import SimSeries
+        if type(args[0]) is SimSeries:
+            if len(args) > 1:
+                args = (args[0].as_pandas(), ) + args[1:]
+            else:
+                args = (args[0].as_pandas(), )
+        elif type(args) is SimSeries:
+            args = args.as_pandas()
         if type(args[0]) is not slice and type(args[0]) is tuple and len(args[0]) == 2:
             result = super().__getitem__(args[0][0])
             if type(self.spd) is SimDataFrame and type(result) is SimSeries:
@@ -62,17 +69,24 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
         from .frame import SimDataFrame
         from .series import SimSeries
         if isinstance(value, Unit):
-            if key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is not None:
+            if len(key) > 1 and key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is not None:
                 value = value.to(self.spd.get_units_string(key[1])).value
-            elif key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is None:
+            elif len(key) > 1 and key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is None:
                 value = value.value
             else:  # if key[1] not in self.spd.columns:
                 value = (value.value, value.unit)
-
         elif type(value) in (SimSeries, SimDataFrame):
             value = value.to(self.spd.get_units())
         if type(value) is SimDataFrame and len(value.index) == 1:
             value = value.to_SimSeries()
+
+        if type(key) is tuple and type(key[0]) is SimSeries:
+            if len(key) > 1:
+                key = (key[0].as_pandas(), ) + key[1:]
+            else:
+                key = (key[0].as_pandas(), )
+        elif type(key) is SimSeries:
+            key = key.as_pandas()
 
         # check if received value is tuple (value, units)
         new_units = False
@@ -91,7 +105,7 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
                     elif _convertible(units, self.spd.get_units(key[1])[key[1]]):
                         value = _converter(value, units, self.spd.get_units(key[1])[key[1]], self.spd.verbose)
                     else:
-                        warn(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_units(key[1])[key[1]]))
+                        logging.warning(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_units(key[1])[key[1]]))
         super().__setitem__(key, value)
         if new_units:
             self.spd.set_units({key[1]: units})
