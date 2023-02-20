@@ -5,13 +5,12 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.7'
-__release__ = 20230219
+__version__ = '0.83.8'
+__release__ = 20230220
 __all__ = ['SimBasics']
 
 import fnmatch
 import logging
-
 import numpy as np
 import pandas as pd
 from sys import getsizeof
@@ -101,7 +100,7 @@ class SimBasics(object, metaclass=SimType):
     def auto_append(self, switch: bool = None) -> None:
         if switch is not None:
             self._auto_append_ = bool(switch)
-        print("`auto_append` is", self._auto_append_)
+        logging.info("`auto_append` is", self._auto_append_)
 
     def cumsum(self, skipna=True, *args, **kwargs):
         """
@@ -152,7 +151,7 @@ class SimBasics(object, metaclass=SimType):
     def operate_per_name(self, switch: bool = None) -> None:
         if switch is not None:
             self._operate_per_name_ = bool(switch)
-        print("`operate_per_name` is", self._operate_per_name_)
+        logging.info("`operate_per_name` is", self._operate_per_name_)
 
     @property
     def params_(self):
@@ -474,7 +473,7 @@ class SimBasics(object, metaclass=SimType):
     def set_name_separator(self, separator):
         if type(separator) is str and len(separator) > 0:
             if separator in '=-+&*/!%':
-                print(
+                logging.warning(
                     "The separator '" + separator + "' could be confused with operators.\n it is recommended to use ':' as separator.")
             self.name_separator = separator
         else:
@@ -775,7 +774,7 @@ class SimBasics(object, metaclass=SimType):
             other_name_separator = other.name_separator
         elif other_name_separator is None:
             other_name_separator = self.name_separator
-            print("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
+            logging.warning("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
         if self._reverse_:
             return _common_rename(other, self,
                                   intersection_character=intersection_character,
@@ -1908,7 +1907,7 @@ Copy of input object, shifted.
         Returns a new SimDataFrame
         """
         if len(self) < 2:
-            print("less than two rows, nothing to differenciate.")
+            logging.warning("Less than two rows, nothing to differenciate.")
             return self
 
         dt = np.diff(self.index)
@@ -2114,8 +2113,7 @@ Copy of input object, shifted.
                 return string.strip() + ' '
             return string.strip() + ' ' * (length - len(string.strip()) + 1)
 
-        print(type(self))
-        print(str(type(self.as_pandas().index)).split('.')[-1][:-2] + ': ' + str(len(self)) + ' entries, ' + str(
+        logging.warning(str(type(self.as_pandas().index)).split('.')[-1][:-2] + ': ' + str(len(self)) + ' entries, ' + str(
             self.index[0]) + ' to ' + str(self.index[-1]))
 
         columns = [str(col) for col in self.columns]
@@ -2123,7 +2121,7 @@ Copy of input object, shifted.
         dtypes = [str(self.iloc[:, col].dtype) for col in range(len(self.columns))]
         units = [str(self.units[col]) for col in self.columns]
 
-        print('Data columns (total ' + str(len(columns)) + ' columns):')
+        logging.warning('Data columns (total ' + str(len(columns)) + ' columns):')
 
         line = ' ' + fillblank('#', len(str(len(columns))))
         line = line + ' ' + fillblank('Column', max(len('Column'), max(map(len, columns))))
@@ -2131,14 +2129,12 @@ Copy of input object, shifted.
                                       max(len('Non-Null Count'), len(str(len(self))) + len(' non-null')))
         line = line + ' ' + fillblank('Dtype', max(len('Dtype'), max(map(len, dtypes))))
         line = line + ' ' + fillblank('Units', max(len('Units'), max(map(len, units))))
-        print(line)
 
         line = fillblank('---', len(str(len(columns))))
         line = line + ' ' + fillblank('------', max(map(len, columns)))
         line = line + ' ' + fillblank('--------------', len(str(len(self))) + len(' non-null '))
         line = line + ' ' + fillblank('-----', max(map(len, dtypes)))
         line = line + ' ' + fillblank('-----', max(map(len, units)))
-        print(line)
 
         for i in range(len(columns)):
             line = ' ' + fillblank(str(i), max(len('# '), len(str(len(columns)))))
@@ -2147,10 +2143,9 @@ Copy of input object, shifted.
                                           max(len('Non-Null Count'), len(str(len(self))) + len(' non-null')))
             line = line + ' ' + fillblank(dtypes[i], max(len('Dtype'), max(map(len, dtypes))))
             line = line + ' ' + fillblank(units[i], max(len('Units'), max(map(len, units))))
-            print(line)
 
-        print('dtypes: ' + ', '.join([each + '(' + str(dtypes.count(each)) + ')' for each in sorted(set(dtypes))]))
+        logging.warning('dtypes: ' + ', '.join([each + '(' + str(dtypes.count(each)) + ')' for each in sorted(set(dtypes))]))
 
-        print('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
+        logging.warning('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
 
         return None

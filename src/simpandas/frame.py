@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.3'
-__release__ = 20230219
+__version__ = '0.83.4'
+__release__ = 20230220
 __all__ = ['SimDataFrame']
 
 import logging
@@ -325,7 +325,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                     key += list(_temp_result.columns)
                             except:
                                 # discard this item
-                                print(' the parameter ' + str(each) + ' is not valid.')
+                                logging.warning('The parameter ' + str(each) + ' is not valid.')
 
                 # must be an index, not a column name o relative, not a filter, not in the index
                 else:
@@ -349,7 +349,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 result = _series_to_frame(result, params_)
             else:
                 result = SimDataFrame(data=result, **params_)
-        elif bool(key) or key is 0:
+        elif bool(key) or key in [0]:
             # attempt to get the desired keys, first as column names, then as indexes
             try:
                 result = self._get_by_column(key)
@@ -1152,8 +1152,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 valid = False
                 for col in self.columns:
                     if _convertible(self.get_units(col)[col], units):
-                        # print(col, units, _convertible(self.get_units(col)[col], units))
-                        # print(self[col].to(units))
                         result[col] = self[col].to(units)
                         valid = True
                     else:
@@ -1172,7 +1170,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if valid:
                 return result
             else:
-                print('no columns could be to converted to the requested units.')
+                logging.warning('No columns could be to converted to the requested units.')
                 return self
         elif type(units) is dict:
             units_dict = {i: v for k, v in units.items() for i in self.find_keys(k)}
@@ -1887,15 +1885,15 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         try to get a filtered DataFrame or Series(.filter[key] )
         """
-        if len(key) != len(self.as_pandas()):
-            raise ValueError('Filter wrong length ' + str(len(key)) + ' instead of ' + str(len(self.as_pandas())))
+        if len(key) != len(self):
+            raise ValueError('Filter wrong length ' + str(len(key)) + ' instead of ' + str(len(self)))
         if not isinstance(key, (SimSeries, pd.Series)) and type(key) is not np.ndarray:
             raise TypeError("Filter must be a Series or Array")
         else:
             if str(key.dtype) != 'bool':
                 raise TypeError("Filter dtype must be 'bool'")
 
-        return self.as_pandas().loc[key]
+        return self.loc[key]
 
     def _get_by_criteria(self, key):
         """
@@ -2319,7 +2317,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             self.units[key] = units
         else:
             if units != self.units[key] and self.verbose:
-                print("overwritting existing units for key '" + key + "': " + self.units[key] + ' -> ' + units)
+                logging.warning("Overwritting existing units for key '" + key + "': " + self.units[key] + ' -> ' + units)
             self.units[key] = units
 
     def is_key(self, Key):
