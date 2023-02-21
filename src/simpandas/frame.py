@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.4'
-__release__ = 20230220
+__version__ = '0.83.5'
+__release__ = 20230221
 __all__ = ['SimDataFrame']
 
 import logging
@@ -467,7 +467,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     elif self.index_units is not None and value.index_units is not None and self.index_units != value.index_units:
                         if _convertible(value.index_units, self.index_units):
                             try:
-                                value.index = _converter(value.index, value.index_units, self.index_units)
+                                value.index = _converter(value.index, value.index_units, self.index_units,
+                                                         print_conversion_path=self.verbose)
                             except:
                                 warn(
                                     "WARNING: failed to convert the provided index to the units of this SimDataFrame index.")
@@ -1144,7 +1145,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     params_['units'] = units
                     params_['columns'] = self.columns
                     params_['index'] = self.index
-                    return SimDataFrame(data=_converter(self, list(set(self.units.values()))[0], units), **params_)
+                    return SimDataFrame(data=_converter(self, list(set(self.units.values()))[0],
+                                                        units, print_conversion_path=self.verbose),
+                                        **params_)
                 else:
                     return None
             else:

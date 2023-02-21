@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.1'
-__release__ = 20230219
+__version__ = '0.83.2'
+__release__ = 20230221
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -433,18 +433,21 @@ class SimSeries(SimBasics, Series):
                 if self.units == other.units:
                     result = op_method(self.as_pandas(), other.as_pandas(), level=level, fill_value=fill_value, axis=axis)
                 elif _convertible(other.units, self.units):
-                    other_c = _converter(other.as_pandas(), other.units, self.units, self.verbose)
+                    other_c = _converter(other.as_pandas(), other.units, self.units,
+                                         print_conversion_path=self.verbose)
                     result = op_method(self.as_pandas(), other_c, level=level, fill_value=fill_value, axis=axis)
                 elif _convertible(self.units, other.units):
-                    self_c = _converter(self.as_pandas(), self.units, other.units, self.verbose)
+                    self_c = _converter(self.as_pandas(), self.units, other.units,
+                                        print_conversion_path=self.verbose)
                     result = op_method(other.as_pandas(), self_c, level=level, fill_value=fill_value, axis=axis)
                     params_['units'] = _units_operation(other.units, self.units, operation)
                 elif operation in _products and _convertible(_unit_base(other.units), _unit_base(self.units)):
                     other_c = _converter(other.as_pandas(), _unit_base(other.units), _unit_base(self.units),
-                                         self.verbose)
+                                         print_conversion_path=self.verbose)
                     result = op_method(self.as_pandas(), other_c, level=level, fill_value=fill_value, axis=axis)
                 elif operation in _products and _convertible(_unit_base(self.units), _unit_base(other.units)):
-                    self_c = _converter(self.as_pandas(), _unit_base(self.units), _unit_base(other.units), self.verbose)
+                    self_c = _converter(self.as_pandas(), _unit_base(self.units), _unit_base(other.units),
+                                        print_conversion_path=self.verbose)
                     result = op_method(other.as_pandas(), self_c, level=level, fill_value=fill_value, axis=axis)
                     params_['units'] = _units_operation(other.units, self.units, operation)
                 else:
@@ -553,13 +556,17 @@ class SimSeries(SimBasics, Series):
             if _convertible(self.units, units):
                 params_ = self.params_.copy()
                 params_['units'] = units
-                return self._class(data=_converter(self.as_pandas(), self.units, units, self.verbose), **params_)
+                return self._class(data=_converter(self.as_pandas(), self.units, units,
+                                                   print_conversion_path=self.verbose),
+                                   **params_)
             else:
                 return self
         elif type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
             params_ = self.params_.copy()
             params_['units'] = units
-            return self._class(data=_converter(self.as_pandas(), list(set(self.units.values()))[0], units, self.verbose), **params_)
+            return self._class(data=_converter(self.as_pandas(), list(set(self.units.values()))[0], units,
+                                               print_conversion_path=self.verbose),
+                               **params_)
         elif type(units) is dict:
             return self.to_simdataframe().convert(units).to_simseries()
         else:

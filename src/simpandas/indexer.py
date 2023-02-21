@@ -5,8 +5,8 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.1'
-__release__ = 20230220
+__version__ = '0.83.2'
+__release__ = 20230221
 __all__ = ['_SimLocIndexer']
 
 import logging
@@ -103,7 +103,8 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
                     if units == self.spd.get_units(key[1])[key[1]]:
                         pass
                     elif _convertible(units, self.spd.get_units(key[1])[key[1]]):
-                        value = _converter(value, units, self.spd.get_units(key[1])[key[1]], self.spd.verbose)
+                        value = _converter(value, units, self.spd.get_units(key[1])[key[1]],
+                                           print_conversion_path=self.spd.verbose)
                     else:
                         logging.warning(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_units(key[1])[key[1]]))
         super().__setitem__(key, value)
@@ -140,7 +141,8 @@ class _iSimLocIndexer(_SimBaseIndexer, _iLocIndexer):
                 else:
                     new_units = False
                     if _convertible(units, self.spd.get_Units(key[1])):
-                        value = _converter(value, units, self.spd.get_Units(key[1]))
+                        value = _converter(value, units, self.spd.get_Units(key[1]),
+                                           print_conversion_path=self.spd.verbose)
         super().__setitem__(key, value)
         if new_units:
             self.spd.set_Units({key[1]: units})
