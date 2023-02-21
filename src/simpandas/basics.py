@@ -5,11 +5,12 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.5'
-__release__ = 20230124
+__version__ = '0.83.8'
+__release__ = 20230220
 __all__ = ['SimBasics']
 
 import fnmatch
+import logging
 import numpy as np
 import pandas as pd
 from sys import getsizeof
@@ -19,7 +20,7 @@ from unyts.converter import convertible as _convertible
 from unyts.operations import unit_inverse as _unit_inverse
 from unyts.dictionaries import unitless_names as _unitless_names
 from unyts import Unit
-from .indexer import _SimLocIndexer
+from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
@@ -32,9 +33,25 @@ class SimType(type):
 
 
 class SimBasics(object, metaclass=SimType):
-    """
 
-    """
+    def __contains__(self, item):
+        if item in self.columns:
+            return True
+        elif item in self.index:
+            return True
+        elif item == self.index.name:
+            return True
+        else:
+            return False
+
+    def _reverse(self):
+        self._reverse_ = not self._reverse_
+        return self
+
+    @property
+    def _SimParameters(self):
+        return self.params_
+
     @property
     def loc(self) -> _SimLocIndexer:
         """
@@ -42,12 +59,12 @@ class SimBasics(object, metaclass=SimType):
         """
         return self.spdLocator
 
-    # @property
-    # def iloc(self) -> _iSimLocIndexer:
-    #     """
-    #     wrapper for .iloc indexing
-    #     """
-    #     return self.spdiLocator
+    @property
+    def iloc(self) -> _iSimLocIndexer:
+        """
+        wrapper for .iloc indexing
+        """
+        return self.spdiLocator
 
     def concat(self, objs, axis=0, join='outer', ignore_index=False,
                keys=None, levels=None, names=None, verify_integrity=False,
@@ -80,45 +97,32 @@ class SimBasics(object, metaclass=SimType):
                        names=names, verify_integrity=verify_integrity,
                        sort=sort, copy=copy, squeeze=squeeze)
 
-    def _reverse(self):
-        self._reverse_ = not self._reverse_
-        return self
-
-    @property
-    def params_(self):
-        return {'name': self.name,
-                'units': self.units.copy() if type(self.units) is dict else self.units,
-                'index_name': self.index.name,
-                'index_units': self.index_units if hasattr(self, 'index_units') else None,
-                'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
-                'intersection_character': self.intersection_character if hasattr(self,
-                                                                                 'intersection_character') else '∩',
-                'verbose': self.verbose if hasattr(self, 'verbose') else False,
-                'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
-                    self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'operate_per_name': self._operate_per_name_ if hasattr(self, '_operate_per_name_') else \
-                    self.operate_per_name if hasattr(self, 'operate_per_name') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'transposed': self._transposed_ if hasattr(self, '_transposed_') else \
-                    self.transposed if hasattr(self, 'transposed') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'reverse': self._reverse_ if hasattr(self, '_reverse_') else \
-                    self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
-                'meta': self.meta if hasattr(self, 'meta') else False,
-                'source_path': self.source_path if hasattr(self, 'source_path') else None,
-                }
-
-    @property
-    def _SimParameters(self):
-        return self.params_
-
     def auto_append(self, switch: bool = None) -> None:
         if switch is not None:
             self._auto_append_ = bool(switch)
-        print("`auto_append` is", self._auto_append_)
+        logging.info("`auto_append` is", self._auto_append_)
 
-    def operate_per_name(self, switch: bool = None) -> None:
-        if switch is not None:
-            self._operate_per_name_ = bool(switch)
-        print("`operate_per_name` is", self._operate_per_name_)
+    def cumsum(self, skipna=True, *args, **kwargs):
+        """
+        Return cumulative sum over a SimDataFrame.
+
+        Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
+
+        Parameters:
+            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+                The index or the name of the axis. 0 is equivalent to None or ‘index’.
+
+        skipna: bool, default True
+            Exclude NA/null values. If an entire row/column is NA, the result will be NA.
+
+        *args, **kwargs
+            Additional keywords have no effect but might be accepted for compatibility with NumPy.
+
+        Returns
+            SimSeries or SimDataFrame
+            Return cumulative sum of Series or DataFrame.
+        """
+        return self._class(data=self.as_Pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
 
     def describe(self, *args, **kwargs):
         return self._class(data=self.to_Pandas().describe(*args, **kwargs),
@@ -144,6 +148,33 @@ class SimBasics(object, metaclass=SimType):
         """
         return self._class(data=self.to_pandas().head(n), **self.params_)
 
+    def operate_per_name(self, switch: bool = None) -> None:
+        if switch is not None:
+            self._operate_per_name_ = bool(switch)
+        logging.info("`operate_per_name` is", self._operate_per_name_)
+
+    @property
+    def params_(self):
+        return {'name': self.name,
+                'units': self.get_units() if type(self.units) is dict else self.units,
+                'index_name': self.index.name,
+                'index_units': self.index_units if hasattr(self, 'index_units') else None,
+                'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
+                'intersection_character': self.intersection_character if hasattr(self,
+                                                                                 'intersection_character') else '∩',
+                'verbose': self.verbose if hasattr(self, 'verbose') else False,
+                'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
+                    self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'operate_per_name': self._operate_per_name_ if hasattr(self, '_operate_per_name_') else \
+                    self.operate_per_name if hasattr(self, 'operate_per_name') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'transposed': self._transposed_ if hasattr(self, '_transposed_') else \
+                    self.transposed if hasattr(self, 'transposed') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'reverse': self._reverse_ if hasattr(self, '_reverse_') else \
+                    self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                'meta': self.meta if hasattr(self, 'meta') else False,
+                'source_path': self.source_path if hasattr(self, 'source_path') else None,
+                }
+
     def tail(self, n=5):
         """
         Return the last n rows.
@@ -163,42 +194,6 @@ class SimBasics(object, metaclass=SimType):
             The last n rows of the caller object.
         """
         return self._class(data=self.to_pandas().tail(n), **self.params_)
-
-    def cumsum(self, skipna=True, *args, **kwargs):
-        """
-        Return cumulative sum over a SimDataFrame.
-
-        Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
-
-        Parameters:
-            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
-                The index or the name of the axis. 0 is equivalent to None or ‘index’.
-
-        skipna: bool, default True
-            Exclude NA/null values. If an entire row/column is NA, the result will be NA.
-
-        *args, **kwargs
-            Additional keywords have no effect but might be accepted for compatibility with NumPy.
-
-        Returns
-            SimSeries or SimDataFrame
-            Return cumulative sum of Series or DataFrame.
-        """
-        return self._class(data=self.as_Pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
-
-    def set_index_name(self, name):
-        if type(name) is str and len(name.strip()) > 0:
-            self.index.name = name.strip()
-
-    def __contains__(self, item):
-        if item in self.columns:
-            return True
-        elif item in self.index:
-            return True
-        elif item == self.index.name:
-            return True
-        else:
-            return False
 
     def int(self):
         return self.astype(int)
@@ -478,7 +473,7 @@ class SimBasics(object, metaclass=SimType):
     def set_name_separator(self, separator):
         if type(separator) is str and len(separator) > 0:
             if separator in '=-+&*/!%':
-                print(
+                logging.warning(
                     "The separator '" + separator + "' could be confused with operators.\n it is recommended to use ':' as separator.")
             self.name_separator = separator
         else:
@@ -603,6 +598,14 @@ class SimBasics(object, metaclass=SimType):
     @property
     def DF(self):
         return self.as_dataframe()
+
+    @property
+    def ss(self):
+        return self.to_simseries()
+
+    @property
+    def SS(self):
+        return self.to_simseries()
 
     @property
     def SimDataFrame(self):
@@ -771,7 +774,7 @@ class SimBasics(object, metaclass=SimType):
             other_name_separator = other.name_separator
         elif other_name_separator is None:
             other_name_separator = self.name_separator
-            print("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
+            logging.warning("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
         if self._reverse_:
             return _common_rename(other, self,
                                   intersection_character=intersection_character,
@@ -786,20 +789,20 @@ class SimBasics(object, metaclass=SimType):
                                   **kwargs)
 
     def _joined_index(self, other, *, drop_duplicates=False, keep='first'):
-        from .._common.merger import merge_Index
-        return merge_Index(self, other, how='outer', drop_duplicates=drop_duplicates, keep=keep)
+        from .common.merger import merge_index
+        return merge_index(self, other, how='outer', drop_duplicates=drop_duplicates, keep=keep)
 
     def _common_index(self, other, *, drop_duplicates=True, keep='first'):
-        from .._common.merger import merge_Index
-        return merge_Index(self, other, how='inner', drop_duplicates=drop_duplicates, keep=keep)
+        from .common.merger import merge_index
+        return merge_index(self, other, how='inner', drop_duplicates=drop_duplicates, keep=keep)
 
     def _merge_index(self, other, how='outer', *, drop_duplicates=True, keep='first'):
-        from .._common.merger import merge_Index
-        return merge_Index(self, other, how=how, drop_duplicates=drop_duplicates, keep=keep)
+        from .common.merger import merge_index
+        return merge_index(self, other, how=how, drop_duplicates=drop_duplicates, keep=keep)
 
     def merge(self, right, how='inner', on=None, left_on=None, right_on=None, left_index=None, right_index=None,
               sort=False, suffixes=('_x', '_y'), copy=True, indicator=False, validate=None):
-        from .._common.merger import merge as _merge
+        from .common.merger import merge as _merge
         if on is None and left_on is None and right_on is None and right_index is None and left_index is None:
             left_index, right_index = True, True
         return _merge(self, right, how='inner', on=on, left_on=left_on, right_on=right_on, left_index=left_index,
@@ -873,6 +876,31 @@ Copy of input object, shifted.
     @property
     def index_name(self):
         return self.index.name
+
+    @index_name.setter
+    def index_name(self, name):
+        self.set_index_name(name)
+
+    @property
+    def index_units(self):
+        return self.index_units_
+
+    @index_units.setter
+    def index_units(self, units):
+        return self.set_index_units(units)
+
+    def set_index_name(self, name):
+        if type(name) is str and len(name.strip()) > 0:
+            self.index.name = name.strip()
+        elif name is None:
+            logging.warning("The index_name has been set to `None`.")
+        elif name == '':
+            logging.warning("The index_name has been set to an empty string.")
+        else:
+            try:
+                self.index.name = name
+            except:
+                raise ValueError("Not valid index name.")
 
     def get_wells(self, pattern=None):
         """
@@ -1213,8 +1241,7 @@ Copy of input object, shifted.
             result = self.cumsum()
         else:
             raise ValueError("`agg` parameter is not valid.")
-        self._class(data=result, **params_)
-        return result
+        return self._class(data=result, **params_)
 
     def fill_daily(self, group_by=None, fillna_method=False, raise_by_error=True, **kwargs):
         """
@@ -1376,7 +1403,7 @@ Copy of input object, shifted.
 
         raise_by_error = bool(raise_by_error)
 
-        by, user_by = self._timely_common_check_by(by, raise_by_error=raise_by_error)
+        by, user_by = self._check_by(by, raise_by_error=raise_by_error)
         by = [self.index.year, self.index.month, self.index.day] + by
 
         output = self._aggregated_calculation(by, agg)
@@ -1427,7 +1454,50 @@ Copy of input object, shifted.
                 output.set_units('day', 'DAY')
         return output
 
-    def monthly(self, agg='mean', datetime_index=False, by=None, day='first',
+    def _make_day(self, day: str, MM:int, YYYY: int) -> str:
+        if day not in ['-first', '-last', '-max', '-mid']:
+            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 28:
+                return day
+            if int(day.strip('-')) <= 0:
+                return '-01'
+            last_day_of_month = days_in_month(MM, YYYY)
+            if int(day.strip('-')) <= last_day_of_month:
+                return day
+            else:
+                return '-' + str(last_day_of_month)
+        if day == '-first':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).min().day).zfill(2)
+        elif day ==  '-last':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
+        elif day == '-max':
+            return '-' + str(days_in_month(MM, YYYY))
+        elif day == '-mid':
+            return '-14' if MM == 2 else '-15'
+
+    def _make_month(self, month: str, YYYY: int) -> str:
+        if month not in ['-first', '-last', '-max', '-mid']:
+            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 12:
+                return month
+            if int(day.strip('-')) <= 0:
+                return '-01'
+            else:  # int(day.strip('-')) > 12
+                return '-12'
+        if month == '-first':
+            return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
+        elif month ==  '-last':
+            return '-' + str(self.index.where(self.index.year == YYYY).max().month).zfill(2)
+        elif month == '-max':
+            return '-12'
+        elif month == '-mid':
+            return '-07'
+
+    def _make_month_day(self, day: str, month: str, YYYY: int) -> str:
+        MM = self._make_month(month, YYYY)
+        DD = '-01' if month == '-mid' else self._make_day(day, int(MM[1:]), YYYY)
+        return MM + DD
+
+
+    def monthly(self, agg='mean', datetime_index=False, by=None, day=None,
                 complete_index=False, fillna_method=None, raise_by_error=True):
         """
         Return a dataframe with a single row per month.
@@ -1463,8 +1533,9 @@ Copy of input object, shifted.
         day : str or int
             The day of the month to write on the datetime index.
             If integer or string number, this number will be used as the day for the index.
-            If string 'first' the first day of the month will be used, always 1.
-            If string 'last' the last day of each month will be used.
+            If string 'first' the first day in the data for the month will be used.
+            If string 'last' the last day in the data for each month will be used.
+            If string 'max' the number of days of each month will be used (28, 29, 30 or 31).
             Ignored if datetimeIndex is False.
 
         complete_index : bool, optional. Default False
@@ -1506,10 +1577,15 @@ Copy of input object, shifted.
         if type(self.index) is not pd.DatetimeIndex:
             raise TypeError('index must be of datetime type.')
 
-        if type(agg) is bool:
+        if type(agg) in [bool, str, int] and datetime_index is None:
             agg, datetime_index = 'mean', agg
-        elif type(agg) is bool and type(datetime_index) is not bool:
+        elif type(agg) in [bool, str, int] and type(datetime_index) is not bool:
             agg, datetime_index = datetime_index, agg
+
+        if type(datetime_index) is not bool:
+            if day is None:
+                day = datetime_index
+            datetime_index = True
 
         day = check_day(day)
         by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
@@ -1531,19 +1607,30 @@ Copy of input object, shifted.
         if datetime_index:
             if user_by is None:
                 output.index = pd.to_datetime(
-                    [str(YYYY) + '-' + str(MM).zfill(2) + (day if day != '-last' else '-' + str(days_in_month(MM, YYYY)))
+                    [str(YYYY) + '-' +
+                     str(MM).zfill(2) +
+                     self._make_day(day, MM, YYYY)
                      for YYYY, MM in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
                 if 'DATE' not in output.get_units():
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
-                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + (
-                    day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))), i[2],) for i in output.index])
+                output.index = pd.MultiIndex.from_tuples([
+                    (pd.to_datetime(
+                        str(i[0]) + '-' +
+                        str(i[1]).zfill(2) +
+                        self._make_day(day, i[1], i[0])
+                    ), i[2],)
+                    for i in output.index])
             else:
-                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + (
-                    day if day != '-last' else '-' + str(days_in_month(i[1], i[0])))),) + tuple(i[2:]) for i in
-                                                          output.index])
+                output.index = pd.MultiIndex.from_tuples([
+                    (pd.to_datetime(
+                        str(i[0]) + '-' +
+                        str(i[1]).zfill(2) +
+                        self._make_day(day, i[1], i[0])),
+                    ) + tuple(i[2:])
+                    for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
                 output.index.name = 'DATE' + '_' + '_'.join(map(str, user_by))
@@ -1559,7 +1646,7 @@ Copy of input object, shifted.
             if 'MONTH' not in output.get_units():
                 output.set_units('month', 'MONTH')
         return output
-    def yearly(self, agg='mean', datetime_index=False, by=None, day='first', month=None,
+    def yearly(self, agg='mean', datetime_index=False, by=None, day=None, month=None,
                complete_index=False, fillna_method=None, raise_by_error=True):
         """
         return a dataframe with a single row per year.
@@ -1652,6 +1739,13 @@ Copy of input object, shifted.
         elif type(agg) is bool and type(datetime_index) is not bool:
             agg, datetime_index = datetime_index, agg
 
+        if type(datetime_index) is not bool:
+            if day is None:
+                day = datetime_index
+            if month is None:
+                month = datetime_index
+            datetime_index = True
+
         day = check_day(day)
         month = check_month(month)
         by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
@@ -1674,20 +1768,20 @@ Copy of input object, shifted.
 
         if datetime_index:
             if user_by is None:
-                output.index = pd.to_datetime(
-                    [str(YYYY) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], YYYY))) for YYYY
-                     in output.index])
+                output.index = pd.to_datetime([str(YYYY) +
+                                               self._make_month_day(day, month, YYYY)
+                                               for YYYY in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
                 if 'DATE' not in output.get_units():
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], i[0])))), i[1],)
+                    str(i[0]) + self._make_month_day(day, month, i[0])), i[1],)
                     for i in output.index])
             else:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + month + (day if day != '-last' else '-' + str(days_in_month(month[1:], i[0])))),) + tuple(
+                    str(i[0]) + self._make_month_day(day, month, i[0])),) + tuple(
                     i[1:]) for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
@@ -1806,14 +1900,14 @@ Copy of input object, shifted.
         else:
             return self._class(data=np.cumsum(cumulative), **params_)
 
-    def differenciate(self, na_position='last'):
+    def differentiate(self, na_position='last'):
         """
         Calculates numerical differentiation of the columns values over the index values.
 
         Returns a new SimDataFrame
         """
         if len(self) < 2:
-            print("less than two rows, nothing to differenciate.")
+            logging.warning("Less than two rows, nothing to differenciate.")
             return self
 
         dt = np.diff(self.index)
@@ -2019,8 +2113,7 @@ Copy of input object, shifted.
                 return string.strip() + ' '
             return string.strip() + ' ' * (length - len(string.strip()) + 1)
 
-        print(type(self))
-        print(str(type(self.as_pandas().index)).split('.')[-1][:-2] + ': ' + str(len(self)) + ' entries, ' + str(
+        logging.warning(str(type(self.as_pandas().index)).split('.')[-1][:-2] + ': ' + str(len(self)) + ' entries, ' + str(
             self.index[0]) + ' to ' + str(self.index[-1]))
 
         columns = [str(col) for col in self.columns]
@@ -2028,7 +2121,7 @@ Copy of input object, shifted.
         dtypes = [str(self.iloc[:, col].dtype) for col in range(len(self.columns))]
         units = [str(self.units[col]) for col in self.columns]
 
-        print('Data columns (total ' + str(len(columns)) + ' columns):')
+        logging.warning('Data columns (total ' + str(len(columns)) + ' columns):')
 
         line = ' ' + fillblank('#', len(str(len(columns))))
         line = line + ' ' + fillblank('Column', max(len('Column'), max(map(len, columns))))
@@ -2036,14 +2129,12 @@ Copy of input object, shifted.
                                       max(len('Non-Null Count'), len(str(len(self))) + len(' non-null')))
         line = line + ' ' + fillblank('Dtype', max(len('Dtype'), max(map(len, dtypes))))
         line = line + ' ' + fillblank('Units', max(len('Units'), max(map(len, units))))
-        print(line)
 
         line = fillblank('---', len(str(len(columns))))
         line = line + ' ' + fillblank('------', max(map(len, columns)))
         line = line + ' ' + fillblank('--------------', len(str(len(self))) + len(' non-null '))
         line = line + ' ' + fillblank('-----', max(map(len, dtypes)))
         line = line + ' ' + fillblank('-----', max(map(len, units)))
-        print(line)
 
         for i in range(len(columns)):
             line = ' ' + fillblank(str(i), max(len('# '), len(str(len(columns)))))
@@ -2052,10 +2143,9 @@ Copy of input object, shifted.
                                           max(len('Non-Null Count'), len(str(len(self))) + len(' non-null')))
             line = line + ' ' + fillblank(dtypes[i], max(len('Dtype'), max(map(len, dtypes))))
             line = line + ' ' + fillblank(units[i], max(len('Units'), max(map(len, units))))
-            print(line)
 
-        print('dtypes: ' + ', '.join([each + '(' + str(dtypes.count(each)) + ')' for each in sorted(set(dtypes))]))
+        logging.warning('dtypes: ' + ', '.join([each + '(' + str(dtypes.count(each)) + ')' for each in sorted(set(dtypes))]))
 
-        print('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
+        logging.warning('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
 
         return None

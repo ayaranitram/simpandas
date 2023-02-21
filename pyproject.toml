@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simpandas"
-version = "0.82.1"
+version = "0.83.12"
 authors = [
   { name="Martin Carlos Araya", email="martinaraya@gmail.com" },
 ]
@@ -23,7 +23,7 @@ dependencies = [
     'matplotlib',
     'seaborn',
     'datetime',
-    'unyts >= 0.5.10',
+    'unyts >= 0.5.17',
 ]
 [project.urls]
 "Homepage" = "https://github.com/ayaranitram/simpandas"
