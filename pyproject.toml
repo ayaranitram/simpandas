@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simpandas"
-version = "0.83.14"
+version = "0.83.16"
 authors = [
   { name="Martin Carlos Araya", email="martinaraya@gmail.com" },
 ]

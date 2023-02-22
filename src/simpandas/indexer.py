@@ -5,8 +5,8 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.2'
-__release__ = 20230221
+__version__ = '0.83.4'
+__release__ = 20230223
 __all__ = ['_SimLocIndexer']
 
 import logging
@@ -72,7 +72,9 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
         from .series import SimSeries
         if isinstance(value, Unit):
             if len(key) > 1 and key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is not None:
-                value = value.to(self.spd.get_units_string(key[1])).value
+                value = value.to(self.spd.get_units_string(key[1]))
+                if hasattr(value, 'value'):
+                    value = value.value
             elif len(key) > 1 and key[1] in self.spd.columns and self.spd.get_units_string(key[1]) is None:
                 value = value.value
             else:  # if key[1] not in self.spd.columns:
