@@ -5,8 +5,8 @@ Created on Thu Jan 19 21:48:27 2023
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.8'
-__release__ = 20230221
+__version__ = '0.0.9'
+__release__ = 20230222
 __all__ = ['SimIndex']
 
 from abc import ABC
@@ -40,6 +40,8 @@ class SimIndex(pd.MultiIndex, ABC):
                 units = units.units
             if type(units) is str:
                 obj.units = units.split()
+            elif type(units) is dict:
+                obj.units = units.copy()
 
         if 'units' in kwargs:
             units = kwargs['units']

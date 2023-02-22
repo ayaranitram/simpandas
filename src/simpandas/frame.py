@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.5'
-__release__ = 20230221
+__version__ = '0.83.6'
+__release__ = 20230222
 __all__ = ['SimDataFrame']
 
 import logging
@@ -1075,6 +1075,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return SimDataFrame(data=self.as_pandas().set_index(key, drop=drop, append=append, inplace=inplace,
                                                        verify_integrity=verify_integrity, **kwargs), **params_)
 
+    def get_index_units(self):
+        if not isinstance(self.index, SimIndex) and type(self.index_units_) is str:
+            self.index = SimIndex(self.index, units=self.index_units_)
+        elif isinstance(self.index, SimIndex) and type(self.index.units) is str and len(self.index.units) > 0:
+            self.index_units_ = self.index.units
+        return self.index_units_
+
     def set_index_units(self, units):
         if hasattr(units, 'units') and type(units.units) is str:
             units = units.units
@@ -1083,10 +1090,10 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if type(units) is str and len(units.strip()) > 0:
             self.index_units_ = units.strip()
         else:
-            raise TypeError("`units` must be a string.")
+            raise TypeError("`units` must be a not-empty string.")
         if not isinstance(self.index, SimIndex) and type(self.index_units_) is str:
             self.index = SimIndex(self.index, units=self.index_units_)
-        elif type(self.index_units) is str:
+        elif type(self.index_units_) is str:
             self.index.set_units(self.index_units_)
 
     def transpose(self):

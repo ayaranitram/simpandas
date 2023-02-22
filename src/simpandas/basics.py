@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.8'
-__release__ = 20230220
+__version__ = '0.83.9'
+__release__ = 20230222
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -885,7 +885,7 @@ Copy of input object, shifted.
 
     @property
     def index_units(self):
-        return self.index_units_
+        return self.get_index_units()
 
     @index_units.setter
     def index_units(self, units):
