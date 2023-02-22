@@ -26,6 +26,8 @@ from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
 from .common.helpers import clean_axis as _clean_axis
 
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
 
 class SimType(type):
     def __repr__(self):

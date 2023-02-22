@@ -33,6 +33,8 @@ from .index import SimIndex
 from .series import SimSeries
 from .common.helpers import clean_axis as _clean_axis
 
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
 
 def _series_to_frame(a_SimSeries, params_=None):
     """
@@ -325,7 +327,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                     key += list(_temp_result.columns)
                             except:
                                 # discard this item
-                                logging.warning('The parameter ' + str(each) + ' is not valid.')
+                                logging.error('The parameter ' + str(each) + ' is not valid.')
 
                 # must be an index, not a column name o relative, not a filter, not in the index
                 else:

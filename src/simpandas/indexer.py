@@ -16,6 +16,8 @@ from unyts.converter import convertible as _convertible, convert_for_SimPandas a
 from unyts import units, Unit
 from unyts.helpers.common_classes import number
 
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
 
 class _SimBaseIndexer(object):
     def _postprocess(self, result, args):
