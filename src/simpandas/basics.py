@@ -1321,6 +1321,48 @@ Copy of input object, shifted.
         result = result.groupby(by=by).first()
         return result
 
+    def _make_day(self, day: str, MM:int, YYYY: int) -> str:
+        if day not in ['-first', '-last', '-max', '-mid']:
+            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 28:
+                return day
+            if int(day.strip('-')) <= 0:
+                return '-01'
+            last_day_of_month = days_in_month(MM, YYYY)
+            if int(day.strip('-')) <= last_day_of_month:
+                return day
+            else:
+                return '-' + str(last_day_of_month)
+        if day == '-first':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).min().day).zfill(2)
+        elif day ==  '-last':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
+        elif day == '-max':
+            return '-' + str(days_in_month(MM, YYYY))
+        elif day == '-mid':
+            return '-14' if MM == 2 else '-15'
+
+    def _make_month(self, month: str, YYYY: int) -> str:
+        if month not in ['-first', '-last', '-max', '-mid']:
+            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 12:
+                return month
+            if int(day.strip('-')) <= 0:
+                return '-01'
+            else:  # int(day.strip('-')) > 12
+                return '-12'
+        if month == '-first':
+            return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
+        elif month ==  '-last':
+            return '-' + str(self.index.where(self.index.year == YYYY).max().month).zfill(2)
+        elif month == '-max':
+            return '-12'
+        elif month == '-mid':
+            return '-07'
+
+    def _make_month_day(self, day: str, month: str, YYYY: int) -> str:
+        MM = self._make_month(month, YYYY)
+        DD = '-01' if month == '-mid' else self._make_day(day, int(MM[1:]), YYYY)
+        return MM + DD
+
     def daily(self, agg='mean', datetime_index=True, by=None,
               complete_index=False, fillna_method=None, raise_by_error=True, **kwargs):
         """
@@ -1401,10 +1443,10 @@ Copy of input object, shifted.
                 raise ValueError(
                     "The 'order' parameter must be an integer:\n   df.daily(fillna_method='polynomial', order=5)")
 
-        if type(agg) is bool and type(datetime_index) is bool:
-            agg, datetime_index = 'mean', agg
-        elif type(agg) is bool and type(datetime_index) is not bool:
+        if type(agg) is bool and type(datetime_index) is not bool:
             agg, datetime_index = datetime_index, agg
+        elif type(agg) is bool and datetime_index is True:
+            agg, datetime_index = 'mean', agg
 
         raise_by_error = bool(raise_by_error)
 
@@ -1459,49 +1501,6 @@ Copy of input object, shifted.
                 output.set_units('day', 'DAY')
         return output
 
-    def _make_day(self, day: str, MM:int, YYYY: int) -> str:
-        if day not in ['-first', '-last', '-max', '-mid']:
-            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 28:
-                return day
-            if int(day.strip('-')) <= 0:
-                return '-01'
-            last_day_of_month = days_in_month(MM, YYYY)
-            if int(day.strip('-')) <= last_day_of_month:
-                return day
-            else:
-                return '-' + str(last_day_of_month)
-        if day == '-first':
-            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).min().day).zfill(2)
-        elif day ==  '-last':
-            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
-        elif day == '-max':
-            return '-' + str(days_in_month(MM, YYYY))
-        elif day == '-mid':
-            return '-14' if MM == 2 else '-15'
-
-    def _make_month(self, month: str, YYYY: int) -> str:
-        if month not in ['-first', '-last', '-max', '-mid']:
-            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 12:
-                return month
-            if int(day.strip('-')) <= 0:
-                return '-01'
-            else:  # int(day.strip('-')) > 12
-                return '-12'
-        if month == '-first':
-            return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
-        elif month ==  '-last':
-            return '-' + str(self.index.where(self.index.year == YYYY).max().month).zfill(2)
-        elif month == '-max':
-            return '-12'
-        elif month == '-mid':
-            return '-07'
-
-    def _make_month_day(self, day: str, month: str, YYYY: int) -> str:
-        MM = self._make_month(month, YYYY)
-        DD = '-01' if month == '-mid' else self._make_day(day, int(MM[1:]), YYYY)
-        return MM + DD
-
-
     def monthly(self, agg='mean', datetime_index=False, by=None, day=None,
                 complete_index=False, fillna_method=None, raise_by_error=True):
         """
@@ -1541,7 +1540,7 @@ Copy of input object, shifted.
             If string 'first' the first day in the data for the month will be used.
             If string 'last' the last day in the data for each month will be used.
             If string 'max' the number of days of each month will be used (28, 29, 30 or 31).
-            Ignored if datetimeIndex is False.
+            Setting a not None `day` parameter will turn datetimeIndex True.
 
         complete_index : bool, optional. Default False
             Will reindex the dataframe to new index containing every day between
@@ -1582,10 +1581,16 @@ Copy of input object, shifted.
         if type(self.index) is not pd.DatetimeIndex:
             raise TypeError('index must be of datetime type.')
 
-        if type(agg) in [bool, str, int] and datetime_index is None:
+        if type(agg) is int and day is None:
+            agg, day = 'mean', agg
+
+        if type(agg) is bool and type(datetime_index) is not bool:
+            if type(datetime_index) is str:
+                agg, datetime_index = datetime_index, agg
+            if type(datetime_index) is int:
+                agg, datetime_index, day = 'mean', True, datetime_index
+        elif type(agg) is bool and datetime_index is False:
             agg, datetime_index = 'mean', agg
-        elif type(agg) in [bool, str, int] and type(datetime_index) is not bool:
-            agg, datetime_index = datetime_index, agg
 
         if type(datetime_index) is not bool:
             if day is None:
@@ -1739,10 +1744,16 @@ Copy of input object, shifted.
         if type(self.index) is not pd.DatetimeIndex:
             raise TypeError('index must be of datetime type.')
 
-        if type(agg) is bool:
+        if type(agg) is int and month is None:
+            agg, month = 'mean', agg
+
+        if type(agg) is bool and type(datetime_index) is not bool:
+            if type(datetime_index) is str:
+                agg, datetime_index = datetime_index, agg
+            if type(datetime_index) is int:
+                agg, datetime_index, month = 'mean', True, datetime_index
+        elif type(agg) is bool and datetime_index is False:
             agg, datetime_index = 'mean', agg
-        elif type(agg) is bool and type(datetime_index) is not bool:
-            agg, datetime_index = datetime_index, agg
 
         if type(datetime_index) is not bool:
             if day is None:
