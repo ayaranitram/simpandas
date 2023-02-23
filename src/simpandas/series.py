@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.3'
-__release__ = 20230222
+__version__ = '0.83.4'
+__release__ = 20230223
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -868,8 +868,17 @@ class SimSeries(SimBasics, Series):
         """
         if self.units is None:
             units_dict = {self.name: 'unitless'}
+            if self.index.name is not None and self.index_units is not None:
+                units_dict[self.index.name] = self.index_units
         elif type(self.units) is str:
             units_dict = {self.name: self.units}
+            if self.index_name not in units_dict:
+                units_dict[self.index_name] = self.index_units
+            elif self.index_units != units_dict[self.index_name]:
+                if self.index_name not in self.columns:
+                    self.units[self.index_name] = self.index_units
+                else:
+                    units_dict[str(self.index_name) + '_index_'] = self.index_units
         elif type(self.units) is dict:
             units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index }
         else:
