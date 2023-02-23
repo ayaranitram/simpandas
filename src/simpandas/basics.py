@@ -1982,7 +1982,9 @@ Copy of input object, shifted.
         elif len(set(self.get_units(items).values())) == 1:
             return list(set(self.get_units(items).values()))[0]
         else:
-            warn("More than one units found, not possible to return a single string.")
+            result = list(self.get_units(items).values())[0]
+            logging.warning("More than one units found for the item '" + str(items) + "', returning the first one: '" + str(result) + "'." )
+            return result
 
     def get_UnitsString(self, items=None):
         return self.get_units_string(items)
