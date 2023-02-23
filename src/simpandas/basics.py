@@ -1972,7 +1972,12 @@ Copy of input object, shifted.
         return self._class(data=diff, **params_)
 
     def get_units_string(self, items=None):
-        if len(self.get_units(items)) == 1:
+        if items is None and 'SimSeries' in str(type(self)) and len(self.get_units()) == 2:
+            if self.name in self.get_units():
+                return list(self.get_units(self.name).values())[0]
+            else:
+                return list(self.get_units().values())[0]
+        elif len(self.get_units(items)) == 1:
             return list(self.get_units(items).values())[0]
         elif len(set(self.get_units(items).values())) == 1:
             return list(set(self.get_units(items).values()))[0]
