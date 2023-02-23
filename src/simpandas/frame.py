@@ -2274,7 +2274,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         # if type(self.units) is dict:
         if not self._transposed_:
-            if item is None and units is not None and len(self.columns) > 1:
+            if item is None and None not in self.columns and units is not None:
+                self.units[item] = units
+            elif item is None and units is not None and len(self.columns) > 1:
                 raise ValueError("This SimDataFrame has multiple columns, item parameter must be provided.")
             elif item is None and len(self.columns) == 1:
                 return self.set_units(units, [list(self.columns)[0]])
