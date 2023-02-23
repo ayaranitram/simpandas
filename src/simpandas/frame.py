@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.6'
-__release__ = 20230222
+__version__ = '0.83.3'
+__release__ = 20230223
 __all__ = ['SimDataFrame']
 
 import logging
@@ -1887,9 +1887,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
     def round(self, decimals=0, **kwargs):
         return self._class(data=self.as_pandas().round(decimals=decimals, **kwargs), **self.params_)
-
-    def copy(self, **kwargs):
-        return SimDataFrame(data=self.as_pandas().copy(True), **self.params_)
 
     def _get_by_filter(self, key):
         """

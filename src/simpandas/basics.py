@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.9'
-__release__ = 20230222
+__version__ = '0.83.10'
+__release__ = 20230223
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -103,6 +103,9 @@ class SimBasics(object, metaclass=SimType):
         if switch is not None:
             self._auto_append_ = bool(switch)
         logging.info("`auto_append` is", self._auto_append_)
+
+    def copy(self, deep=True):
+        return self._class(data=self.as_pandas().copy(deep=deep), **self.params_)
 
     def cumsum(self, skipna=True, *args, **kwargs):
         """
