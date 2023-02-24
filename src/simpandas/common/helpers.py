@@ -100,3 +100,11 @@ def item_key(Key, clean=True, nameSeparator=':'):
             return list(results)
     if isinstance(Key, pd.Series):
         return item_key(Key.name)
+
+def hashable(x):
+    """Determine whether `v` can be hashed."""
+    try:
+        hash(x)
+    except TypeError:
+        return False
+    return True
