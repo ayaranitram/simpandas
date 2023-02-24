@@ -24,7 +24,7 @@ from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
-from .common.helpers import clean_axis as _clean_axis
+from .common.helpers import clean_axis as _clean_axis, hashable
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
