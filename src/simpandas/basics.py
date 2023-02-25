@@ -2080,19 +2080,21 @@ Copy of input object, shifted.
         return self._class(data=diff, **params_)
 
     def get_units_string(self, items=None):
-        if items is None and 'SimSeries' in str(type(self)) and len(self.get_units()) == 2:
-            if self.name in self.get_units():
-                return list(self.get_units(self.name).values())[0]
+        items_units_dict = self.get_units(items)
+        if None in items_units_dict and items_units_dict[None] is None:
+            del items_units_dict[None]
+        if len(items_units_dict) == 0:
+            return 'unitless'
+        if items is None and 'SimSeries' in str(type(self)) and len(items_units_dict) <= 2:
+            if self.name in items_units_dict:
+                return items_units_dict[self.name]
             else:
-                return list(self.get_units().values())[0]
-        elif len(self.get_units(items)) == 1:
-            return list(self.get_units(items).values())[0]
-        elif len(set(self.get_units(items).values())) == 1:
-            return list(set(self.get_units(items).values()))[0]
+                return list(items_units_dict.values())[0]
+        elif len(set(items_units_dict.values())) == 1:
+            return list(set(items_units_dict.values()))[0]
         else:
-            result = list(self.get_units(items).values())[0]
             logging.warning("More than one units found for the item '" + str(items) + "', returning the first one: '" + str(result) + "'." )
-            return result
+            return list(items_units_dict.values())[0]
 
     def get_UnitsString(self, items=None):
         return self.get_units_string(items)
