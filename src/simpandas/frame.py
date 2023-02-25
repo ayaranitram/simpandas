@@ -1217,7 +1217,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             else:
                 raise TypeError("labels does not match neither len(index) or len(columns).")
         axis = _clean_axis(axis)
-        return SimDataFrame(data=self.to_pandas.reindex(labels=labels, axis=axis, **kwargs), **self.params_)
+        return SimDataFrame(data=self.to_pandas().reindex(labels=labels, axis=axis, **kwargs), **self.params_)
 
 
     # not shared methods
