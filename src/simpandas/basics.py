@@ -26,7 +26,7 @@ from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
 from .common.helpers import clean_axis as _clean_axis, hashable
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 class SimType(type):

@@ -33,7 +33,7 @@ from .index import SimIndex
 from .series import SimSeries
 from .common.helpers import clean_axis as _clean_axis
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 def _series_to_frame(a_SimSeries, params_=None):
