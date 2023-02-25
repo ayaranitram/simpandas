@@ -1176,24 +1176,35 @@ Copy of input object, shifted.
         return self.real_year(column=column)
 
     def _check_by(self, by, raise_by_error=True):
+        # if not isinstance(self.index, pd.DatetimeIndex):
+        #     original = self.index
+        #     try:
+        #         self.index = pd.to_datetime(['-'.join(map(str, i)) for i in self.index])
+        #     except:
+        #         if raise_by_error:
+        #             raise TypeError("index must be `DatetimeIndex`.")
+        #         else:
+        #             logging.warning("index must be `DatetimeIndex`.")
+        # else:
+        #     original = None
+
         if by is None:
             by = []
         elif type(by) is not str and hasattr(by, '__iter__'):
             new_by = []
             for each in by:
+                if not hashable(each):
+                    each = tuple(each)
                 if each in self.columns:
                     new_by.append(each)
-                elif each in [self.index.year, self.index.month, self.index.day]:
-                    if isinstance(self.index, pd.DatetimeIndex):
-                        new_by.append(each)
-                    elif raise_by_error:
-                        raise TypeError("index must be `DateTimeIndex`.")
-                    else:
-                        warn("index must be `DateTimeIndex`.")
+                elif isinstance(self.index, pd.DatetimeIndex) and each in [self.index.year, self.index.month, self.index.day]:
+                    new_by.append(each)
+                elif isinstance(self.index, pd.MultiIndex) and each in [self.index.get_level_values(i) for i in range(len(self.index.levels))] + list(self.index.levels):
+                    new_by.append(each)
                 elif raise_by_error:
                     raise ValueError("The column '" + str(each) + "' is not present in this frame")
                 else:
-                    warn("The column '" + str(by) + "' is not present in this frame")
+                    logging.warning("The column '" + str(by) + "' is not present in this frame")
             by = new_by
         elif by in self.columns:
             by = [by]
@@ -1201,8 +1212,11 @@ Copy of input object, shifted.
             raise ValueError("The column '" + str(by) + "' is not present in this frame")
         else:
             by = []
-            warn("The column '" + str(by) + "' is not present in this frame")
+            logging.warning("The column '" + str(by) + "' is not present in this frame")
         user_by = by if len(by) > 0 else None
+
+        # if original is not None:
+        #     self.index = original
         return by, user_by
 
     def _aggregated_calculation(self, by, agg):
