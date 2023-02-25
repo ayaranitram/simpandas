@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.3'
-__release__ = 20230223
+__version__ = '0.83.5'
+__release__ = 20230224
 __all__ = ['SimDataFrame']
 
 import logging
@@ -1855,9 +1855,12 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if len(set(self.get_units(self.columns).values())) == 1:
                 data = self.as_pandas().sum(axis=axis, **kwargs)
             else:
-                result = self[self.columns[0]]
-                units = self.units[self.columns[0]]
-                for col in range(1, len(self.columns)):
+                i = 0
+                while self.columns[i] not in self.units:
+                    i += 1
+                result = self[self.columns[i]]
+                units = self.units[self.columns[i]]
+                for col in (j for j in range(len(self.columns)) if j != i):
                     result = result + self[self.columns[col]]
                 data = result
             data.name = new_name
