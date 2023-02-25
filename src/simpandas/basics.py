@@ -1432,7 +1432,7 @@ Copy of input object, shifted.
                     df.daily(fillna_method='polynomial', order=5).
 
         """
-        if type(self.index) is not pd.DatetimeIndex:
+        if not isinstance(self.index, pd.DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
         if fillna_method in ['polynomial', 'spline']:
@@ -1499,6 +1499,8 @@ Copy of input object, shifted.
                 output.set_units('month', 'MONTH')
             if 'DAY' not in output.get_units():
                 output.set_units('day', 'DAY')
+
+
         return output
 
     def monthly(self, agg='mean', datetime_index=False, by=None, day=None,
@@ -1578,7 +1580,7 @@ Copy of input object, shifted.
                     df.monthly(fillna_method='polynomial', order=5).
 
         """
-        if type(self.index) is not pd.DatetimeIndex:
+        if not isinstance(self.index, pd.DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
         if type(agg) is int and day is None:

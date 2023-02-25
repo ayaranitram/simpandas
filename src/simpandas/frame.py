@@ -1867,20 +1867,20 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if axis == 0:
             return self._class(data=self.as_pandas().var(axis=axis, **kwargs), **self.params_)
         if axis == 1:
-            newName = '.var'
+            new_name = '.var'
             if len(set(self.get_units(self.columns).values())) == 1:
                 units = list(set(self.get_units(self.columns).values()))[0]
             else:
                 units = 'dimensionless'
             if len(set(self.columns)) == 1:
-                newName = list(set(self.columns))[0] + newName
+                new_name = list(set(self.columns))[0] + new_name
             elif len(set(self.rename_right(inplace=False).columns)) == 1:
-                newName = list(set(self.rename_right(inplace=False).columns))[0] + newName
+                new_name = list(set(self.rename_right(inplace=False).columns))[0] + new_name
             elif len(set(self.rename_left(inplace=False).columns)) == 1:
-                newName = list(set(self.rename_left(inplace=False).columns))[0] + newName
+                new_name = list(set(self.rename_left(inplace=False).columns))[0] + new_name
             data = self.as_pandas().var(axis=axis, **kwargs)
-            data.columns = [newName]
-            data.name = newName
+            data.columns = [new_name]
+            data.name = new_name
             params_ = self.params_.copy()
             params_['units'] = units
             return self._class(data=data, **params_)
