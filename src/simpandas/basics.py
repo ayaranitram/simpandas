@@ -1262,7 +1262,7 @@ Copy of input object, shifted.
             raise ValueError("`agg` parameter is not valid.")
         return self._class(data=result, **params_)
 
-    def fill_daily(self, group_by=None, fillna_method=False, raise_by_error=True, **kwargs):
+    def _fill_daily(self, group_by=None, fillna_method=False, raise_by_error=True, **kwargs):
         """
         Fill the gaps in DateTimeIndex, completing the missing days in the index and populating the missing values if requiered.
 
@@ -1270,25 +1270,40 @@ Copy of input object, shifted.
         -------
 
         """
-        time_by = [self.index.year, self.index.month, self.index.day]
-        group_by, _ = self._check_by(group_by, raise_by_error=raise_by_error)
-        for tb in time_by:
-            if tb in group_by:
-                _ = group_by.remove(tb)
-        by = time_by if group_by is None else time_by + group_by
-
         result = self.copy()
 
+        # if not isinstance(result.index, pd.DatetimeIndex):
+        #     if len(result.index) > 0 and len(result.index[0]) == 3:
+        #         try:
+        #             result.index = pd.to_datetime(['-'.join(map(str,i)) for i in result.index])
+        #         except:
+        #             raise TypeError("Index must be DateTimeIndex.")
+        #     else:
+        #         raise TypeError("Index must be DateTimeIndex.")
+
+        # time_by = [result.index.year, result.index.month, result.index.day]
+        # group_by, _ = result._check_by(group_by, raise_by_error=raise_by_error)
+        # for tb in time_by:
+        #     try:
+        #         if tb in group_by:
+        #             _ = group_by.remove(tb)
+        #     except ValueError:
+        #         if tuple(tb) in [tuple(g) for g in group_by]:
+        #             _ = group_by.remove(tuple(tb))
+                    
+        # by = time_by if group_by is None else time_by + group_by
+
+        by = group_by
+
         if len(by) > 3:  # user criteria to group by
-            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in result.index])
+            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
             result.index.names = by[3:]
             result.index = pd.MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for i in result.index]
             result = result.reset_index()
         else:
             index_backup = result.index
 
-        result.index = pd.to_datetime(
-            [str(YYYY) + '-' + str(MM).zfill(2) + '-' + str(DD).zfill(2) for YYYY, MM, DD in index_backup])
+        result.index = pd.to_datetime(['-'.join(map(str,i)) for i in index_backup])
         result.index.name = 'DATE'
         if len(by) == 4:
             new_df = None
@@ -1317,6 +1332,78 @@ Copy of input object, shifted.
         elif len(by) == 3:
             daily_index = pd.date_range(min(result.index), max(result.index), freq='D')
             result = result.reindex(index=daily_index)
+            if fillna_method is False:
+                pass
+            elif fillna_method is None:
+                result = result.interpolate(method='time')
+            elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
+                result = result.fillna(method=fillna_method)
+            elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
+                                   'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
+                result = result.interpolate(method=fillna_method)
+            elif fillna_method in ['polynomial', 'spline']:
+                result = result.interpolate(method=fillna_method, order=kwargs['order'])
+        else:
+            raise NotImplementedError('Not able to reindex grouping by more than one column.')
+
+        by = [result.index.year, result.index.month, result.index.day] + by[3:]
+        result = result.groupby(by=by).first()
+        return result
+
+    def _fill_timely(self, group_by=None, fillna_method=False, raise_by_error=True, freq=None, **kwargs):
+        """
+        Fill the gaps in DateTimeIndex, completing the missing days in the index and populating the missing values if requiered.
+
+        Returns
+        -------
+
+        """
+        if freq is None:
+            raise ValueError('`freq` parameter must not be None.')
+
+        result = self.copy()
+
+        by = group_by
+
+        if len(by) > 3:  # user criteria to group by
+            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
+            result.index.names = by[3:]
+            result.index = pd.MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for
+                                                                                                                i in
+                                                                                                                result.index]
+            result = result.reset_index()
+        else:
+            index_backup = result.index
+
+        result.index = pd.to_datetime(['-'.join(map(str, i)) for i in index_backup])
+        result.index.name = 'DATE'
+        if len(by) == 4:
+            new_df = None
+            for group in result[by[3]].unique():
+                group_df = result[result[by[3]] == group]
+                if len(group_df) == 0:
+                    continue
+                new_index = pd.date_range(min(group_df.index), max(group_df.index), freq=freq)
+                group_df = group_df.reindex(index=new_index)
+
+                if fillna_method is False:
+                    pass
+                elif fillna_method is None:
+                    group_df = group_df.interpolate(method='time').fillna(method='pad')
+                elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
+                    group_df = group_df.fillna(method=fillna_method)
+                elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
+                                       'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
+                    group_df = group_df.interpolate(method=fillna_method).fillna(method='pad')
+                elif fillna_method in ['polynomial', 'spline']:
+                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).fillna(method='pad')
+                if new_df is None:
+                    new_df = group_df.copy()
+                else:
+                    new_df = new_df.append(group_df)
+        elif len(by) == 3:
+            new_index = pd.date_range(min(result.index), max(result.index), freq=freq)
+            result = result.reindex(index=new_index)
             if fillna_method is False:
                 pass
             elif fillna_method is None:
@@ -1470,7 +1557,7 @@ Copy of input object, shifted.
         output = self._aggregated_calculation(by, agg)
 
         if complete_index:
-            output = output.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
+            output = output._fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
 
         if user_by is None:
             output.index = pd.MultiIndex.from_tuples([(int(y), int(m), int(d)) for y, m, d in output.index])
@@ -1613,15 +1700,17 @@ Copy of input object, shifted.
                 day = datetime_index
             datetime_index = True
 
-        day = check_day(day)
-        by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
-        by = [self.index.year, self.index.month] + by
-
         if complete_index:
-            output = self.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
-            output = output._aggregated_calculation(by, agg)
+            output = self.daily(agg=agg, datetime_index=True, by=by,
+                       complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
         else:
-            output = self._aggregated_calculation(by, agg)
+            output = self
+
+        day = check_day(day)
+        by, user_by = output._check_by(by, raise_by_error=bool(raise_by_error))
+        by = [output.index.year, output.index.month] + by
+
+        output = output._aggregated_calculation(by, agg)
 
         if user_by is None:
             output.index = pd.MultiIndex.from_tuples([(int(y), int(m)) for y, m in output.index])
@@ -1635,7 +1724,7 @@ Copy of input object, shifted.
                 output.index = pd.to_datetime(
                     [str(YYYY) + '-' +
                      str(MM).zfill(2) +
-                     self._make_day(day, MM, YYYY)
+                     output._make_day(day, MM, YYYY)
                      for YYYY, MM in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
@@ -1646,7 +1735,7 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        self._make_day(day, i[1], i[0])
+                        output._make_day(day, i[1], i[0])
                     ), i[2],)
                     for i in output.index])
             else:
@@ -1654,7 +1743,7 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        self._make_day(day, i[1], i[0])),
+                        output._make_day(day, i[1], i[0])),
                     ) + tuple(i[2:])
                     for i in output.index])
             if user_by is not None:
@@ -1672,6 +1761,7 @@ Copy of input object, shifted.
             if 'MONTH' not in output.get_units():
                 output.set_units('month', 'MONTH')
         return output
+
     def yearly(self, agg='mean', datetime_index=False, by=None, day=None, month=None,
                complete_index=False, fillna_method=None, raise_by_error=True):
         """
@@ -1757,7 +1847,7 @@ Copy of input object, shifted.
                     df.yearly(fillna_method='polynomial', order=5).
 
         """
-        if type(self.index) is not pd.DatetimeIndex:
+        if not isinstance(self.index, pd.DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
         if type(agg) is int and month is None:
@@ -1778,18 +1868,20 @@ Copy of input object, shifted.
                 month = datetime_index
             datetime_index = True
 
+        if complete_index:
+            output = self.daily(agg=agg, datetime_index=True, by=by,
+                       complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
+        else:
+            output = self
+
         day = check_day(day)
         month = check_month(month)
-        by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
-        by = [self.index.year] + by
+        by, user_by = output._check_by(by, raise_by_error=bool(raise_by_error))
+        by = [output.index.year] + by
         if len(by) == 1:
             by = by[0]
 
-        if complete_index:
-            output = self.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
-            output = output._aggregated_calculation(by, agg)
-        else:
-            output = self._aggregated_calculation(by, agg)
+        output = output._aggregated_calculation(by, agg)
 
         if user_by is None:
             output.index = [int(y) for y in output.index]
@@ -1801,7 +1893,7 @@ Copy of input object, shifted.
         if datetime_index:
             if user_by is None:
                 output.index = pd.to_datetime([str(YYYY) +
-                                               self._make_month_day(day, month, YYYY)
+                                               output._make_month_day(day, month, YYYY)
                                                for YYYY in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
@@ -1809,11 +1901,11 @@ Copy of input object, shifted.
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + self._make_month_day(day, month, i[0])), i[1],)
+                    str(i[0]) + output._make_month_day(day, month, i[0])), i[1],)
                     for i in output.index])
             else:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + self._make_month_day(day, month, i[0])),) + tuple(
+                    str(i[0]) + output._make_month_day(day, month, i[0])),) + tuple(
                     i[1:]) for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
@@ -1840,7 +1932,7 @@ Copy of input object, shifted.
                                  'month' constant value multiplied by days in month
                                          index must be a datetime-index
                                  'year'  constant value multiplied by days in year
-                                         index must be a datetime-index
+                                         index must be a DatetimeIndex
                                          or integer representing a year
 
         at parameter defines the row where cumulative will written, only for the
