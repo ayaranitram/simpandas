@@ -1343,11 +1343,11 @@ Copy of input object, shifted.
 
     def _make_month(self, month: str, YYYY: int) -> str:
         if month not in ['-first', '-last', '-max', '-mid']:
-            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 12:
+            if int(month.strip('-')) >= 1 and int(month.strip('-')) <= 12:
                 return month
-            if int(day.strip('-')) <= 0:
+            if int(month.strip('-')) <= 0:
                 return '-01'
-            else:  # int(day.strip('-')) > 12
+            else:  # int(month.strip('-')) > 12
                 return '-12'
         if month == '-first':
             return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
