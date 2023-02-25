@@ -1323,11 +1323,16 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             elif len(self.find_keys(subset)) > 0:
                 subset = list(self.find_keys(subset))
         if inplace:
-            super().dropna(axis=axis, how=how, thresh=thresh, subset=subset, inplace=inplace)
+            if thresh is None:
+                super().dropna(axis=axis, thresh=thresh, subset=subset, inplace=inplace)
+            else:
+                super().dropna(axis=axis, how=how, subset=subset, inplace=inplace)
         else:
-            return SimDataFrame(
-                data=self.as_pandas().dropna(axis=axis, how=how, thresh=thresh, subset=subset, inplace=inplace),
-                **self.params_)
+            if thresh is None:
+                data = self.as_pandas().dropna(axis=axis, how=how, subset=subset, inplace=inplace)
+            else:
+                data = self.as_pandas().dropna(axis=axis, thresh=thresh, subset=subset, inplace=inplace)
+            return SimDataFrame(data=data, **self.params_)
 
     def drop_duplicates(self, subset=None, keep='first', inplace=False, ignore_index=False):
         if inplace:
