@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.9'
-__release__ = 20230222
+__version__ = '0.83.10'
+__release__ = 20230227
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -67,6 +67,9 @@ class SimBasics(object, metaclass=SimType):
         wrapper for .iloc indexing
         """
         return self.spdiLocator
+
+    def isna(self):
+        return self.as_pandas().isna()
 
     def concat(self, objs, axis=0, join='outer', ignore_index=False,
                keys=None, levels=None, names=None, verify_integrity=False,
