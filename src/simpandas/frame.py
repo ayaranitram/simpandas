@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.6'
-__release__ = 20230222
+__version__ = '0.83.7'
+__release__ = 20230227
 __all__ = ['SimDataFrame']
 
 import logging
@@ -1897,15 +1897,17 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         try to get a filtered DataFrame or Series(.filter[key] )
         """
-        if len(key) != len(self):
-            raise ValueError('Filter wrong length ' + str(len(key)) + ' instead of ' + str(len(self)))
         if not isinstance(key, (SimSeries, pd.Series)) and type(key) is not np.ndarray:
             raise TypeError("Filter must be a Series or Array")
         else:
             if str(key.dtype) != 'bool':
                 raise TypeError("Filter dtype must be 'bool'")
-
-        return self.loc[key]
+        if len(key) == len(self):
+            return self.loc[key]
+        elif len(key) == len(self.columns):
+            return self.iloc[:, [i for i in range(len(key)) if bool(key.values[i])]]
+        else:
+            raise ValueError('Filter wrong length ' + str(len(key)) + ' instead of ' + str(len(self)))
 
     def _get_by_criteria(self, key):
         """
