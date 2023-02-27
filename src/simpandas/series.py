@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.2'
-__release__ = 20230221
+__version__ = '0.83.4'
+__release__ = 20230223
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -868,8 +868,17 @@ class SimSeries(SimBasics, Series):
         """
         if self.units is None:
             units_dict = {self.name: 'unitless'}
+            if self.index.name is not None and self.index_units is not None:
+                units_dict[self.index.name] = self.index_units
         elif type(self.units) is str:
             units_dict = {self.name: self.units}
+            if self.index_name not in units_dict:
+                units_dict[self.index_name] = self.index_units
+            elif self.index_units != units_dict[self.index_name]:
+                if self.index_name not in self.columns:
+                    self.units[self.index_name] = self.index_units
+                else:
+                    units_dict[str(self.index_name) + '_index_'] = self.index_units
         elif type(self.units) is dict:
             units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index }
         else:
@@ -1119,21 +1128,30 @@ class SimSeries(SimBasics, Series):
     def set_index(self, name):
         self.set_index_name(name)
 
+    def get_index_units(self):
+        if not isinstance(self.index, SimIndex) and type(self.index_units_) in [dict, str]:
+            self.index = SimIndex(self.index, units=self.index_units_)
+        elif isinstance(self.index, SimIndex) and (
+                type(self.index.units) is str and len(self.index.units) > 0
+                or type(self.index.units) is dict):
+            self.index_units_ = self.index.units
+        return self.index_units_
+
     def set_index_units(self, units):
         if hasattr(units, 'units') and type(units.units) is str:
             units = units.units
         elif hasattr(units, 'unit') and type(units.unit) is str:
             units = units.unit
         if type(units) is str and len(units.strip()) > 0:
-            self.index_units = units.strip()
+            self.index_units_ = units.strip()
         elif type(units) is dict and len(units) == len(self.index):
-            self.index_units_ = units
+            self.index_units_ = units.copy()
         else:
             raise TypeError("`units` must be a string or a dictionary with pair key: units for each item in the index.")
-        if not isinstance(self.index, SimIndex) and type(self.index_units_) is str:
+        if not isinstance(self.index, SimIndex) and type(self.index_units_) in [dict, str]:
             self.index = SimIndex(self.index, units=self.index_units_)
-        elif type(self.index_units_) is str:
-            self.index.set_units(self.index_units_)
+        elif type(self.index_units_) in [dict, str]:
+            self.index.units = self.index_units_
 
     def transpose(self):
         return self

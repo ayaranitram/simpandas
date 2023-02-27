@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.8'
-__release__ = 20230220
+__version__ = '0.83.11'
+__release__ = 20230225
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -24,7 +24,9 @@ from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
-from .common.helpers import clean_axis as _clean_axis
+from .common.helpers import clean_axis as _clean_axis, hashable
+
+logging.basicConfig(level=logging.INFO)
 
 
 class SimType(type):
@@ -101,6 +103,9 @@ class SimBasics(object, metaclass=SimType):
         if switch is not None:
             self._auto_append_ = bool(switch)
         logging.info("`auto_append` is", self._auto_append_)
+
+    def copy(self, deep=True):
+        return self._class(data=self.as_pandas().copy(deep=deep), **self.params_)
 
     def cumsum(self, skipna=True, *args, **kwargs):
         """
@@ -883,7 +888,7 @@ Copy of input object, shifted.
 
     @property
     def index_units(self):
-        return self.index_units_
+        return self.get_index_units()
 
     @index_units.setter
     def index_units(self, units):
@@ -1171,24 +1176,35 @@ Copy of input object, shifted.
         return self.real_year(column=column)
 
     def _check_by(self, by, raise_by_error=True):
+        # if not isinstance(self.index, pd.DatetimeIndex):
+        #     original = self.index
+        #     try:
+        #         self.index = pd.to_datetime(['-'.join(map(str, i)) for i in self.index])
+        #     except:
+        #         if raise_by_error:
+        #             raise TypeError("index must be `DatetimeIndex`.")
+        #         else:
+        #             logging.warning("index must be `DatetimeIndex`.")
+        # else:
+        #     original = None
+
         if by is None:
             by = []
         elif type(by) is not str and hasattr(by, '__iter__'):
             new_by = []
             for each in by:
+                if not hashable(each):
+                    each = tuple(each)
                 if each in self.columns:
                     new_by.append(each)
-                elif each in [self.index.year, self.index.month, self.index.day]:
-                    if isinstance(self.index, pd.DatetimeIndex):
-                        new_by.append(each)
-                    elif raise_by_error:
-                        raise TypeError("index must be `DateTimeIndex`.")
-                    else:
-                        warn("index must be `DateTimeIndex`.")
+                elif isinstance(self.index, pd.DatetimeIndex) and each in [self.index.year, self.index.month, self.index.day]:
+                    new_by.append(each)
+                elif isinstance(self.index, pd.MultiIndex) and each in [self.index.get_level_values(i) for i in range(len(self.index.levels))] + list(self.index.levels):
+                    new_by.append(each)
                 elif raise_by_error:
                     raise ValueError("The column '" + str(each) + "' is not present in this frame")
                 else:
-                    warn("The column '" + str(by) + "' is not present in this frame")
+                    logging.warning("The column '" + str(by) + "' is not present in this frame")
             by = new_by
         elif by in self.columns:
             by = [by]
@@ -1196,8 +1212,11 @@ Copy of input object, shifted.
             raise ValueError("The column '" + str(by) + "' is not present in this frame")
         else:
             by = []
-            warn("The column '" + str(by) + "' is not present in this frame")
+            logging.warning("The column '" + str(by) + "' is not present in this frame")
         user_by = by if len(by) > 0 else None
+
+        # if original is not None:
+        #     self.index = original
         return by, user_by
 
     def _aggregated_calculation(self, by, agg):
@@ -1243,7 +1262,7 @@ Copy of input object, shifted.
             raise ValueError("`agg` parameter is not valid.")
         return self._class(data=result, **params_)
 
-    def fill_daily(self, group_by=None, fillna_method=False, raise_by_error=True, **kwargs):
+    def _fill_daily(self, group_by=None, fillna_method=False, raise_by_error=True, **kwargs):
         """
         Fill the gaps in DateTimeIndex, completing the missing days in the index and populating the missing values if requiered.
 
@@ -1251,25 +1270,40 @@ Copy of input object, shifted.
         -------
 
         """
-        time_by = [self.index.year, self.index.month, self.index.day]
-        group_by, _ = self._check_by(group_by, raise_by_error=raise_by_error)
-        for tb in time_by:
-            if tb in group_by:
-                _ = group_by.remove(tb)
-        by = time_by if group_by is None else time_by + group_by
-
         result = self.copy()
 
+        # if not isinstance(result.index, pd.DatetimeIndex):
+        #     if len(result.index) > 0 and len(result.index[0]) == 3:
+        #         try:
+        #             result.index = pd.to_datetime(['-'.join(map(str,i)) for i in result.index])
+        #         except:
+        #             raise TypeError("Index must be DateTimeIndex.")
+        #     else:
+        #         raise TypeError("Index must be DateTimeIndex.")
+
+        # time_by = [result.index.year, result.index.month, result.index.day]
+        # group_by, _ = result._check_by(group_by, raise_by_error=raise_by_error)
+        # for tb in time_by:
+        #     try:
+        #         if tb in group_by:
+        #             _ = group_by.remove(tb)
+        #     except ValueError:
+        #         if tuple(tb) in [tuple(g) for g in group_by]:
+        #             _ = group_by.remove(tuple(tb))
+                    
+        # by = time_by if group_by is None else time_by + group_by
+
+        by = group_by
+
         if len(by) > 3:  # user criteria to group by
-            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in result.index])
+            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
             result.index.names = by[3:]
             result.index = pd.MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for i in result.index]
             result = result.reset_index()
         else:
             index_backup = result.index
 
-        result.index = pd.to_datetime(
-            [str(YYYY) + '-' + str(MM).zfill(2) + '-' + str(DD).zfill(2) for YYYY, MM, DD in index_backup])
+        result.index = pd.to_datetime(['-'.join(map(str,i)) for i in index_backup])
         result.index.name = 'DATE'
         if len(by) == 4:
             new_df = None
@@ -1315,6 +1349,120 @@ Copy of input object, shifted.
         by = [result.index.year, result.index.month, result.index.day] + by[3:]
         result = result.groupby(by=by).first()
         return result
+
+    def _fill_timely(self, group_by=None, fillna_method=False, raise_by_error=True, freq=None, **kwargs):
+        """
+        Fill the gaps in DateTimeIndex, completing the missing days in the index and populating the missing values if requiered.
+
+        Returns
+        -------
+
+        """
+        if freq is None:
+            raise ValueError('`freq` parameter must not be None.')
+
+        result = self.copy()
+
+        by = group_by
+
+        if len(by) > 3:  # user criteria to group by
+            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
+            result.index.names = by[3:]
+            result.index = pd.MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for
+                                                                                                                i in
+                                                                                                                result.index]
+            result = result.reset_index()
+        else:
+            index_backup = result.index
+
+        result.index = pd.to_datetime(['-'.join(map(str, i)) for i in index_backup])
+        result.index.name = 'DATE'
+        if len(by) == 4:
+            new_df = None
+            for group in result[by[3]].unique():
+                group_df = result[result[by[3]] == group]
+                if len(group_df) == 0:
+                    continue
+                new_index = pd.date_range(min(group_df.index), max(group_df.index), freq=freq)
+                group_df = group_df.reindex(index=new_index)
+
+                if fillna_method is False:
+                    pass
+                elif fillna_method is None:
+                    group_df = group_df.interpolate(method='time').fillna(method='pad')
+                elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
+                    group_df = group_df.fillna(method=fillna_method)
+                elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
+                                       'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
+                    group_df = group_df.interpolate(method=fillna_method).fillna(method='pad')
+                elif fillna_method in ['polynomial', 'spline']:
+                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).fillna(method='pad')
+                if new_df is None:
+                    new_df = group_df.copy()
+                else:
+                    new_df = new_df.append(group_df)
+        elif len(by) == 3:
+            new_index = pd.date_range(min(result.index), max(result.index), freq=freq)
+            result = result.reindex(index=new_index)
+            if fillna_method is False:
+                pass
+            elif fillna_method is None:
+                result = result.interpolate(method='time')
+            elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
+                result = result.fillna(method=fillna_method)
+            elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
+                                   'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
+                result = result.interpolate(method=fillna_method)
+            elif fillna_method in ['polynomial', 'spline']:
+                result = result.interpolate(method=fillna_method, order=kwargs['order'])
+        else:
+            raise NotImplementedError('Not able to reindex grouping by more than one column.')
+
+        by = [result.index.year, result.index.month, result.index.day] + by[3:]
+        result = result.groupby(by=by).first()
+        return result
+
+    def _make_day(self, day: str, MM:int, YYYY: int) -> str:
+        if day not in ['-first', '-last', '-max', '-mid']:
+            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 28:
+                return day
+            if int(day.strip('-')) <= 0:
+                return '-01'
+            last_day_of_month = days_in_month(MM, YYYY)
+            if int(day.strip('-')) <= last_day_of_month:
+                return day
+            else:
+                return '-' + str(last_day_of_month)
+        if day == '-first':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).min().day).zfill(2)
+        elif day ==  '-last':
+            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
+        elif day == '-max':
+            return '-' + str(days_in_month(MM, YYYY))
+        elif day == '-mid':
+            return '-14' if MM == 2 else '-15'
+
+    def _make_month(self, month: str, YYYY: int) -> str:
+        if month not in ['-first', '-last', '-max', '-mid']:
+            if int(month.strip('-')) >= 1 and int(month.strip('-')) <= 12:
+                return month
+            if int(month.strip('-')) <= 0:
+                return '-01'
+            else:  # int(month.strip('-')) > 12
+                return '-12'
+        if month == '-first':
+            return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
+        elif month ==  '-last':
+            return '-' + str(self.index.where(self.index.year == YYYY).max().month).zfill(2)
+        elif month == '-max':
+            return '-12'
+        elif month == '-mid':
+            return '-07'
+
+    def _make_month_day(self, day: str, month: str, YYYY: int) -> str:
+        MM = self._make_month(month, YYYY)
+        DD = '-01' if month == '-mid' else self._make_day(day, int(MM[1:]), YYYY)
+        return MM + DD
 
     def daily(self, agg='mean', datetime_index=True, by=None,
               complete_index=False, fillna_method=None, raise_by_error=True, **kwargs):
@@ -1385,7 +1533,7 @@ Copy of input object, shifted.
                     df.daily(fillna_method='polynomial', order=5).
 
         """
-        if type(self.index) is not pd.DatetimeIndex:
+        if not isinstance(self.index, pd.DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
         if fillna_method in ['polynomial', 'spline']:
@@ -1396,10 +1544,10 @@ Copy of input object, shifted.
                 raise ValueError(
                     "The 'order' parameter must be an integer:\n   df.daily(fillna_method='polynomial', order=5)")
 
-        if type(agg) is bool and type(datetime_index) is bool:
-            agg, datetime_index = 'mean', agg
-        elif type(agg) is bool and type(datetime_index) is not bool:
+        if type(agg) is bool and type(datetime_index) is not bool:
             agg, datetime_index = datetime_index, agg
+        elif type(agg) is bool and datetime_index is True:
+            agg, datetime_index = 'mean', agg
 
         raise_by_error = bool(raise_by_error)
 
@@ -1409,7 +1557,7 @@ Copy of input object, shifted.
         output = self._aggregated_calculation(by, agg)
 
         if complete_index:
-            output = output.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
+            output = output._fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
 
         if user_by is None:
             output.index = pd.MultiIndex.from_tuples([(int(y), int(m), int(d)) for y, m, d in output.index])
@@ -1452,50 +1600,8 @@ Copy of input object, shifted.
                 output.set_units('month', 'MONTH')
             if 'DAY' not in output.get_units():
                 output.set_units('day', 'DAY')
+
         return output
-
-    def _make_day(self, day: str, MM:int, YYYY: int) -> str:
-        if day not in ['-first', '-last', '-max', '-mid']:
-            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 28:
-                return day
-            if int(day.strip('-')) <= 0:
-                return '-01'
-            last_day_of_month = days_in_month(MM, YYYY)
-            if int(day.strip('-')) <= last_day_of_month:
-                return day
-            else:
-                return '-' + str(last_day_of_month)
-        if day == '-first':
-            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).min().day).zfill(2)
-        elif day ==  '-last':
-            return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
-        elif day == '-max':
-            return '-' + str(days_in_month(MM, YYYY))
-        elif day == '-mid':
-            return '-14' if MM == 2 else '-15'
-
-    def _make_month(self, month: str, YYYY: int) -> str:
-        if month not in ['-first', '-last', '-max', '-mid']:
-            if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 12:
-                return month
-            if int(day.strip('-')) <= 0:
-                return '-01'
-            else:  # int(day.strip('-')) > 12
-                return '-12'
-        if month == '-first':
-            return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
-        elif month ==  '-last':
-            return '-' + str(self.index.where(self.index.year == YYYY).max().month).zfill(2)
-        elif month == '-max':
-            return '-12'
-        elif month == '-mid':
-            return '-07'
-
-    def _make_month_day(self, day: str, month: str, YYYY: int) -> str:
-        MM = self._make_month(month, YYYY)
-        DD = '-01' if month == '-mid' else self._make_day(day, int(MM[1:]), YYYY)
-        return MM + DD
-
 
     def monthly(self, agg='mean', datetime_index=False, by=None, day=None,
                 complete_index=False, fillna_method=None, raise_by_error=True):
@@ -1516,6 +1622,7 @@ Copy of input object, shifted.
             integrate : calculates the numerical integration per month, over the index (a datetime-index)
             representative : calculates the representative mean per month, as the numerical integration of the column over the index (a datetime-index) then divided by the elapsed time between the first and last rows of each month
             cumsum or cumulative : run cumsum per month, over the columns and then return the last value of each year
+            date : keep the value at the exact day and month requested by `day` and `month`
 
         datetimeIndex : bool
             if True the index will converted to DateTimeIndex with Day=`day` for each month
@@ -1536,7 +1643,7 @@ Copy of input object, shifted.
             If string 'first' the first day in the data for the month will be used.
             If string 'last' the last day in the data for each month will be used.
             If string 'max' the number of days of each month will be used (28, 29, 30 or 31).
-            Ignored if datetimeIndex is False.
+            Setting a not None `day` parameter will turn datetimeIndex True.
 
         complete_index : bool, optional. Default False
             Will reindex the dataframe to new index containing every day between
@@ -1546,7 +1653,7 @@ Copy of input object, shifted.
             the index.
             This behavior can be changed by setting the `fillna_method` parameter.
 
-        fillna_method : str or False, optional. Default is False
+        fillna_method : str or False, optional. Default is `time` first filling remaining NaN with `pad`.
             Ignored if `complete_index` is False
             If not False, will fill null values using the indicated method.
             Available method to fill NA are the methods from Pandas fillna and
@@ -1574,28 +1681,39 @@ Copy of input object, shifted.
                     df.monthly(fillna_method='polynomial', order=5).
 
         """
-        if type(self.index) is not pd.DatetimeIndex:
+        if not isinstance(self.index, pd.DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
-        if type(agg) in [bool, str, int] and datetime_index is None:
+        if type(agg) is int and day is None:
+            agg, day = 'mean', agg
+
+        if type(agg) is bool and type(datetime_index) is not bool:
+            if type(datetime_index) is str:
+                agg, datetime_index = datetime_index, agg
+            if type(datetime_index) is int:
+                agg, datetime_index, day = 'mean', True, datetime_index
+        elif type(agg) is bool and datetime_index is False:
             agg, datetime_index = 'mean', agg
-        elif type(agg) in [bool, str, int] and type(datetime_index) is not bool:
-            agg, datetime_index = datetime_index, agg
 
         if type(datetime_index) is not bool:
             if day is None:
                 day = datetime_index
             datetime_index = True
 
-        day = check_day(day)
-        by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
-        by = [self.index.year, self.index.month] + by
+        if day is not None:
+            datetime_index = True
 
         if complete_index:
-            output = self.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
-            output = output._aggregated_calculation(by, agg)
+            output = self.daily(agg=agg, datetime_index=True, by=by,
+                       complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
         else:
-            output = self._aggregated_calculation(by, agg)
+            output = self
+
+        day = check_day(day)
+        by, user_by = output._check_by(by, raise_by_error=bool(raise_by_error))
+        by = [output.index.year, output.index.month] + by
+
+        output = output._aggregated_calculation(by, agg)
 
         if user_by is None:
             output.index = pd.MultiIndex.from_tuples([(int(y), int(m)) for y, m in output.index])
@@ -1646,6 +1764,7 @@ Copy of input object, shifted.
             if 'MONTH' not in output.get_units():
                 output.set_units('month', 'MONTH')
         return output
+
     def yearly(self, agg='mean', datetime_index=False, by=None, day=None, month=None,
                complete_index=False, fillna_method=None, raise_by_error=True):
         """
@@ -1665,6 +1784,7 @@ Copy of input object, shifted.
             integrate : calculates the numerical integration per year, over the index (a datetime-index)
             representative : calculates the representative mean per year, as the numerical integration of the column over the index (a datetime-index) then divided by the elapsed time between the first and last row of each year
             cumsum or cumulative : run cumsum per year, over the columns and then return the last value of each year
+            date : keep the value at the exact day and month requested by `day` and `month`
 
         datetime_index : bool, optional
             if True the index will converted to DateTimeIndex with Day=`day` and Month=`month` for each year
@@ -1703,7 +1823,7 @@ Copy of input object, shifted.
             the index.
             This behavior can be changed by setting the `fillna_method` parameter.
 
-        fillna_method : str or False, optional. Default is False
+        fillna_method : str or False, optional. Default is `time` first filling remaining NaN with `pad`.
             Ignored if `complete_index` is False
             If not False, will fill null values using the indicated method.
             Available method to fill NA are the methods from Pandas fillna and
@@ -1731,13 +1851,19 @@ Copy of input object, shifted.
                     df.yearly(fillna_method='polynomial', order=5).
 
         """
-        if type(self.index) is not pd.DatetimeIndex:
+        if not isinstance(self.index, pd.DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
-        if type(agg) is bool:
+        if type(agg) is int and month is None:
+            agg, month = 'mean', agg
+
+        if type(agg) is bool and type(datetime_index) is not bool:
+            if type(datetime_index) is str:
+                agg, datetime_index = datetime_index, agg
+            if type(datetime_index) is int:
+                agg, datetime_index, month = 'mean', True, datetime_index
+        elif type(agg) is bool and datetime_index is False:
             agg, datetime_index = 'mean', agg
-        elif type(agg) is bool and type(datetime_index) is not bool:
-            agg, datetime_index = datetime_index, agg
 
         if type(datetime_index) is not bool:
             if day is None:
@@ -1746,18 +1872,27 @@ Copy of input object, shifted.
                 month = datetime_index
             datetime_index = True
 
+        if day is not None and month is None:
+            month = day
+        if month is not None:
+            datetime_index = True
+            if day is None and type(month) is str and not month.isdigit():
+                day = month
+
+        if complete_index:
+            output = self.daily(agg=agg, datetime_index=True, by=by,
+                       complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
+        else:
+            output = self
+
         day = check_day(day)
         month = check_month(month)
-        by, user_by = self._check_by(by, raise_by_error=bool(raise_by_error))
-        by = [self.index.year] + by
+        by, user_by = output._check_by(by, raise_by_error=bool(raise_by_error))
+        by = [output.index.year] + by
         if len(by) == 1:
             by = by[0]
 
-        if complete_index:
-            output = self.fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
-            output = output._aggregated_calculation(by, agg)
-        else:
-            output = self._aggregated_calculation(by, agg)
+        output = output._aggregated_calculation(by, agg)
 
         if user_by is None:
             output.index = [int(y) for y in output.index]
@@ -1808,7 +1943,7 @@ Copy of input object, shifted.
                                  'month' constant value multiplied by days in month
                                          index must be a datetime-index
                                  'year'  constant value multiplied by days in year
-                                         index must be a datetime-index
+                                         index must be a DatetimeIndex
                                          or integer representing a year
 
         at parameter defines the row where cumulative will written, only for the
@@ -1956,12 +2091,21 @@ Copy of input object, shifted.
         return self._class(data=diff, **params_)
 
     def get_units_string(self, items=None):
-        if len(self.get_units(items)) == 1:
-            return list(self.get_units(items).values())[0]
-        elif len(set(self.get_units(items).values())) == 1:
-            return list(set(self.get_units(items).values()))[0]
+        items_units_dict = self.get_units(items)
+        if None in items_units_dict and items_units_dict[None] is None:
+            del items_units_dict[None]
+        if len(items_units_dict) == 0:
+            return 'unitless'
+        if items is None and 'SimSeries' in str(type(self)) and len(items_units_dict) <= 2:
+            if self.name in items_units_dict:
+                return items_units_dict[self.name]
+            else:
+                return list(items_units_dict.values())[0]
+        elif len(set(items_units_dict.values())) == 1:
+            return list(set(items_units_dict.values()))[0]
         else:
-            warn("More than one units found, not possible to return a single string.")
+            logging.warning("More than one units found for the item '" + str(items) + "', returning the first one: '" + str(result) + "'." )
+            return list(items_units_dict.values())[0]
 
     def get_UnitsString(self, items=None):
         return self.get_units_string(items)

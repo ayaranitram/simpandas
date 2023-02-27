@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.5'
-__release__ = 20230221
+__version__ = '0.83.6'
+__release__ = 20230225
 __all__ = ['SimDataFrame']
 
 import logging
@@ -32,6 +32,8 @@ from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
 from .series import SimSeries
 from .common.helpers import clean_axis as _clean_axis
+
+logging.basicConfig(level=logging.INFO)
 
 
 def _series_to_frame(a_SimSeries, params_=None):
@@ -325,7 +327,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                     key += list(_temp_result.columns)
                             except:
                                 # discard this item
-                                logging.warning('The parameter ' + str(each) + ' is not valid.')
+                                logging.error('The parameter ' + str(each) + ' is not valid.')
 
                 # must be an index, not a column name o relative, not a filter, not in the index
                 else:
@@ -1073,6 +1075,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return SimDataFrame(data=self.as_pandas().set_index(key, drop=drop, append=append, inplace=inplace,
                                                        verify_integrity=verify_integrity, **kwargs), **params_)
 
+    def get_index_units(self):
+        if not isinstance(self.index, SimIndex) and type(self.index_units_) is str:
+            self.index = SimIndex(self.index, units=self.index_units_)
+        elif isinstance(self.index, SimIndex) and type(self.index.units) is str and len(self.index.units) > 0:
+            self.index_units_ = self.index.units
+        return self.index_units_
+
     def set_index_units(self, units):
         if hasattr(units, 'units') and type(units.units) is str:
             units = units.units
@@ -1081,10 +1090,10 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if type(units) is str and len(units.strip()) > 0:
             self.index_units_ = units.strip()
         else:
-            raise TypeError("`units` must be a string.")
+            raise TypeError("`units` must be a not-empty string.")
         if not isinstance(self.index, SimIndex) and type(self.index_units_) is str:
             self.index = SimIndex(self.index, units=self.index_units_)
-        elif type(self.index_units) is str:
+        elif type(self.index_units_) is str:
             self.index.set_units(self.index_units_)
 
     def transpose(self):
@@ -1208,7 +1217,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             else:
                 raise TypeError("labels does not match neither len(index) or len(columns).")
         axis = _clean_axis(axis)
-        return SimDataFrame(data=self.to_pandas.reindex(labels=labels, axis=axis, **kwargs), **self.params_)
+        return SimDataFrame(data=self.to_pandas().reindex(labels=labels, axis=axis, **kwargs), **self.params_)
 
 
     # not shared methods
@@ -1314,11 +1323,16 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             elif len(self.find_keys(subset)) > 0:
                 subset = list(self.find_keys(subset))
         if inplace:
-            super().dropna(axis=axis, how=how, thresh=thresh, subset=subset, inplace=inplace)
+            if thresh is None:
+                super().dropna(axis=axis, thresh=thresh, subset=subset, inplace=inplace)
+            else:
+                super().dropna(axis=axis, how=how, subset=subset, inplace=inplace)
         else:
-            return SimDataFrame(
-                data=self.as_pandas().dropna(axis=axis, how=how, thresh=thresh, subset=subset, inplace=inplace),
-                **self.params_)
+            if thresh is None:
+                data = self.as_pandas().dropna(axis=axis, how=how, subset=subset, inplace=inplace)
+            else:
+                data = self.as_pandas().dropna(axis=axis, thresh=thresh, subset=subset, inplace=inplace)
+            return SimDataFrame(data=data, **self.params_)
 
     def drop_duplicates(self, subset=None, keep='first', inplace=False, ignore_index=False):
         if inplace:
@@ -1841,9 +1855,12 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if len(set(self.get_units(self.columns).values())) == 1:
                 data = self.as_pandas().sum(axis=axis, **kwargs)
             else:
-                result = self[self.columns[0]]
-                units = self.units[self.columns[0]]
-                for col in range(1, len(self.columns)):
+                i = 0
+                while self.columns[i] not in self.units:
+                    i += 1
+                result = self[self.columns[i]]
+                units = self.units[self.columns[i]]
+                for col in (j for j in range(len(self.columns)) if j != i):
                     result = result + self[self.columns[col]]
                 data = result
             data.name = new_name
@@ -1858,29 +1875,26 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if axis == 0:
             return self._class(data=self.as_pandas().var(axis=axis, **kwargs), **self.params_)
         if axis == 1:
-            newName = '.var'
+            new_name = '.var'
             if len(set(self.get_units(self.columns).values())) == 1:
                 units = list(set(self.get_units(self.columns).values()))[0]
             else:
                 units = 'dimensionless'
             if len(set(self.columns)) == 1:
-                newName = list(set(self.columns))[0] + newName
+                new_name = list(set(self.columns))[0] + new_name
             elif len(set(self.rename_right(inplace=False).columns)) == 1:
-                newName = list(set(self.rename_right(inplace=False).columns))[0] + newName
+                new_name = list(set(self.rename_right(inplace=False).columns))[0] + new_name
             elif len(set(self.rename_left(inplace=False).columns)) == 1:
-                newName = list(set(self.rename_left(inplace=False).columns))[0] + newName
+                new_name = list(set(self.rename_left(inplace=False).columns))[0] + new_name
             data = self.as_pandas().var(axis=axis, **kwargs)
-            data.columns = [newName]
-            data.name = newName
+            data.columns = [new_name]
+            data.name = new_name
             params_ = self.params_.copy()
             params_['units'] = units
             return self._class(data=data, **params_)
 
     def round(self, decimals=0, **kwargs):
         return self._class(data=self.as_pandas().round(decimals=decimals, **kwargs), **self.params_)
-
-    def copy(self, **kwargs):
-        return SimDataFrame(data=self.as_pandas().copy(True), **self.params_)
 
     def _get_by_filter(self, key):
         """
@@ -2268,7 +2282,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         # if type(self.units) is dict:
         if not self._transposed_:
-            if item is None and units is not None and len(self.columns) > 1:
+            if item is None and None not in self.columns and units is not None:
+                self.units[item] = units
+            elif item is None and units is not None and len(self.columns) > 1:
                 raise ValueError("This SimDataFrame has multiple columns, item parameter must be provided.")
             elif item is None and len(self.columns) == 1:
                 return self.set_units(units, [list(self.columns)[0]])

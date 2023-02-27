@@ -5,9 +5,9 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.4'
-__release__ = 20230112
-__all__ = ['clean_axis', 'string_new_name', 'type_of_frame', 'main_key', 'item_key']
+__version__ = '0.80.5'
+__release__ = 20230223
+__all__ = ['clean_axis', 'string_new_name', 'type_of_frame', 'main_key', 'item_key', 'hashable']
 
 
 import pandas as pd
@@ -55,48 +55,57 @@ def type_of_frame(frame):
                 raise TypeError('frame is not an instance of Pandas or SimPandas frames')
 
 
-def main_key(Key, clean=True, nameSeparator=':'):
+def main_key(key, clean=True, nameSeparator=':'):
     """
     returns the main part (before the name of the item) in the keyword,MAIN:ITEM
     """
-    if type(Key) is str:
-        if len(Key.strip()) > 0:
-            return Key.strip().split(nameSeparator)[0]
+    if type(key) is str:
+        if len(key.strip()) > 0:
+            return key.strip().split(nameSeparator)[0]
         else:
             return ''
-    if type(Key) is tuple and len(Key) == 2:
-        return main_key(str(Key[0]), clean=clean, nameSeparator=nameSeparator)
-    if type(Key) is list or type(Key) is tuple:
+    if type(key) is tuple and len(key) == 2:
+        return main_key(str(key[0]), clean=clean, nameSeparator=nameSeparator)
+    if type(key) is list or type(key) is tuple:
         results = []
-        for K in Key:
+        for K in key:
             results.append(main_key(K))
         if clean:
             return list(set(results))
         else:
             return list(results)
-    if isinstance(Key, pd.Series):
-        return main_key(Key.name)
+    if isinstance(key, pd.Series):
+        return main_key(key.name)
 
 
-def item_key(Key, clean=True, nameSeparator=':'):
+def item_key(key, clean=True, nameSeparator=':'):
     """
     returns the item part (after the name of the item) in the keyword, MAIN:ITEM
     """
-    if type(Key) is str:
-        if len(Key.strip()) > 0:
-            if nameSeparator in Key.strip():
-                return Key.strip().split(nameSeparator)[-1]
+    if type(key) is str:
+        if len(key.strip()) > 0:
+            if nameSeparator in key.strip():
+                return key.strip().split(nameSeparator)[-1]
         else:
             return ''
-    if type(Key) is tuple and len(Key) == 2:
-        return item_key(str(Key[0]), clean=clean, nameSeparator=nameSeparator)
-    if type(Key) is list or type(Key) is tuple:
+    if type(key) is tuple and len(key) == 2:
+        return item_key(str(key[0]), clean=clean, nameSeparator=nameSeparator)
+    if type(key) is list or type(key) is tuple:
         results = []
-        for K in Key:
+        for K in key:
             results.append(item_key(K))
         if clean:
             return list(set(results))
         else:
             return list(results)
-    if isinstance(Key, pd.Series):
-        return item_key(Key.name)
+    if isinstance(key, pd.Series):
+        return item_key(key.name)
+
+
+def hashable(x):
+    """Determine whether `v` can be hashed."""
+    try:
+        hash(x)
+    except TypeError:
+        return False
+    return True
