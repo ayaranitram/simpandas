@@ -68,6 +68,9 @@ class SimBasics(object, metaclass=SimType):
         """
         return self.spdiLocator
 
+    def isna(self):
+        return self.as_pandas().isna()
+
     def concat(self, objs, axis=0, join='outer', ignore_index=False,
                keys=None, levels=None, names=None, verify_integrity=False,
                sort=False, copy=True, squeeze=True):
