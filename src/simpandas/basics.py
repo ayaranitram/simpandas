@@ -2107,8 +2107,9 @@ Copy of input object, shifted.
         elif len(set(items_units_dict.values())) == 1:
             return list(set(items_units_dict.values()))[0]
         else:
+            result = list(items_units_dict.values())[0]
             logging.warning("More than one units found for the item '" + str(items) + "', returning the first one: '" + str(result) + "'." )
-            return list(items_units_dict.values())[0]
+            return result
 
     def get_UnitsString(self, items=None):
         return self.get_units_string(items)
