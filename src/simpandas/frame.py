@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.5'
-__release__ = 20230224
+__version__ = '0.83.6'
+__release__ = 20230225
 __all__ = ['SimDataFrame']
 
 import logging

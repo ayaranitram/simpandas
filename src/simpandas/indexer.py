@@ -5,8 +5,8 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.4'
-__release__ = 20230223
+__version__ = '0.83.5'
+__release__ = 20230225
 __all__ = ['_SimLocIndexer']
 
 import logging

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.10'
-__release__ = 20230223
+__version__ = '0.83.11'
+__release__ = 20230225
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -1601,7 +1601,6 @@ Copy of input object, shifted.
             if 'DAY' not in output.get_units():
                 output.set_units('day', 'DAY')
 
-
         return output
 
     def monthly(self, agg='mean', datetime_index=False, by=None, day=None,
@@ -1623,6 +1622,7 @@ Copy of input object, shifted.
             integrate : calculates the numerical integration per month, over the index (a datetime-index)
             representative : calculates the representative mean per month, as the numerical integration of the column over the index (a datetime-index) then divided by the elapsed time between the first and last rows of each month
             cumsum or cumulative : run cumsum per month, over the columns and then return the last value of each year
+            date : keep the value at the exact day and month requested by `day` and `month`
 
         datetimeIndex : bool
             if True the index will converted to DateTimeIndex with Day=`day` for each month
@@ -1653,7 +1653,7 @@ Copy of input object, shifted.
             the index.
             This behavior can be changed by setting the `fillna_method` parameter.
 
-        fillna_method : str or False, optional. Default is False
+        fillna_method : str or False, optional. Default is `time` first filling remaining NaN with `pad`.
             Ignored if `complete_index` is False
             If not False, will fill null values using the indicated method.
             Available method to fill NA are the methods from Pandas fillna and
@@ -1700,6 +1700,9 @@ Copy of input object, shifted.
                 day = datetime_index
             datetime_index = True
 
+        if day is not None:
+            datetime_index = True
+
         if complete_index:
             output = self.daily(agg=agg, datetime_index=True, by=by,
                        complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
@@ -1724,7 +1727,7 @@ Copy of input object, shifted.
                 output.index = pd.to_datetime(
                     [str(YYYY) + '-' +
                      str(MM).zfill(2) +
-                     output._make_day(day, MM, YYYY)
+                     self._make_day(day, MM, YYYY)
                      for YYYY, MM in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
@@ -1735,7 +1738,7 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        output._make_day(day, i[1], i[0])
+                        self._make_day(day, i[1], i[0])
                     ), i[2],)
                     for i in output.index])
             else:
@@ -1743,7 +1746,7 @@ Copy of input object, shifted.
                     (pd.to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
-                        output._make_day(day, i[1], i[0])),
+                        self._make_day(day, i[1], i[0])),
                     ) + tuple(i[2:])
                     for i in output.index])
             if user_by is not None:
@@ -1781,6 +1784,7 @@ Copy of input object, shifted.
             integrate : calculates the numerical integration per year, over the index (a datetime-index)
             representative : calculates the representative mean per year, as the numerical integration of the column over the index (a datetime-index) then divided by the elapsed time between the first and last row of each year
             cumsum or cumulative : run cumsum per year, over the columns and then return the last value of each year
+            date : keep the value at the exact day and month requested by `day` and `month`
 
         datetime_index : bool, optional
             if True the index will converted to DateTimeIndex with Day=`day` and Month=`month` for each year
@@ -1819,7 +1823,7 @@ Copy of input object, shifted.
             the index.
             This behavior can be changed by setting the `fillna_method` parameter.
 
-        fillna_method : str or False, optional. Default is False
+        fillna_method : str or False, optional. Default is `time` first filling remaining NaN with `pad`.
             Ignored if `complete_index` is False
             If not False, will fill null values using the indicated method.
             Available method to fill NA are the methods from Pandas fillna and
@@ -1868,6 +1872,13 @@ Copy of input object, shifted.
                 month = datetime_index
             datetime_index = True
 
+        if day is not None and month is None:
+            month = day
+        if month is not None:
+            datetime_index = True
+            if day is None and type(month) is str and not month.isdigit():
+                day = month
+
         if complete_index:
             output = self.daily(agg=agg, datetime_index=True, by=by,
                        complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
@@ -1893,7 +1904,7 @@ Copy of input object, shifted.
         if datetime_index:
             if user_by is None:
                 output.index = pd.to_datetime([str(YYYY) +
-                                               output._make_month_day(day, month, YYYY)
+                                               self._make_month_day(day, month, YYYY)
                                                for YYYY in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
@@ -1901,11 +1912,11 @@ Copy of input object, shifted.
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + output._make_month_day(day, month, i[0])), i[1],)
+                    str(i[0]) + self._make_month_day(day, month, i[0])), i[1],)
                     for i in output.index])
             else:
                 output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
-                    str(i[0]) + output._make_month_day(day, month, i[0])),) + tuple(
+                    str(i[0]) + self._make_month_day(day, month, i[0])),) + tuple(
                     i[1:]) for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
