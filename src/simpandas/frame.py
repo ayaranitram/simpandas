@@ -5,7 +5,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.7'
+__version__ = '0.83.8'
 __release__ = 20230227
 __all__ = ['SimDataFrame']
 
@@ -1191,6 +1191,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 if col in units_dict and _convertible(self.get_units(col)[col], units_dict[col]):
                     result[col] = self[col].to(units_dict[col])
             return result
+
+    def corr(self, method='pearson', min_periods=1, numeric_only=True):
+        return self.as_pandas().corr(method=method, min_periods=min_periods, numeric_only=numeric_only)
 
     def reindex(self, labels=None, index=None, columns=None, axis=None, **kwargs):
         """

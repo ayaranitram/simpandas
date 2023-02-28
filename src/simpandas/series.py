@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.4'
-__release__ = 20230223
+__version__ = '0.83.5'
+__release__ = 20230227
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -571,6 +571,10 @@ class SimSeries(SimBasics, Series):
             return self.to_simdataframe().convert(units).to_simseries()
         else:
             return self
+
+    def corr(self, other, method='pearson', min_periods=None):
+        return self.as_pandas().corr(other.as_pandas() if isinstance(other, SimSeries) else other,
+                                     method=method, min_periods=min_periods)
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
         axis = _clean_axis(axis)
