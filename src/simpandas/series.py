@@ -812,7 +812,7 @@ class SimSeries(SimBasics, Series):
         return units(self.as_pandas().prod(axis=axis, **kwargs), prod_units)
 
     def quantile(self, q=0.5, axis=0, **kwargs):
-        return units(self.as_pandas().quantile(q, axis=axis, **kwargs), self.get_UnitsString())
+        return units(self.as_pandas().quantile(q, **kwargs), self.get_UnitsString())
 
     def sum(self, axis=0, **kwargs):
         return units(self.as_pandas().sum(axis=axis, **kwargs), self.get_UnitsString())

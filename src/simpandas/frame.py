@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.83.8'
-__release__ = 20230227
+__release__ = 20230228
 __all__ = ['SimDataFrame']
 
 import logging
@@ -2089,7 +2089,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if pattern in self.columns:
                 return self[pattern]
             else:
-                raise KeyError("The requested key: " + str(pattern) + "is not present in this SimDataFrame.")
+                raise KeyError("The requested key: " + str(pattern) + " is not present in this SimDataFrame.")
         if pattern is None:
             return list(self.columns)
         else:
