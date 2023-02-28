@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.5'
-__release__ = 20230227
+__version__ = '0.83.6'
+__release__ = 20230228
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -880,7 +880,7 @@ class SimSeries(SimBasics, Series):
                 units_dict[self.index_name] = self.index_units
             elif self.index_units != units_dict[self.index_name]:
                 if self.index_name not in self.columns:
-                    self.units[self.index_name] = self.index_units
+                    units_dict[self.index_name] = self.index_units
                 else:
                     units_dict[str(self.index_name) + '_index_'] = self.index_units
         elif type(self.units) is dict:
