@@ -344,6 +344,12 @@ class SimBasics(object, metaclass=SimType):
     def min0(self, axis=0, **kwargs):
         return self.replace(0, np.nan).min(axis=axis, **kwargs)
 
+    def mad(self, axis=None, skipna=True, level=None):
+        """
+        Return the mean absolute deviation of the values over the requested axis.
+        """
+        return (self - self.mean()).abs().mean()
+
     def max0(self, axis=0, **kwargs):
         return self.replace(0, np.nan).max(axis=axis, **kwargs)
 
