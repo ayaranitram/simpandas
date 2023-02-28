@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.11'
-__release__ = 20230227
+__version__ = '0.83.12'
+__release__ = 20230228
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -340,6 +340,75 @@ class SimBasics(object, metaclass=SimType):
 
     def count0(self, axis=0, **kwargs):
         return self.replace(0, np.nan).count(axis=axis, **kwargs)
+
+    def log(self, base=10):
+        """
+        returns the logarithm of the values
+
+        Parameters
+        ----------
+        base : 10, 2 or 'e'
+            base of the log.
+            valid `base` are:
+                10 for log10
+                 2 for log2
+                'e' for natural logarithm
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+
+        """
+        if type(base) is str:
+            base = base.lower()
+        if base in [10, '10']:
+            result = np.log10(self.values)
+        elif base in [2, '2']:
+            result = np.log2(self.values)
+        elif base in ['e', 'n']:
+            result = np.log(self.values)
+        return self._class(data=result,
+                           columns=self.columns,
+                           index=self.index,
+                           **self.params_)
+
+    def log0(self, base=10):
+        """
+        ignore zeros and return the logarithm of the values at the desired base.
+
+        Parameters
+        ----------
+        base : 10, 2 or 'e'
+            base of the log.
+            valid `base` are:
+                10 for log10
+                 2 for log2
+                'e' for natural logarithm
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+
+        """
+        return self.replace(0, np.nan).log(base=base)
+
+    def ln(self):
+        """
+        return the natural logarithm of the values
+        """
+        return self.log(base='e')
+
+    def log10(self):
+        """
+        return the base-10-logarithm of the values
+        """
+        return self.log(base=10)
+
+    def log2(self):
+        """
+        return the base-2-logarithm of the values
+        """
+        return self.log(base=2)
 
     def min0(self, axis=0, **kwargs):
         return self.replace(0, np.nan).min(axis=axis, **kwargs)
