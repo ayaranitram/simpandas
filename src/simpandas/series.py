@@ -294,14 +294,14 @@ class SimSeries(SimBasics, Series):
         else:
             try:
                 result = self.loc[key]
-            except (KeyError, pd.errors.IndexingError):
+            except (KeyError, pd.errors.IndexingError, TypeError):
                 try:
                     result = self.iloc[key]
-                except IndexError:
+                except (IndexError, KeyError, pd.errors.IndexingError, TypeError):
                     if type(key) is tuple:
                         try:
                             return self[list(key)]
-                        except (IndexError, InvalidIndexError):
+                        except (IndexError, pd.errors.InvalidIndexError):
                             pass
                     try:
                         result = self.as_simdataframe()[key]
