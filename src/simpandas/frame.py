@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.6'
-__release__ = 20230225
+__version__ = '0.83.8'
+__release__ = 20230228
 __all__ = ['SimDataFrame']
 
 import logging
@@ -1192,6 +1192,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     result[col] = self[col].to(units_dict[col])
             return result
 
+    def corr(self, method='pearson', min_periods=1, numeric_only=True):
+        return self.as_pandas().corr(method=method, min_periods=min_periods, numeric_only=numeric_only)
+
     def reindex(self, labels=None, index=None, columns=None, axis=None, **kwargs):
         """
         wrapper for pandas.DataFrame.reindex
@@ -1902,15 +1905,17 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         try to get a filtered DataFrame or Series(.filter[key] )
         """
-        if len(key) != len(self):
-            raise ValueError('Filter wrong length ' + str(len(key)) + ' instead of ' + str(len(self)))
         if not isinstance(key, (SimSeries, pd.Series)) and type(key) is not np.ndarray:
             raise TypeError("Filter must be a Series or Array")
         else:
             if str(key.dtype) != 'bool':
                 raise TypeError("Filter dtype must be 'bool'")
-
-        return self.loc[key]
+        if len(key) == len(self):
+            return self.loc[key]
+        elif len(key) == len(self.columns):
+            return self.iloc[:, [i for i in range(len(key)) if bool(key.values[i])]]
+        else:
+            raise ValueError('Filter wrong length ' + str(len(key)) + ' instead of ' + str(len(self)))
 
     def _get_by_criteria(self, key):
         """
@@ -2084,7 +2089,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if pattern in self.columns:
                 return self[pattern]
             else:
-                raise KeyError("The requested key: " + str(pattern) + "is not present in this SimDataFrame.")
+                raise KeyError("The requested key: " + str(pattern) + " is not present in this SimDataFrame.")
         if pattern is None:
             return list(self.columns)
         else:

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.4'
-__release__ = 20230223
+__version__ = '0.83.6'
+__release__ = 20230228
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -294,14 +294,14 @@ class SimSeries(SimBasics, Series):
         else:
             try:
                 result = self.loc[key]
-            except (KeyError, pd.errors.IndexingError):
+            except (KeyError, pd.errors.IndexingError, TypeError):
                 try:
                     result = self.iloc[key]
-                except IndexError:
+                except (IndexError, KeyError, pd.errors.IndexingError, TypeError):
                     if type(key) is tuple:
                         try:
                             return self[list(key)]
-                        except (IndexError, InvalidIndexError):
+                        except (IndexError, pd.errors.InvalidIndexError):
                             pass
                     try:
                         result = self.as_simdataframe()[key]
@@ -572,6 +572,10 @@ class SimSeries(SimBasics, Series):
         else:
             return self
 
+    def corr(self, other, method='pearson', min_periods=None):
+        return self.as_pandas().corr(other.as_pandas() if isinstance(other, SimSeries) else other,
+                                     method=method, min_periods=min_periods)
+
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
         axis = _clean_axis(axis)
         if inplace:
@@ -808,7 +812,7 @@ class SimSeries(SimBasics, Series):
         return units(self.as_pandas().prod(axis=axis, **kwargs), prod_units)
 
     def quantile(self, q=0.5, axis=0, **kwargs):
-        return units(self.as_pandas().quantile(q, axis=axis, **kwargs), self.get_UnitsString())
+        return units(self.as_pandas().quantile(q, **kwargs), self.get_UnitsString())
 
     def sum(self, axis=0, **kwargs):
         return units(self.as_pandas().sum(axis=axis, **kwargs), self.get_UnitsString())
@@ -876,7 +880,7 @@ class SimSeries(SimBasics, Series):
                 units_dict[self.index_name] = self.index_units
             elif self.index_units != units_dict[self.index_name]:
                 if self.index_name not in self.columns:
-                    self.units[self.index_name] = self.index_units
+                    units_dict[self.index_name] = self.index_units
                 else:
                     units_dict[str(self.index_name) + '_index_'] = self.index_units
         elif type(self.units) is dict:
