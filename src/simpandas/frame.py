@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.8'
-__release__ = 20230228
+__version__ = '0.83.13'
+__release__ = 20230327
 __all__ = ['SimDataFrame']
 
 import logging
@@ -962,7 +962,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                 result[col] = resultX[col]
                     else:
                         result = resultX
-
             return result
 
         # other is SimSeries
@@ -1023,7 +1022,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                 result[col] = resultX[col]
                     else:
                         result = resultX
-
             return result
 
         # other is SimSeries
@@ -1222,28 +1220,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         axis = _clean_axis(axis)
         return SimDataFrame(data=self.to_pandas().reindex(labels=labels, axis=axis, **kwargs), **self.params_)
 
-
     # not shared methods
     def to_DataFrameMultiIndex(self):
         return self._DataFrame_with_MultiIndex()
-
-    def reset_index(self, level=None, drop=False, inplace=False, col_level=0, col_fill=''):
-        if inplace:
-            index_units, index_name = self.index_units, None if drop else self.index.name
-            super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='')
-            if type(index_units) in (str, dict) and index_name is not None:
-                self.set_units(index_units, index_name)
-            self.index = SimIndex(self.index, units=None)
-        else:
-            params_ = self.params_
-            params_['index_name'] = None
-            params_['index_units'] = None
-            result = SimDataFrame(
-                data=self.as_pandas().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill=''),
-                **params_)
-            if not drop and type(self.index_units) in (str, dict) and self.index.name is not None:
-                result.set_units(self.index_units, item=self.index.name)
-            return result
 
     def append(self, other, ignore_index=False, verify_integrity=False, sort=False):
         """
@@ -1271,7 +1250,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         -------
             SimDataFrame
         """
-
         if type(other) in (SimDataFrame, SimSeries):
             otherC = other.copy()
             newUnits = self.get_units(self.columns).copy()
@@ -1534,7 +1512,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             DataFrame with the renamed axis labels or None if inplace=True.
 
         """
-
         def _item_columns(sdf, itemMapper, axis):
             itemsDict = {}
             for item in itemMapper:

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.12'
-__release__ = 20230228
+__version__ = '0.83.13'
+__release__ = 20230327
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -2188,6 +2188,8 @@ Copy of input object, shifted.
 
     def get_UnitsString(self, items=None):
         return self.get_units_string(items)
+
+
     def set_Units(self, units, item=None):
         """
         Alias of .set_units method.
@@ -2214,6 +2216,27 @@ Copy of input object, shifted.
 
         """
         return self.set_units(units=units, item=item)
+
+    def reset_index(self, level=None, drop=False, inplace=False, col_level=0, col_fill='',
+                    allow_duplicates=True, names=None):
+        if inplace:
+            index_units, index_name = self.index_units, None if drop else self.index.name
+            super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='',
+                                allow_duplicates=allow_duplicates, names=names)
+            if type(index_units) in (str, dict) and index_name is not None:
+                self.set_units(index_units, index_name)
+            self.index = SimIndex(self.index, units=None)
+        else:
+            params_ = self.params_
+            params_['index_name'] = None
+            params_['index_units'] = None
+            result = SimDataFrame(
+                data=self.as_pandas().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level,
+                                                  col_fill='', allow_duplicates=allow_duplicates, names=names),
+                **params_)
+            if not drop and type(self.index_units) in (str, dict) and self.index.name is not None:
+                result.set_units(self.index_units, item=self.index.name)
+            return result
 
     def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
                  float_format=None, columns=None, header=True, units=True, index=True,
