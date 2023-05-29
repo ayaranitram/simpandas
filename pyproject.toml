@@ -24,6 +24,8 @@ dependencies = [
     'seaborn',
     'datetime',
     'unyts >= 0.5.25',
+    'openpyxl',
+    'xlsxwriter',
 ]
 [project.urls]
 "Homepage" = "https://github.com/ayaranitram/simpandas"
