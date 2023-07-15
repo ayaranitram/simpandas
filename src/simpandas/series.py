@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.6'
-__release__ = 20230228
+__version__ = '0.83.12'
+__release__ = 20230715
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -371,7 +371,7 @@ class SimSeries(SimBasics, Series):
         else:
             return result
 
-    def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
+    def _arithmethic_operation(self, other, operation: str=None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
             if operation in ['+', '-']:
@@ -384,12 +384,15 @@ class SimSeries(SimBasics, Series):
                 return _unit_power(a, b)
             elif operation in ['%']:
                 return a
+            elif operation in ['==', '!=', '>=', '<=', '>', '<']:
+                return None
             else:
                 raise ValueError("Unknown operation")
 
         params_ = self.params_
         _products = ['*', '/', '//', '%']
-        valid_operations = {# operator, pd.Series.method, proposed fill_value
+        valid_operations = {
+            # operator, pd.Series.method, proposed fill_value
             '+': [pd.Series.add, 'Addition', 0],
             '-': [pd.Series.sub, 'Subtraction', 0],
             '*': [pd.Series.mul, 'Product', 1],
@@ -397,7 +400,14 @@ class SimSeries(SimBasics, Series):
             '//': [pd.Series.floordiv, 'Floor Division', None],
             '%': [pd.Series.mod, 'Module', None],
             '**': [pd.Series.pow, 'Power', None],
-            '^': [pd.Series.pow, 'Power', None]}
+            '^': [pd.Series.pow, 'Power', None],
+            '==': [pd.Series.eq, 'Equality', None],
+            '!=': [pd.Series.ne, 'Inequality', None],
+            '>=': [pd.Series.ge, 'Greater or Equal', None],
+            '<=': [pd.Series.le, 'Lower or Equal', None],
+            '>': [pd.Series.gt, 'Greater', None],
+            '<': [pd.Series.lt, 'Lower', None],
+        }
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
@@ -533,6 +543,24 @@ class SimSeries(SimBasics, Series):
         return self._arithmethic_operation(other, operation='%', fill_value=None)
     def __pow__(self, other):
         return self._arithmethic_operation(other, operation='**', fill_value=None)
+
+    def __eq__(self, other):
+        return self._arithmethic_operation(other, operation='==', fill_value=None)
+
+    def __ne__(self, other):
+        return self._arithmethic_operation(other, operation='!=', fill_value=None)
+
+    def __ge__(self, other):
+        return self._arithmethic_operation(other, operation='>=', fill_value=None)
+
+    def __le__(self, other):
+        return self._arithmethic_operation(other, operation='<=', fill_value=None)
+
+    def __gt__(self, other):
+        return self._arithmethic_operation(other, operation='>', fill_value=None)
+
+    def __lt__(self, other):
+        return self._arithmethic_operation(other, operation='<', fill_value=None)
 
     def astype(self, dtype, copy=True, errors='raise'):
         params_ = self.params_
