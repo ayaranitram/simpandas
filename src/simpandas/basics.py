@@ -207,7 +207,7 @@ class SimBasics(object, metaclass=SimType):
         return self.astype(int)
 
     def inv(self):
-        params_ = self.params_.copy()
+        params_ = self.params_
         if type(self.units) is str:
             params_['units'] = _unit_inverse(self.units)
         elif type(self.units) is dict:
@@ -282,7 +282,7 @@ class SimBasics(object, metaclass=SimType):
             return self.inv()._reverse().mul(other, intersection_character='/').astype(int)
 
     def __rmod__(self, other):
-        params_ = self.params_.copy()
+        params_ = self.params_
         if hasattr(other, 'name') and type(other.name) is str:
             params_['name'] = other.name
         if is_Unit(other):
@@ -784,7 +784,7 @@ class SimBasics(object, metaclass=SimType):
                      self.get_units().values()]).all():
                 return self.as_Series()
             elif type(self.get_units()) is dict and len(set(self.get_units(self.index).values())) == 1:
-                params_ = self.params_.copy()
+                params_ = self.params_
                 params_['units'] = list(set(self.get_units(self.index).values()))[0]
                 return SimSeries(self.as_Series(), **params_)
             else:
@@ -936,7 +936,7 @@ Copy of input object, shifted.
         returns the dataframe with the index converted to the requested units if possible, if not, returns the original values.
         """
         if _convertible(self.index_units, units):
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['index_name'] = self.index_name if self.index.name is None else self.index.name
             params_['index_units'] = units
             if self.index.name in params_['units']:
@@ -1299,7 +1299,7 @@ Copy of input object, shifted.
 
     def _aggregated_calculation(self, by, agg):
         result = self.as_pandas().groupby(by=by)
-        params_ = self.params_.copy()
+        params_ = self.params_
         if agg == 'first':
             result = result.first()
         elif agg == 'last':

@@ -268,7 +268,7 @@ class SimSeries(SimBasics, Series):
         if not hasattr(self.index, 'units'):
             self.index = SimIndex(self.index, units=self.index_units)
         def index_params_():
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['name'] = self.index.name
             params_['units'] = self.index.units
             params_['index_name'] = None
@@ -387,7 +387,7 @@ class SimSeries(SimBasics, Series):
             else:
                 raise ValueError("Unknown operation")
 
-        params_ = self.params_.copy()
+        params_ = self.params_
         _products = ['*', '/', '//', '%']
         valid_operations = {# operator, pd.Series.method, proposed fill_value
             '+': [pd.Series.add, 'Addition', 0],
@@ -535,13 +535,13 @@ class SimSeries(SimBasics, Series):
         return self._arithmethic_operation(other, operation='**', fill_value=None)
 
     def astype(self, dtype, copy=True, errors='raise'):
-        params_ = self.params_.copy()
+        params_ = self.params_
         params_['dtype'] = dtype
         return self._class(data=self.as_pandas().astype(dtype), **params_)
 
     def copy(self):
         if type(self.units) is dict:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = self.units.copy()
             return SimSeries(data=self.as_pandas().copy(True), **params_)
         return SimSeries(data=self.as_pandas().copy(True), **self.params_)
@@ -554,7 +554,7 @@ class SimSeries(SimBasics, Series):
             units = units.units
         if type(units) is str and type(self.units) is str:
             if _convertible(self.units, units):
-                params_ = self.params_.copy()
+                params_ = self.params_
                 params_['units'] = units
                 return self._class(data=_converter(self.as_pandas(), self.units, units,
                                                    print_conversion_path=self.verbose),
@@ -562,7 +562,7 @@ class SimSeries(SimBasics, Series):
             else:
                 return self
         elif type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=_converter(self.as_pandas(), list(set(self.units.values()))[0], units,
                                                print_conversion_path=self.verbose),
@@ -1192,7 +1192,7 @@ class SimSeries(SimBasics, Series):
         """
         if window is None and x is not None and y is None:
             window, x = x, None
-        params_ = self.params_.copy()
+        params_ = self.params_
         if self.name is not None and len(self.get_units(self.name)) == 1 and self.index_units is not None:
             if type(params_['units']) is dict:
                 params_['units'][self.name] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)

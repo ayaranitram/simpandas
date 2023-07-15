@@ -522,7 +522,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             else:
                 raise ValueError("Unknown operation")
 
-        params_ = self.params_.copy()
+        params_ = self.params_
         _products = ['*', '/', '//']
         valid_operations = {# operator, pd.Series.method, proposed fill_value
                             '+': [pd.Series.add, 'Addition', 0],
@@ -1044,7 +1044,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         # if other is integer or float
         elif type(other) in (int, float):
             result = self.as_DataFrame() ** other
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
             return SimDataFrame(data=result, **params_)
 
@@ -1066,7 +1066,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                               **kwargs)
             self.set_index_units(index_units)
         else:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['index'] = None
             params_['index_name'] = key
             params_['index_units'] = self.get_units(key)[key]
@@ -1095,7 +1095,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             self.index.set_units(self.index_units_)
 
     def transpose(self):
-        params_ = self.params_.copy()
+        params_ = self.params_
         params_['transposed'] = not self._transposed_
         return SimDataFrame(data=self.as_pandas().T, **params_)
 
@@ -1148,7 +1148,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         elif type(units) is str:
             if len(set(self.units.values())) == 1:
                 if _convertible(list(set(self.units.values()))[0], units):
-                    params_ = self.params_.copy()
+                    params_ = self.params_
                     params_['units'] = units
                     params_['columns'] = self.columns
                     params_['index'] = self.index
@@ -1264,7 +1264,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             for col in otherC.columns:
                 if col not in newUnits:
                     newUnits[col] = otherC.get_units(col)[col]
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = newUnits
             data = pd.concat([self.as_pandas(), otherC], axis=0)
             return SimDataFrame(data=data, **params_)
@@ -1550,7 +1550,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().count(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = 'dimensionless'
             return self._class(data=data, **params_)
 
@@ -1593,7 +1593,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().min(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1616,7 +1616,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().max(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1639,7 +1639,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().mean(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1662,7 +1662,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().median(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1685,7 +1685,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().mode(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1694,7 +1694,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         from unyts.units.unitless import unitless_names
         axis = _clean_axis(axis)
         if axis == 0:
-            params_ = self.params_.copy()
+            params_ = self.params_
             for key in params_['units']:
                 if params_['units'][key] is not None:
                     unit_base, unit_power = unit_base_power(params_['units'][key])
@@ -1718,7 +1718,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().prod(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1749,7 +1749,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().quantile(q=q, axis=axis, **kwargs).transpose()
             data.columns = new_name
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
         elif axis == 1:
@@ -1774,7 +1774,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().quantile(q=q, axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1797,7 +1797,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().std(axis=axis, **kwargs)
             data.columns = [newName]
             data.name = newName
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1805,11 +1805,11 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         axis = _clean_axis(axis)
         if axis == 0:
             if len(set(self.get_units(self.columns).values())) == 1:
-                params_ = self.params_.copy()
+                params_ = self.params_
                 params_['units'] = list(set(self.get_units(self.columns).values()))[0]
                 return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_)
             else:
-                params_ = self.params_.copy()
+                params_ = self.params_
                 if type(params_['units']) is dict:
                     params_['units']['.sum'] = '*units per row'
                 return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_)
@@ -1844,7 +1844,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     result = result + self[self.columns[col]]
                 data = result
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
         if axis == 2:
@@ -1869,7 +1869,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().var(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -2634,7 +2634,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         from simpandas.common.shape import melt
         melted = melt(self, full_output=False)
         if len(melted[melted.columns[-1]].unique()) == 1:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = {melted.columns[0]: melted[melted.columns[-1]].unique()[0]}
             return SimDataFrame(data=melted.iloc[:, :-1], **params_)
         else:
@@ -2677,7 +2677,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if axis == 1:
             return self.transpose().slope(x=x, y=y, axis=0, window=window, slope=slope, intercept=intercept).transpose()
 
-        params_ = self.params_.copy()
+        params_ = self.params_
         if x is not None and y is not None:
             if x in self.columns and y in self.columns:
                 x_units = str(self.get_units(x)[x])
