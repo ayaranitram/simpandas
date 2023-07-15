@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.13'
-__release__ = 20230327
+__version__ = '0.83.14'
+__release__ = 20230715
 __all__ = ['SimDataFrame']
 
 import logging
@@ -1804,15 +1804,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
     def sum(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
+            params_ = self.params_
             if len(set(self.get_units(self.columns).values())) == 1:
-                params_ = self.params_
                 params_['units'] = list(set(self.get_units(self.columns).values()))[0]
-                return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_)
             else:
-                params_ = self.params_
                 if type(params_['units']) is dict:
                     params_['units']['.sum'] = '*units per row'
-                return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_)
+            return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_).transpose()
         if axis == 1:
             new_name = '.sum'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1845,8 +1843,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 data = result
             data.name = new_name
             params_ = self.params_
-            params_['units'] = units
-            return self._class(data=data, **params_)
+            params_['units'] = {new_name: units}
+            return self._class(data=data, **params_).squeeze()
         if axis == 2:
             return self.sum(axis=1).sum(axis=0)
 
