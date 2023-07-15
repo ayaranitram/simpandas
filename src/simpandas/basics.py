@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.13'
-__release__ = 20230327
+__version__ = '0.83.14'
+__release__ = 20230715
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -2174,11 +2174,14 @@ Copy of input object, shifted.
             del items_units_dict[None]
         if len(items_units_dict) == 0:
             return 'unitless'
-        if items is None and 'SimSeries' in str(type(self)) and len(items_units_dict) <= 2:
-            if self.name in items_units_dict:
-                return items_units_dict[self.name]
-            else:
-                return list(items_units_dict.values())[0]
+        if 'SimSeries' in str(type(self)) and len(items_units_dict) <= 2:
+            if items is None or items is not None and items not in items_units_dict:
+                if self.name in items_units_dict:
+                    return items_units_dict[self.name]
+                else:
+                    return list(items_units_dict.values())[0]
+            else:  # items is not None and items in items_units_dict
+                return items_units_dict[items]
         elif len(set(items_units_dict.values())) == 1:
             return list(set(items_units_dict.values()))[0]
         else:
