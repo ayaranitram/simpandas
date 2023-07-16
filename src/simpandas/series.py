@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.12'
-__release__ = 20230715
+__version__ = '0.83.13'
+__release__ = 20230716
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -632,6 +632,24 @@ class SimSeries(SimBasics, Series):
             self.drop(columns=filt[filt == True].index, inplace=True)
         else:
             return self.drop(columns=filt[filt == True].index, inplace=False)
+
+    def eq(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        if precision is None and _convertible(self.units, other.units):
+            return self.as_pandas().eq(other.to(self.units).as_pandas(),
+                                       level=level, fill_value=fill_value, axis=axis)
+        elif precision is None:
+            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
+            return self.as_pandas().eq(other.as_pandas(),
+                                       level=level, fill_value=fill_value, axis=axis)
+        elif type(precision) is not int:
+            raise ValueError("`precision` must be an integer.")
+        elif _convertible(self.units, other.units):
+            return self.as_pandas().round(precision).eq(other.to(self.units).as_pandas().round(precision),
+                                                        level=level, fill_value=fill_value, axis=axis)
+        else:
+            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
+            return self.as_pandas().round(precision).eq(other.as_pandas().round(precision),
+                                                        level=level, fill_value=fill_value, axis=axis)
 
     def filter(self, conditions=None, **kwargs):
         """

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.14'
-__release__ = 20230715
+__version__ = '0.83.15'
+__release__ = 20230716
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -231,6 +231,24 @@ class SimBasics(object, metaclass=SimType):
 
     def div(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self.truediv(other, level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def eq0(self, other):
+        return self.eq(other,precision=0)
+
+    def eq1(self, other):
+        return self.eq(other,precision=1)
+
+    def eq2(self, other):
+        return self.eq(other,precision=2)
+
+    def eq3(self, other):
+        return self.eq(other,precision=3)
+
+    def eq4(self, other):
+        return self.eq(other,precision=4)
+
+    def eq6(self, other):
+        return self.eq(other,precision=6)
 
     def floordiv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self._arithmethic_operation(other, operation='//', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
