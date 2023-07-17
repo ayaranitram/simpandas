@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.13'
-__release__ = 20230716
+__version__ = '0.83.19'
+__release__ = 20230717
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -525,6 +525,34 @@ class SimSeries(SimBasics, Series):
         self._reverse_ = False
         return self._class(data=result, **params_)
 
+    def _logical_operation(self, other, operation:str=None, level=None, fill_value=None, axis=0, precision:int=None):
+        if operation not in ['>', '<', '==', '<=', '>=', '!=']:
+            raise ValueError("`operation` must be a string representing a logical operation.")
+        operation = {
+            '==': pd.Series.eq,
+            '!=': pd.Series.ne,
+            '>=': pd.Series.ge,
+            '<=': pd.Series.le,
+            '>': pd.Series.gt,
+            '<': pd.Series.lt,
+        }[operation]
+        if precision is None and _convertible(self.units, other.units):
+            return operation(self.as_pandas(), other.to(self.units).as_pandas(),
+                             level=level, fill_value=fill_value, axis=axis)
+        elif precision is None:
+            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
+            return operation(self.as_pandas(), other.as_pandas(),
+                             level=level, fill_value=fill_value, axis=axis)
+        elif type(precision) is not int:
+            raise ValueError("`precision` must be an integer.")
+        elif _convertible(self.units, other.units):
+            return operation(self.as_pandas().round(precision), other.to(self.units).as_pandas().round(precision),
+                             level=level, fill_value=fill_value, axis=axis)
+        else:
+            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
+            return operation(self.as_pandas().round(precision), other.as_pandas().round(precision),
+                             level=level, fill_value=fill_value, axis=axis)
+
     def __add__(self, other):
         return self._arithmethic_operation(other, operation='+', fill_value=0)
 
@@ -634,22 +662,27 @@ class SimSeries(SimBasics, Series):
             return self.drop(columns=filt[filt == True].index, inplace=False)
 
     def eq(self, other, level=None, fill_value=None, axis=0, precision:int=None):
-        if precision is None and _convertible(self.units, other.units):
-            return self.as_pandas().eq(other.to(self.units).as_pandas(),
-                                       level=level, fill_value=fill_value, axis=axis)
-        elif precision is None:
-            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
-            return self.as_pandas().eq(other.as_pandas(),
-                                       level=level, fill_value=fill_value, axis=axis)
-        elif type(precision) is not int:
-            raise ValueError("`precision` must be an integer.")
-        elif _convertible(self.units, other.units):
-            return self.as_pandas().round(precision).eq(other.to(self.units).as_pandas().round(precision),
-                                                        level=level, fill_value=fill_value, axis=axis)
-        else:
-            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
-            return self.as_pandas().round(precision).eq(other.as_pandas().round(precision),
-                                                        level=level, fill_value=fill_value, axis=axis)
+        return self._logical_operation(other=other, operation='==', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+    def ge(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='>=', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def gt(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='>', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def le(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='<=', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def lt(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='<', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def ne(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='!=', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
 
     def filter(self, conditions=None, **kwargs):
         """

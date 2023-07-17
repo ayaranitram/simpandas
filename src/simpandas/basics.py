@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.15'
-__release__ = 20230716
+__version__ = '0.83.19'
+__release__ = 20230717
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -249,6 +249,96 @@ class SimBasics(object, metaclass=SimType):
 
     def eq6(self, other):
         return self.eq(other,precision=6)
+    
+    def ge0(self, other):
+        return self.ge(other,precision=0)
+
+    def ge1(self, other):
+        return self.ge(other,precision=1)
+
+    def ge2(self, other):
+        return self.ge(other,precision=2)
+
+    def ge3(self, other):
+        return self.ge(other,precision=3)
+
+    def ge4(self, other):
+        return self.ge(other,precision=4)
+
+    def ge6(self, other):
+        return self.ge(other,precision=6)
+
+    def gt0(self, other):
+        return self.gt(other,precision=0)
+
+    def gt1(self, other):
+        return self.gt(other,precision=1)
+
+    def gt2(self, other):
+        return self.gt(other,precision=2)
+
+    def gt3(self, other):
+        return self.gt(other,precision=3)
+
+    def gt4(self, other):
+        return self.gt(other,precision=4)
+
+    def gt6(self, other):
+        return self.gt(other,precision=6)
+
+    def le0(self, other):
+        return self.le(other,precision=0)
+
+    def le1(self, other):
+        return self.le(other,precision=1)
+
+    def le2(self, other):
+        return self.le(other,precision=2)
+
+    def le3(self, other):
+        return self.le(other,precision=3)
+
+    def le4(self, other):
+        return self.le(other,precision=4)
+
+    def le6(self, other):
+        return self.le(other,precision=6)
+
+    def lt0(self, other):
+        return self.lt(other,precision=0)
+
+    def lt1(self, other):
+        return self.lt(other,precision=1)
+
+    def lt2(self, other):
+        return self.lt(other,precision=2)
+
+    def lt3(self, other):
+        return self.lt(other,precision=3)
+
+    def lt4(self, other):
+        return self.lt(other,precision=4)
+
+    def lt6(self, other):
+        return self.lt(other,precision=6)
+
+    def ne0(self, other):
+        return self.ne(other,precision=0)
+
+    def ne1(self, other):
+        return self.ne(other,precision=1)
+
+    def ne2(self, other):
+        return self.ne(other,precision=2)
+
+    def ne3(self, other):
+        return self.ne(other,precision=3)
+
+    def ne4(self, other):
+        return self.ne(other,precision=4)
+
+    def ne6(self, other):
+        return self.ne(other,precision=6)
 
     def floordiv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self._arithmethic_operation(other, operation='//', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
