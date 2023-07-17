@@ -249,7 +249,7 @@ class SimBasics(object, metaclass=SimType):
 
     def eq6(self, other):
         return self.eq(other,precision=6)
-    
+
     def ge0(self, other):
         return self.ge(other,precision=0)
 
