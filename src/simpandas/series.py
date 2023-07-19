@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.19'
-__release__ = 20230717
+__version__ = '0.83.20'
+__release__ = 20230719
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -20,7 +20,8 @@ import warnings
 
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
-    unit_power as _unit_power, unit_addition as _unit_addition
+    unit_power as _unit_power, unit_addition as _unit_addition, unit_base_power as _unit_base_power
+from unyts.units.unitless import unitless_names as _unitless_names
 from unyts.dictionaries import unitless_names as _unitless_names
 from unyts.helpers.common_classes import number
 from unyts import units, is_Unit, Unit
@@ -884,10 +885,19 @@ class SimSeries(SimBasics, Series):
         return units(self.as_pandas().mode(axis=axis, **kwargs), self.get_UnitsString())
 
     def prod(self, axis=0, **kwargs):
-        from unyts.operations import unit_base_power
-        from unyts.units.unitless import unitless_names
-        unit_base, unit_power = unit_base_power(self.get_UnitsString())
-        prod_units = unit_base if unit_base in unitless_names else (unit_base + str(unit_power * len(self)))
+        unit_base, unit_power = _unit_base_power(self.get_UnitsString())
+        prod_units = unit_base
+        if unit_base in _unitless_names:
+            prod_units = unit_base
+        else:
+            parenthesis = False
+            for s in '*/+-':
+                if s in unit_base:
+                    parenthesis = True
+            if parenthesis:
+                prod_units = '(' + unit_base + ')' + str(unit_power * len(self))
+            else:
+                prod_units = unit_base + str(unit_power * len(self))
         return units(self.as_pandas().prod(axis=axis, **kwargs), prod_units)
 
     def quantile(self, q=0.5, axis=0, **kwargs):
@@ -900,7 +910,7 @@ class SimSeries(SimBasics, Series):
         return units(self.as_pandas().std(axis=axis, **kwargs), self.get_UnitsString())
 
     def var(self, axis=0, **kwargs):
-        return units(self.as_pandas().var(axis=axis, **kwargs), self.get_UnitsString())
+        return units(self.as_pandas().var(axis=axis, **kwargs), _unit_product(self.get_UnitsString(), self.get_UnitsString()))
 
     def round(self, decimals=0, **kwargs):
         return units(self.as_pandas().round(decimals=decimals, **kwargs), self.get_UnitsString())
