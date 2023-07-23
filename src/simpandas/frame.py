@@ -212,8 +212,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         self.index = SimIndex(self.index, units=self.index_units_)
 
     @property
-    def type(self):
-        return 'SimDataFrame'
 
     @property
     def _constructor(self):

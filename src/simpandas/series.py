@@ -1306,10 +1306,6 @@ class SimSeries(SimBasics, Series):
                                                   key=key),
                 **self.params_)
 
-    @property
-    def type(self):
-        return 'SimSeries'
-
     def plot(self, y=None, x=None, others=None, **kwargs):
         """
         wrapper of Pandas plot method, with some superpowers

@@ -706,6 +706,10 @@ class SimBasics(object, metaclass=SimType):
                 data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex,
                                      method=method), **self.params_)
 
+    @property
+    def type(self):
+        return str(type(self))
+
     def to_Pandas(self):
         return self.to_pandas()
 
