@@ -10,12 +10,11 @@ __release__ = 20230719
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
+from pandas.errors import IndexingError, InvalidIndexError
 from io import StringIO
 from shutil import get_terminal_size
 from pandas._config import get_option
 import fnmatch
-import numpy as np
-import pandas as pd
 import warnings
 
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
@@ -170,7 +169,7 @@ class SimSeries(SimBasics, Series):
         if index_units is None and hasattr(index, 'units'):
             index_units = index.units
 
-        # initialize pd.Series
+        # initialize Series
         super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy, fastpath=fastpath)
 
         # get name
@@ -201,7 +200,7 @@ class SimSeries(SimBasics, Series):
                 self.units[index_name] = self.units[self.index.name]
             self.index.name = index_name
 
-        # change pd.Index to SimIndex
+        # change Index to SimIndex
         self.index = SimIndex(self.index, units=self.index_units)
 
     @property
@@ -295,20 +294,20 @@ class SimSeries(SimBasics, Series):
         else:
             try:
                 result = self.loc[key]
-            except (KeyError, pd.errors.IndexingError, TypeError):
+            except (KeyError, IndexingError, TypeError):
                 try:
                     result = self.iloc[key]
-                except (IndexError, KeyError, pd.errors.IndexingError, TypeError):
+                except (IndexError, KeyError, IndexingError, TypeError):
                     if type(key) is tuple:
                         try:
                             return self[list(key)]
-                        except (IndexError, pd.errors.InvalidIndexError):
+                        except (IndexError, InvalidIndexError):
                             pass
                     try:
                         result = self.as_simdataframe()[key]
                     except:
                         raise KeyError("the requested Key is not a valid index or name: " + str(key))
-        if isinstance(result, pd.Series) and len(result) == 1:
+        if isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
                 result = units(result.iloc[0], result.get_units_string())
             else:
@@ -393,21 +392,21 @@ class SimSeries(SimBasics, Series):
         params_ = self.params_
         _products = ['*', '/', '//', '%']
         valid_operations = {
-            # operator, pd.Series.method, proposed fill_value
-            '+': [pd.Series.add, 'Addition', 0],
-            '-': [pd.Series.sub, 'Subtraction', 0],
-            '*': [pd.Series.mul, 'Product', 1],
-            '/': [pd.Series.truediv, 'Division', None],
-            '//': [pd.Series.floordiv, 'Floor Division', None],
-            '%': [pd.Series.mod, 'Module', None],
-            '**': [pd.Series.pow, 'Power', None],
-            '^': [pd.Series.pow, 'Power', None],
-            '==': [pd.Series.eq, 'Equality', None],
-            '!=': [pd.Series.ne, 'Inequality', None],
-            '>=': [pd.Series.ge, 'Greater or Equal', None],
-            '<=': [pd.Series.le, 'Lower or Equal', None],
-            '>': [pd.Series.gt, 'Greater', None],
-            '<': [pd.Series.lt, 'Lower', None],
+            # operator, Series.method, proposed fill_value
+            '+': [Series.add, 'Addition', 0],
+            '-': [Series.sub, 'Subtraction', 0],
+            '*': [Series.mul, 'Product', 1],
+            '/': [Series.truediv, 'Division', None],
+            '//': [Series.floordiv, 'Floor Division', None],
+            '%': [Series.mod, 'Module', None],
+            '**': [Series.pow, 'Power', None],
+            '^': [Series.pow, 'Power', None],
+            '==': [Series.eq, 'Equality', None],
+            '!=': [Series.ne, 'Inequality', None],
+            '>=': [Series.ge, 'Greater or Equal', None],
+            '<=': [Series.le, 'Lower or Equal', None],
+            '>': [Series.gt, 'Greater', None],
+            '<': [Series.lt, 'Lower', None],
         }
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
@@ -530,12 +529,12 @@ class SimSeries(SimBasics, Series):
         if operation not in ['>', '<', '==', '<=', '>=', '!=']:
             raise ValueError("`operation` must be a string representing a logical operation.")
         operation = {
-            '==': pd.Series.eq,
-            '!=': pd.Series.ne,
-            '>=': pd.Series.ge,
-            '<=': pd.Series.le,
-            '>': pd.Series.gt,
-            '<': pd.Series.lt,
+            '==': Series.eq,
+            '!=': Series.ne,
+            '>=': Series.ge,
+            '<=': Series.le,
+            '>': Series.gt,
+            '<': Series.lt,
         }[operation]
         if precision is None and _convertible(self.units, other.units):
             return operation(self.as_pandas(), other.to(self.units).as_pandas(),
