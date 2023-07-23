@@ -224,15 +224,42 @@ class SimDataFrame(SimBasics, DataFrame):
     def _constructor_sliced(self):
         return SimSeries
 
-    @property
-    def _class(self):
-        return SimDataFrame
+    def to_pandas(self):
+        return self.to_dataframe()
 
-    def __repr__(self):
-        """
-        Return a string representation for a particular DataFrame, with Units.
-        """
-        return self._DataFrame_with_MultiIndex().__repr__()
+    def as_pandas(self):
+        return self.as_dataframe()
+
+    def to_series(self):
+        return self.to_simseries().to_series()
+
+    def as_series(self):
+        return self.as_simseries().as_series()
+
+    def to_simseries(self):
+        if len(self.columns) == 1:
+            return self[self.columns[0]]
+        if len(self) <= 1:
+            return SimSeries(data=Series(self.to_pandas().iloc[0].to_list(),
+                                         name=self.index[0],
+                                         index=self.columns.to_list()),
+                             **self.params_)
+        raise TypeError('Not possible to converto to SimSeries')
+
+    def as_simseries(self):
+        return self.to_simseries()
+
+    def to_dataframe(self):
+        return DataFrame(self.copy())
+
+    def as_dataframe(self):
+        return DataFrame(self)
+
+    def to_simdataframe(self):
+        return self
+
+    def as_simdataframe(self):
+        return self
 
     def __call__(self, key=None):
         if key is None:
@@ -431,16 +458,21 @@ class SimDataFrame(SimBasics, DataFrame):
             result = SimSeries(result, **self.params_)
         return result
 
+    def __repr__(self):
+        """
+        Return a string representation for a particular DataFrame, with Units.
+        """
+        return self._DataFrame_with_MultiIndex().__repr__()
+
     def __setitem__(self, key, value, units=None):
         u_dict = {}
         if type(key) is str:
             key = key.strip()
-        if type(value) is tuple and len(value) == 2 and type(value[1]) in [str,
-                                                                           dict] and units is None:  # and type(value[0]) in [SimSeries, Series, list, tuple, ndarray,float,int,str]
+        if type(value) is tuple and units is None and len(value) == 2 and type(value[1]) in [str, dict]:  # and type(value[0]) in [SimSeries, Series, list, tuple, ndarray,float,int,str]
             value, units = value[0], value[1]
         if type(value) is SimDataFrame and len(value.index) == 1 and type(key) is not slice and (
-                (key in self.index or _to_datetime(key) in self.index) and (
-                key not in self.columns and _to_datetime(key) not in self.columns)):
+                (key in self.index or to_datetime(key) in self.index) and (
+                key not in self.columns and to_datetime(key) not in self.columns)):
             self.loc[key] = value
             return None
         if units is None:
@@ -1099,43 +1131,6 @@ class SimDataFrame(SimBasics, DataFrame):
         params_ = self.params_
         params_['transposed'] = not self._transposed_
         return SimDataFrame(data=self.as_pandas().T, **params_)
-
-    def to_pandas(self):
-        return self.to_dataframe()
-
-    def as_pandas(self):
-        return self.as_dataframe()
-
-    def to_series(self):
-        return self.to_simseries().to_series()
-
-    def as_series(self):
-        return self.as_simseries().as_series()
-
-    def to_simseries(self):
-        if len(self.columns) == 1:
-            return self[self.columns[0]]
-        if len(self) <= 1:
-            return SimSeries(data=Series(self.to_pandas().iloc[0].to_list(),
-                                         name=self.index[0],
-                                         index=self.columns.to_list()),
-                             **self.params_)
-        raise TypeError('Not possible to converto to SimSeries')
-
-    def as_simseries(self):
-        return self.to_simseries()
-
-    def to_dataframe(self):
-        return DataFrame(self.copy())
-
-    def as_dataframe(self):
-        return DataFrame(self)
-
-    def to_simdataframe(self):
-        return self
-
-    def as_simdataframe(self):
-        return self
 
     def convert(self, units):
         """
