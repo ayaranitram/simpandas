@@ -5,18 +5,19 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.8'
-__release__ = 20230228
+__version__ = '0.83.14'
+__release__ = 20230715
 __all__ = ['SimDataFrame']
 
 import logging
 from warnings import warn
 from os.path import commonprefix
-import pandas as pd
+from pandas import Series, DataFrame, Index, MultiIndex, DatetimeIndex, Timestamp, to_datetime, concat as _pd_concat
 import fnmatch
-import numpy as np
+from numpy import ndarray, datetime64
 import datetime as dt
 import matplotlib.pyplot as plt
+
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_power as _unit_power, unit_addition as _unit_addition, unit_product as _unit_product, \
     unit_division as _unit_division
@@ -46,12 +47,12 @@ def _series_to_frame(a_SimSeries, params_=None):
 
     Works with SimSeries as well as with Pandas standard Series
     """
-    if isinstance(a_SimSeries, pd.DataFrame):
+    if isinstance(a_SimSeries, DataFrame):
         if params_ is None:
             return a_SimSeries
         else:
             return SimDataFrame(a_SimSeries, **params_)
-    if type(a_SimSeries) is pd.Series and params_ is not None:
+    if type(a_SimSeries) is Series and params_ is not None:
         a_SimSeries = SimSeries(a_SimSeries)
     if type(a_SimSeries) is SimSeries:
         if params_ is None:
@@ -63,9 +64,9 @@ def _series_to_frame(a_SimSeries, params_=None):
                                 **params_)
         except:
             return a_SimSeries
-    if type(a_SimSeries) is pd.Series:
+    if type(a_SimSeries) is Series:
         try:
-            return pd.DataFrame(data=dict(zip(list(a_SimSeries.index),
+            return DataFrame(data=dict(zip(list(a_SimSeries.index),
                                            a_SimSeries.to_list()
                                            )
                                        ),
@@ -74,7 +75,7 @@ def _series_to_frame(a_SimSeries, params_=None):
             return a_SimSeries
 
 
-class SimDataFrame(SimBasics, pd.DataFrame):
+class SimDataFrame(SimBasics, DataFrame):
     """
     A SimDataFrame object is a pandas.DataFrame that units associated with to
     each column. In addition to the standard DataFrame constructor arguments,
@@ -120,7 +121,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                  index_name=None,
                  index_units=None,
                  name_separator=None,
-                 intersection_character='∩',
+                 intersection_character=None,
                  auto_append=False,
                  operate_per_name=False,
                  transposed_=False,
@@ -132,7 +133,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         self.verbose = bool(verbose)
         self.index_units_ = None
         self.name_separator = None
-        self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
+        self.intersection_character = intersection_character if type(intersection_character) is str else '&'
         self.spdLocator = _SimLocIndexer("loc", self)
         self.spdiLocator = _iSimLocIndexer("iloc", self)
         self.name = name
@@ -177,7 +178,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if index_units is None and hasattr(index, 'units'):
             index_units = index.units
 
-        # initialize pd.DataFrame
+        # initialize DataFrame
         if isinstance(data, SimBasics):
             pd_data = data.to_pandas()
         else:
@@ -208,12 +209,12 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             if self.index.name in self.units:
                 self.units[self.index.name] = index_units
 
-        # change pd.Index to SimIndex
+        # change Index to SimIndex
         self.index = SimIndex(self.index, units=self.index_units_)
 
     @property
-    def type(self):
-        return 'SimDataFrame'
+    def _class(self):
+        return SimDataFrame
 
     @property
     def _constructor(self):
@@ -243,12 +244,12 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
     def __getitem__(self, key):
         # if key is boolean filter, return the filtered SimDataFrame
-        if isinstance(key, pd.Series) or type(key) is np.ndarray:
+        if isinstance(key, Series) or type(key) is ndarray:
             if str(key.dtype) == 'bool':
                 return SimDataFrame(data=self._get_by_filter(key), **self.params_)
 
-        # if key is pd.Index or pd.MultiIndex return selected rows or columns
-        if isinstance(key, pd.Index):
+        # if key is Index or MultiIndex return selected rows or columns
+        if isinstance(key, Index):
             key_cols = True
             for each in key:
                 if each not in self.columns:
@@ -317,9 +318,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                             try:  # to evaluate as an index value
                                 _temp_result, _temp_by_index  = self._get_by_index(each)
                                 if _temp_by_index:
-                                    if isinstance(_temp_result, pd.DataFrame):
+                                    if isinstance(_temp_result, DataFrame):
                                         indexes += list(_temp_result.index)
-                                    elif isinstance(self, pd.DataFrame):
+                                    elif isinstance(self, DataFrame):
                                         indexes += [_temp_result.name]
                                     else:
                                         indexes += list(_temp_result.index)
@@ -372,12 +373,12 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
 
         # convert returned object to SimDataFrame or SimSeries accordingly
-        if type(result) is pd.DataFrame:
+        if type(result) is DataFrame:
             result = SimDataFrame(data=result, **self.params_)
-        elif type(result) is pd.Series:
+        elif type(result) is Series:
             if len(self.get_units()) > 0:
                 if result.name is None or result.name not in self.get_units():
-                    # this pd.Series is one index for multiple columns
+                    # this Series is one index for multiple columns
                     try:
                         result_units = self.get_units(result.index)
                     except:
@@ -392,7 +393,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         # apply filter array if applicable
         if index_filter is not None:
-            if type(index_filter) is np.ndarray:
+            if type(index_filter) is ndarray:
                 result = result.iloc[index_filter]
             else:
                 result = result[index_filter.array]
@@ -403,30 +404,30 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                 i_result, by_index = result._get_by_index(indexes)
             else:
                 i_result, by_index = result[indexes], False
-            if by_index and isinstance(i_result, (pd.Series, SimSeries)):
+            if by_index and isinstance(i_result, (Series, SimSeries)):
                 i_result = _series_to_frame(i_result, self.params_)
             try:
                 result = i_result.sort_index()
             except:
                 result = i_result
 
-        # if is a single row return it as a DataFrame instead of a pd.Series
-        if by_index and isinstance(result, (pd.Series, SimSeries)):
+        # if is a single row return it as a DataFrame instead of a Series
+        if by_index and isinstance(result, (Series, SimSeries)):
             result = _series_to_frame(result)
 
-        if isinstance(result, pd.Series) and len(result) == 1:
+        if isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
                 result = units(result.iloc[0], result.get_units_string())
             else:
                 result = result.iloc[0]
-        elif isinstance(result, pd.DataFrame) and len(result) == 1 and len(result.columns) == 1:
+        elif isinstance(result, DataFrame) and len(result) == 1 and len(result.columns) == 1:
             if type(result.iloc[0, 0]) in number:
                 result = units(result.iloc[0, 0], self.get_units_string(list(result.columns)[0]))
             else:
                 result = result.iloc[0, 0]
-        elif type(result) is pd.DataFrame:
+        elif type(result) is DataFrame:
             result = SimDataFrame(result, **self.params_)
-        elif type(result) is pd.Series:
+        elif type(result) is Series:
             result = SimSeries(result, **self.params_)
         return result
 
@@ -435,11 +436,11 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if type(key) is str:
             key = key.strip()
         if type(value) is tuple and len(value) == 2 and type(value[1]) in [str,
-                                                                           dict] and units is None:  # and type(value[0]) in [SimSeries, pd.Series, list, tuple, np.ndarray,float,int,str]
+                                                                           dict] and units is None:  # and type(value[0]) in [SimSeries, Series, list, tuple, ndarray,float,int,str]
             value, units = value[0], value[1]
         if type(value) is SimDataFrame and len(value.index) == 1 and type(key) is not slice and (
-                (key in self.index or pd.to_datetime(key) in self.index) and (
-                key not in self.columns and pd.to_datetime(key) not in self.columns)):
+                (key in self.index or _to_datetime(key) in self.index) and (
+                key not in self.columns and _to_datetime(key) not in self.columns)):
             self.loc[key] = value
             return None
         if units is None:
@@ -522,17 +523,17 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             else:
                 raise ValueError("Unknown operation")
 
-        params_ = self.params_.copy()
+        params_ = self.params_
         _products = ['*', '/', '//']
-        valid_operations = {# operator, pd.Series.method, proposed fill_value
-                            '+': [pd.Series.add, 'Addition', 0],
-                            '-': [pd.Series.sub, 'Subtraction', 0],
-                            '*': [pd.Series.mul, 'Product', 1],
-                            '/': [pd.Series.truediv, 'Division', None],
-                            '//': [pd.Series.floordiv, 'Floor Division', None],
-                            '%': [pd.Series.mod, 'Module', None],
-                            '**': [pd.Series.pow, 'Power', None],
-                            '^': [pd.Series.pow, 'Power', None]}
+        valid_operations = {# operator, Series.method, proposed fill_value
+                            '+': [Series.add, 'Addition', 0],
+                            '-': [Series.sub, 'Subtraction', 0],
+                            '*': [Series.mul, 'Product', 1],
+                            '/': [Series.truediv, 'Division', None],
+                            '//': [eries.floordiv, 'Floor Division', None],
+                            '%': [Series.mod, 'Module', None],
+                            '**': [eries.pow, 'Power', None],
+                            '^': [Series.pow, 'Power', None]}
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
@@ -653,8 +654,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # other is SimSeries
-        elif isinstance(other, (SimSeries, pd.Series)):
-            if type(other) is pd.Series:
+        elif isinstance(other, (SimSeries, Series)):
+            if type(other) is Series:
                 other = SimSeries(other, **self.params_)
             self_i, other_i = self._joined_index(other)
             other_i = other_i.to_simseries()
@@ -669,7 +670,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # other is Pandas DataFrame
-        elif isinstance(other, pd.DataFrame):
+        elif isinstance(other, DataFrame):
             # result = self.as_pandas().add(other, fill_value=0)
             self_c, other_c, new_names = self._common_rename(SimDataFrame(other, **self.params_))
             result = self_c + other_c
@@ -719,8 +720,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # other is SimSeries
-        elif isinstance(other, (SimSeries, pd.Series)):
-            if type(other) is pd.Series:
+        elif isinstance(other, (SimSeries, Series)):
+            if type(other) is Series:
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
@@ -734,7 +735,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # other is Pandas DataFrame
-        elif isinstance(other, pd.DataFrame):
+        elif isinstance(other, DataFrame):
             # result = self.as_pandas().sub(other, fill_value=0)
             selfC, otherC, newNames = self._common_rename(SimDataFrame(other, **self.params_))
             result = selfC - otherC
@@ -785,8 +786,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # other is SimSeries
-        elif isinstance(other, (SimSeries, pd.Series)):
-            if type(other) is pd.Series:
+        elif isinstance(other, (SimSeries, Series)):
+            if type(other) is Series:
                 other = SimSeries(other, **self.params_)
             self_i, other_i = self._joined_index(other)
             result = self_i.copy()
@@ -798,7 +799,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, pd.DataFrame):
+        elif isinstance(other, DataFrame):
             return self.__mul__(SimDataFrame(data=other, **self.params_))
 
         # let's Pandas deal with other types, maintain units and dtype
@@ -845,8 +846,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # other is SimSeries
-        elif isinstance(other, (SimSeries, pd.Series)):
-            if type(other) is pd.Series:
+        elif isinstance(other, (SimSeries, Series)):
+            if type(other) is Series:
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
@@ -858,7 +859,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, pd.DataFrame):
+        elif isinstance(other, DataFrame):
             return self.__truediv__(SimDataFrame(data=other, **self.params_))
 
         # let's Pandas deal with other types, maintain units and dtype
@@ -905,8 +906,8 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # other is SimSeries
-        elif isinstance(other, (SimSeries, pd.Series)):
-            if type(other) is pd.Series:
+        elif isinstance(other, (SimSeries, Series)):
+            if type(other) is Series:
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
@@ -918,7 +919,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, pd.DataFrame):
+        elif isinstance(other, DataFrame):
             return self.__floordiv__(SimDataFrame(data=other, **self.params_))
 
         # lets Pandas deal with other types, maintain units and dtype
@@ -962,12 +963,11 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                 result[col] = resultX[col]
                     else:
                         result = resultX
-
             return result
 
         # other is SimSeries
-        elif isinstance(other, (SimSeries, pd.Series)):
-            if type(other) is pd.Series:
+        elif isinstance(other, (SimSeries, Series)):
+            if type(other) is Series:
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
@@ -979,7 +979,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, pd.DataFrame):
+        elif isinstance(other, DataFrame):
             return self.__mod__(SimDataFrame(data=other, **self.params_))
 
         # let's Pandas deal with other types, maintain units and dtype
@@ -1023,12 +1023,11 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                                 result[col] = resultX[col]
                     else:
                         result = resultX
-
             return result
 
         # other is SimSeries
-        elif isinstance(other, (SimSeries, pd.Series)):
-            if type(other) is pd.Series:
+        elif isinstance(other, (SimSeries, Series)):
+            if type(other) is Series:
                 other = SimSeries(other, **self.params_)
             selfI, otherI = self._joined_index(other)
             result = selfI.copy()
@@ -1040,13 +1039,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             return result
 
         # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, pd.DataFrame):
+        elif isinstance(other, DataFrame):
             return self.__pow__(SimDataFrame(data=other, **self.params_))
 
         # if other is integer or float
         elif type(other) in (int, float):
             result = self.as_DataFrame() ** other
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
             return SimDataFrame(data=result, **params_)
 
@@ -1068,7 +1067,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                               **kwargs)
             self.set_index_units(index_units)
         else:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['index'] = None
             params_['index_name'] = key
             params_['index_units'] = self.get_units(key)[key]
@@ -1097,7 +1096,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             self.index.set_units(self.index_units_)
 
     def transpose(self):
-        params_ = self.params_.copy()
+        params_ = self.params_
         params_['transposed'] = not self._transposed_
         return SimDataFrame(data=self.as_pandas().T, **params_)
 
@@ -1117,7 +1116,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if len(self.columns) == 1:
             return self[self.columns[0]]
         if len(self) <= 1:
-            return SimSeries(data=pd.Series(self.to_pandas().iloc[0].to_list(),
+            return SimSeries(data=Series(self.to_pandas().iloc[0].to_list(),
                                          name=self.index[0],
                                          index=self.columns.to_list()),
                              **self.params_)
@@ -1127,10 +1126,10 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         return self.to_simseries()
 
     def to_dataframe(self):
-        return pd.DataFrame(self.copy())
+        return DataFrame(self.copy())
 
     def as_dataframe(self):
-        return pd.DataFrame(self)
+        return DataFrame(self)
 
     def to_simdataframe(self):
         return self
@@ -1150,7 +1149,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         elif type(units) is str:
             if len(set(self.units.values())) == 1:
                 if _convertible(list(set(self.units.values()))[0], units):
-                    params_ = self.params_.copy()
+                    params_ = self.params_
                     params_['units'] = units
                     params_['columns'] = self.columns
                     params_['index'] = self.index
@@ -1222,28 +1221,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         axis = _clean_axis(axis)
         return SimDataFrame(data=self.to_pandas().reindex(labels=labels, axis=axis, **kwargs), **self.params_)
 
-
     # not shared methods
     def to_DataFrameMultiIndex(self):
         return self._DataFrame_with_MultiIndex()
-
-    def reset_index(self, level=None, drop=False, inplace=False, col_level=0, col_fill=''):
-        if inplace:
-            index_units, index_name = self.index_units, None if drop else self.index.name
-            super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='')
-            if type(index_units) in (str, dict) and index_name is not None:
-                self.set_units(index_units, index_name)
-            self.index = SimIndex(self.index, units=None)
-        else:
-            params_ = self.params_
-            params_['index_name'] = None
-            params_['index_units'] = None
-            result = SimDataFrame(
-                data=self.as_pandas().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill=''),
-                **params_)
-            if not drop and type(self.index_units) in (str, dict) and self.index.name is not None:
-                result.set_units(self.index_units, item=self.index.name)
-            return result
 
     def append(self, other, ignore_index=False, verify_integrity=False, sort=False):
         """
@@ -1271,7 +1251,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         -------
             SimDataFrame
         """
-
         if type(other) in (SimDataFrame, SimSeries):
             otherC = other.copy()
             newUnits = self.get_units(self.columns).copy()
@@ -1286,13 +1265,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             for col in otherC.columns:
                 if col not in newUnits:
                     newUnits[col] = otherC.get_units(col)[col]
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = newUnits
-            data = pd.concat([self.as_pandas(), otherC], axis=0)
+            data = _pd_concat([self.as_pandas(), otherC], axis=0)
             return SimDataFrame(data=data, **params_)
         else:
             # append and return SimDataFrame
-            data = pd.concat([self.as_pandas(), otherC], axis=0)
+            data = _pd_concat([self.as_pandas(), otherC], axis=0)
             return SimDataFrame(data=data, **self.params_)
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
@@ -1534,7 +1513,6 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             DataFrame with the renamed axis labels or None if inplace=True.
 
         """
-
         def _item_columns(sdf, itemMapper, axis):
             itemsDict = {}
             for item in itemMapper:
@@ -1573,7 +1551,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().count(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = 'dimensionless'
             return self._class(data=data, **params_)
 
@@ -1616,7 +1594,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().min(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1639,7 +1617,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().max(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1662,7 +1640,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().mean(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1685,7 +1663,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().median(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1708,7 +1686,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().mode(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1717,7 +1695,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         from unyts.units.unitless import unitless_names
         axis = _clean_axis(axis)
         if axis == 0:
-            params_ = self.params_.copy()
+            params_ = self.params_
             for key in params_['units']:
                 if params_['units'][key] is not None:
                     unit_base, unit_power = unit_base_power(params_['units'][key])
@@ -1741,7 +1719,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().prod(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1772,7 +1750,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().quantile(q=q, axis=axis, **kwargs).transpose()
             data.columns = new_name
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
         elif axis == 1:
@@ -1797,7 +1775,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().quantile(q=q, axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1820,22 +1798,20 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().std(axis=axis, **kwargs)
             data.columns = [newName]
             data.name = newName
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
     def sum(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
+            params_ = self.params_
             if len(set(self.get_units(self.columns).values())) == 1:
-                params_ = self.params_.copy()
                 params_['units'] = list(set(self.get_units(self.columns).values()))[0]
-                return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_)
             else:
-                params_ = self.params_.copy()
                 if type(params_['units']) is dict:
                     params_['units']['.sum'] = '*units per row'
-                return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_)
+            return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_).transpose()
         if axis == 1:
             new_name = '.sum'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1867,9 +1843,9 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     result = result + self[self.columns[col]]
                 data = result
             data.name = new_name
-            params_ = self.params_.copy()
-            params_['units'] = units
-            return self._class(data=data, **params_)
+            params_ = self.params_
+            params_['units'] = {new_name: units}
+            return self._class(data=data, **params_).squeeze()
         if axis == 2:
             return self.sum(axis=1).sum(axis=0)
 
@@ -1892,7 +1868,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             data = self.as_pandas().var(axis=axis, **kwargs)
             data.columns = [new_name]
             data.name = new_name
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=data, **params_)
 
@@ -1905,7 +1881,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         try to get a filtered DataFrame or Series(.filter[key] )
         """
-        if not isinstance(key, (SimSeries, pd.Series)) and type(key) is not np.ndarray:
+        if not isinstance(key, (SimSeries, Series)) and type(key) is not ndarray:
             raise TypeError("Filter must be a Series or Array")
         else:
             if str(key.dtype) != 'bool':
@@ -1940,7 +1916,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         try to get a row by index value(.loc[key] ) or by position(.iloc[key] )
         """
         # if index is date try to undestand key as a date
-        if type(self.index) is pd.DatetimeIndex and type(key) not in [pd.DatetimeIndex, pd.Timestamp, int, float, np.ndarray]:
+        if type(self.index) is DatetimeIndex and type(key) not in [DatetimeIndex, Timestamp, int, float, ndarray]:
             try:
                 return (self._get_by_dateIndex(key), True)
             except:
@@ -1968,14 +1944,14 @@ class SimDataFrame(SimBasics, pd.DataFrame):
 
         try to get a row by index value(.loc[key] ) or by position(.iloc[key] )
         """
-        if type(self.index) is pd.DatetimeIndex:
-            if type(key) in [pd.DatetimeIndex, pd.Timestamp, np.datetime64, np.ndarray, dt.date]:
+        if type(self.index) is DatetimeIndex:
+            if type(key) in [DatetimeIndex, Timestamp, datetime64, ndarray, dt.date]:
                 try:
                     return self.as_pandas().loc[key]
                 except:
                     pass
 
-            if type(key) is not str and (_is_date(key) or type(key) not in [pd.DatetimeIndex, pd.Timestamp]):
+            if type(key) is not str and (_is_date(key) or type(key) not in [DatetimeIndex, Timestamp]):
                 try:
                     return self.as_pandas().loc[key]
                 except:
@@ -2008,7 +1984,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     if _is_date(keyParts[P]):
                         keySearch += ' D' + str(P)
                         datesDict['D' + str(P)] = keyParts[P]
-                        temporal.__setitem__('D' + str(P), pd.DatetimeIndex([pd.Timestamp(
+                        temporal.__setitem__('D' + str(P), DatetimeIndex([Timestamp(
                             _date(keyParts[P], formatIN=_is_date(keyParts[P], returnFormat=True, speak=self.verbose),
                                   formatOUT='YYYY-MMM-DD'))] * datesN).to_numpy())
                     else:
@@ -2025,13 +2001,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if units is None or len(units) == 0:
             return self.columns  # there are not units, return column names as they are
         if len(self.columns) == 0:
-            return self.columns  # is an empty pd.DataFrame
+            return self.columns  # is an empty DataFrame
         for col in self.columns:
             if col in units:
                 out.append((col, units[col]))  # out[col] = units[col]
             else:
                 out.append((col, None))  # out[col] = None
-        out = pd.MultiIndex.from_tuples(out)  # out = pd.MultiIndex.from_tuples(out.items())
+        out = MultiIndex.from_tuples(out)  # out = MultiIndex.from_tuples(out.items())
         return out
 
     def _DataFrame_with_MultiIndex(self):
@@ -2175,7 +2151,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     units_dict[str(self.index_name) + '_index_'] = self.index_units
         else:
             units_dict = {}
-            if not isinstance(items, (list, tuple, dict, set, pd.Index)):
+            if not isinstance(items, (list, tuple, dict, set, Index)):
                 items = [items]
             for each in items:
                 if each in self.units:
@@ -2242,7 +2218,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             else:
                 ValueError("the required item '" + str(item) + "' is not in this SimDataFrame.")
 
-        if type(units) not in (str, dict, pd.Series, SimSeries) and hasattr(units, '__iter__'):
+        if type(units) not in (str, dict, Series, SimSeries) and hasattr(units, '__iter__'):
             if item is not None and type(item) is not str and hasattr(item, '__iter__'):
                 if len(item) == len(units):
                     return self.set_units(dict(zip(item, units)))
@@ -2257,7 +2233,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
             else:
                 raise TypeError("if units is a list, items must be a list of the same length.")
 
-        if isinstance(units, pd.Series):
+        if isinstance(units, Series):
             units = units.to_dict()
 
         if type(units) is dict:
@@ -2657,7 +2633,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         from simpandas.common.shape import melt
         melted = melt(self, full_output=False)
         if len(melted[melted.columns[-1]].unique()) == 1:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = {melted.columns[0]: melted[melted.columns[-1]].unique()[0]}
             return SimDataFrame(data=melted.iloc[:, :-1], **params_)
         else:
@@ -2700,7 +2676,7 @@ class SimDataFrame(SimBasics, pd.DataFrame):
         if axis == 1:
             return self.transpose().slope(x=x, y=y, axis=0, window=window, slope=slope, intercept=intercept).transpose()
 
-        params_ = self.params_.copy()
+        params_ = self.params_
         if x is not None and y is not None:
             if x in self.columns and y in self.columns:
                 x_units = str(self.get_units(x)[x])
@@ -2855,13 +2831,13 @@ class SimDataFrame(SimBasics, pd.DataFrame):
                     else:
                         kwargs['ax'] = oth[newY].to(self.get_units()).plot(y=y, x=x, others=None,
                                                                            label=labels[labcount], **kwargs)
-                elif isinstance(oth, pd.DataFrame):
+                elif isinstance(oth, DataFrame):
                     newY = [ny for ny in self.columns if ny in oth]
                     if labels is None:
                         kwargs['ax'] = oth[newY].plot(**kwargs)
                     else:
                         kwargs['ax'] = oth[newY].plot(label=labels[labcount], **kwargs)
-                elif isinstance(oth, pd.Series):
+                elif isinstance(oth, Series):
                     if labels is None:
                         kwargs['ax'] = oth.plot(**kwargs)
                     else:

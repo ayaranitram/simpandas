@@ -16,5 +16,8 @@ or upgrade to the latest version:
 - Pandas
 - NumPy
 - matplotlib
+- seaborn
 - datetime
 - unyts
+- openpyxl
+- xlsxwriter

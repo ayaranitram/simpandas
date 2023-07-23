@@ -5,21 +5,24 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.12'
-__release__ = 20230228
+__version__ = '0.83.19'
+__release__ = 20230717
 __all__ = ['SimBasics']
 
 import fnmatch
 import logging
-import numpy as np
-import pandas as pd
+from pandas import DataFrame, DatetimeIndex, MultiIndex, to_datetime, date_range
+from numpy import array, nan, log as np_log, log2 as np_log2, log10 as np_log10, append as np_append, diff as np_diff, \
+    minimum as np_minimum, maximum as np_maximum, cumsum as np_cumsum
 from sys import getsizeof
 from warnings import warn
+
 from unyts import is_Unit
 from unyts.converter import convertible as _convertible
 from unyts.operations import unit_inverse as _unit_inverse
 from unyts.dictionaries import unitless_names as _unitless_names
 from unyts import Unit
+
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
@@ -207,7 +210,7 @@ class SimBasics(object, metaclass=SimType):
         return self.astype(int)
 
     def inv(self):
-        params_ = self.params_.copy()
+        params_ = self.params_
         if type(self.units) is str:
             params_['units'] = _unit_inverse(self.units)
         elif type(self.units) is dict:
@@ -231,6 +234,114 @@ class SimBasics(object, metaclass=SimType):
 
     def div(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self.truediv(other, level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def eq0(self, other):
+        return self.eq(other,precision=0)
+
+    def eq1(self, other):
+        return self.eq(other,precision=1)
+
+    def eq2(self, other):
+        return self.eq(other,precision=2)
+
+    def eq3(self, other):
+        return self.eq(other,precision=3)
+
+    def eq4(self, other):
+        return self.eq(other,precision=4)
+
+    def eq6(self, other):
+        return self.eq(other,precision=6)
+
+    def ge0(self, other):
+        return self.ge(other,precision=0)
+
+    def ge1(self, other):
+        return self.ge(other,precision=1)
+
+    def ge2(self, other):
+        return self.ge(other,precision=2)
+
+    def ge3(self, other):
+        return self.ge(other,precision=3)
+
+    def ge4(self, other):
+        return self.ge(other,precision=4)
+
+    def ge6(self, other):
+        return self.ge(other,precision=6)
+
+    def gt0(self, other):
+        return self.gt(other,precision=0)
+
+    def gt1(self, other):
+        return self.gt(other,precision=1)
+
+    def gt2(self, other):
+        return self.gt(other,precision=2)
+
+    def gt3(self, other):
+        return self.gt(other,precision=3)
+
+    def gt4(self, other):
+        return self.gt(other,precision=4)
+
+    def gt6(self, other):
+        return self.gt(other,precision=6)
+
+    def le0(self, other):
+        return self.le(other,precision=0)
+
+    def le1(self, other):
+        return self.le(other,precision=1)
+
+    def le2(self, other):
+        return self.le(other,precision=2)
+
+    def le3(self, other):
+        return self.le(other,precision=3)
+
+    def le4(self, other):
+        return self.le(other,precision=4)
+
+    def le6(self, other):
+        return self.le(other,precision=6)
+
+    def lt0(self, other):
+        return self.lt(other,precision=0)
+
+    def lt1(self, other):
+        return self.lt(other,precision=1)
+
+    def lt2(self, other):
+        return self.lt(other,precision=2)
+
+    def lt3(self, other):
+        return self.lt(other,precision=3)
+
+    def lt4(self, other):
+        return self.lt(other,precision=4)
+
+    def lt6(self, other):
+        return self.lt(other,precision=6)
+
+    def ne0(self, other):
+        return self.ne(other,precision=0)
+
+    def ne1(self, other):
+        return self.ne(other,precision=1)
+
+    def ne2(self, other):
+        return self.ne(other,precision=2)
+
+    def ne3(self, other):
+        return self.ne(other,precision=3)
+
+    def ne4(self, other):
+        return self.ne(other,precision=4)
+
+    def ne6(self, other):
+        return self.ne(other,precision=6)
 
     def floordiv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self._arithmethic_operation(other, operation='//', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
@@ -282,7 +393,7 @@ class SimBasics(object, metaclass=SimType):
             return self.inv()._reverse().mul(other, intersection_character='/').astype(int)
 
     def __rmod__(self, other):
-        params_ = self.params_.copy()
+        params_ = self.params_
         if hasattr(other, 'name') and type(other.name) is str:
             params_['name'] = other.name
         if is_Unit(other):
@@ -330,16 +441,16 @@ class SimBasics(object, metaclass=SimType):
         return self.mean0(axis=axis, **kwargs)
 
     def mean0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).mean(axis=axis, **kwargs)
+        return self.replace(0, nan).mean(axis=axis, **kwargs)
 
     def median0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).median(axis=axis, **kwargs)
+        return self.replace(0, nan).median(axis=axis, **kwargs)
 
     def mode0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).mode(axis=axis, **kwargs)
+        return self.replace(0, nan).mode(axis=axis, **kwargs)
 
     def count0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).count(axis=axis, **kwargs)
+        return self.replace(0, nan).count(axis=axis, **kwargs)
 
     def log(self, base=10):
         """
@@ -362,11 +473,11 @@ class SimBasics(object, metaclass=SimType):
         if type(base) is str:
             base = base.lower()
         if base in [10, '10']:
-            result = np.log10(self.values)
+            result = np_log10(self.values)
         elif base in [2, '2']:
-            result = np.log2(self.values)
+            result = np_log2(self.values)
         elif base in ['e', 'n']:
-            result = np.log(self.values)
+            result = np_log(self.values)
         return self._class(data=result,
                            columns=self.columns,
                            index=self.index,
@@ -390,7 +501,7 @@ class SimBasics(object, metaclass=SimType):
         SimSeries or SimDataFrame
 
         """
-        return self.replace(0, np.nan).log(base=base)
+        return self.replace(0, nan).log(base=base)
 
     def ln(self):
         """
@@ -411,7 +522,7 @@ class SimBasics(object, metaclass=SimType):
         return self.log(base=2)
 
     def min0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).min(axis=axis, **kwargs)
+        return self.replace(0, nan).min(axis=axis, **kwargs)
 
     def mad(self, axis=None, skipna=True, level=None):
         """
@@ -420,25 +531,25 @@ class SimBasics(object, metaclass=SimType):
         return (self - self.mean()).abs().mean()
 
     def max0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).max(axis=axis, **kwargs)
+        return self.replace(0, nan).max(axis=axis, **kwargs)
 
     def prod0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).prod(axis=axis, **kwargs)
+        return self.replace(0, nan).prod(axis=axis, **kwargs)
 
     def quantile0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).quantile(axis=axis, **kwargs)
+        return self.replace(0, nan).quantile(axis=axis, **kwargs)
 
     def rms0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).rms(axis=axis, **kwargs)
+        return self.replace(0, nan).rms(axis=axis, **kwargs)
 
     def std0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).std(axis=axis, **kwargs)
+        return self.replace(0, nan).std(axis=axis, **kwargs)
 
     def sum0(self, axis=0, **kwargs):
         return self.sum(axis=axis, **kwargs)
 
     def var0(self, axis=0, **kwargs):
-        return self.replace(0, np.nan).var(axis=axis, **kwargs)
+        return self.replace(0, nan).var(axis=axis, **kwargs)
 
     def diff(self, periods=1, axis=0, forward=False):
         axis = _clean_axis(axis)
@@ -474,7 +585,7 @@ class SimBasics(object, metaclass=SimType):
         return standard normalization ignoring zeroes
 
         """
-        return _znorm(self.replace(0, np.nan))
+        return _znorm(self.replace(0, nan))
 
     def minmaxnorm(self):
         """
@@ -486,7 +597,7 @@ class SimBasics(object, metaclass=SimType):
         """
         return min-max normalization
         """
-        return _minmaxnorm(self.replace(0, np.nan))
+        return _minmaxnorm(self.replace(0, nan))
 
     def jitter(self, std=0.10):
         """
@@ -597,6 +708,10 @@ class SimBasics(object, metaclass=SimType):
             return self._class(
                 data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex,
                                      method=method), **self.params_)
+
+    @property
+    def type(self):
+        return str(type(self))
 
     def to_Pandas(self):
         return self.to_pandas()
@@ -768,23 +883,23 @@ class SimBasics(object, metaclass=SimType):
             if len(self.columns) == 1 or len(self.index) == 1:
                 return self.to_simseries().squeeze()
             elif len(self.get_units()) == 0 or \
-                    np.array([(u is None or str(u).lower().strip() in ['unitless', 'dimensionless']) for u in
-                              self.get_units().values()]).all():
+                    array([(u is None or str(u).lower().strip() in ['unitless', 'dimensionless']) for u in
+                           self.get_units().values()]).all():
                 return self.as_DataFrame()
             else:
                 return self
         elif self._class is SimSeries:
             if len(self) == 1:
-                if len(self.get_units()) == 0 or np.array(
+                if len(self.get_units()) == 0 or array(
                         [(u is None or str(u).lower().strip() in ['unitless', 'dimensionless']) for u in
                          self.get_units().values()]).all():
                     return self.iloc[0]
-            elif len(self.get_units()) == 0 or np.array(
+            elif len(self.get_units()) == 0 or array(
                     [(u is None or str(u).lower().strip() in ['unitless', 'dimensionless']) for u in
                      self.get_units().values()]).all():
                 return self.as_Series()
             elif type(self.get_units()) is dict and len(set(self.get_units(self.index).values())) == 1:
-                params_ = self.params_.copy()
+                params_ = self.params_
                 params_['units'] = list(set(self.get_units(self.index).values()))[0]
                 return SimSeries(self.as_Series(), **params_)
             else:
@@ -936,7 +1051,7 @@ Copy of input object, shifted.
         returns the dataframe with the index converted to the requested units if possible, if not, returns the original values.
         """
         if _convertible(self.index_units, units):
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['index_name'] = self.index_name if self.index.name is None else self.index.name
             params_['index_units'] = units
             if self.index.name in params_['units']:
@@ -1254,10 +1369,10 @@ Copy of input object, shifted.
         return self.real_year(column=column)
 
     def _check_by(self, by, raise_by_error=True):
-        # if not isinstance(self.index, pd.DatetimeIndex):
+        # if not isinstance(self.index, DatetimeIndex):
         #     original = self.index
         #     try:
-        #         self.index = pd.to_datetime(['-'.join(map(str, i)) for i in self.index])
+        #         self.index = to_datetime(['-'.join(map(str, i)) for i in self.index])
         #     except:
         #         if raise_by_error:
         #             raise TypeError("index must be `DatetimeIndex`.")
@@ -1275,9 +1390,9 @@ Copy of input object, shifted.
                     each = tuple(each)
                 if each in self.columns:
                     new_by.append(each)
-                elif isinstance(self.index, pd.DatetimeIndex) and each in [self.index.year, self.index.month, self.index.day]:
+                elif isinstance(self.index, DatetimeIndex) and each in [self.index.year, self.index.month, self.index.day]:
                     new_by.append(each)
-                elif isinstance(self.index, pd.MultiIndex) and each in [self.index.get_level_values(i) for i in range(len(self.index.levels))] + list(self.index.levels):
+                elif isinstance(self.index, MultiIndex) and each in [self.index.get_level_values(i) for i in range(len(self.index.levels))] + list(self.index.levels):
                     new_by.append(each)
                 elif raise_by_error:
                     raise ValueError("The column '" + str(each) + "' is not present in this frame")
@@ -1299,7 +1414,7 @@ Copy of input object, shifted.
 
     def _aggregated_calculation(self, by, agg):
         result = self.as_pandas().groupby(by=by)
-        params_ = self.params_.copy()
+        params_ = self.params_
         if agg == 'first':
             result = result.first()
         elif agg == 'last':
@@ -1324,14 +1439,14 @@ Copy of input object, shifted.
         elif agg[:3] == 'rep':  # from 'representative'
             result = self.integrate()
             result = result.as_pandas().groupby(by=by)  # self.index.year
-            index = pd.DataFrame(data=self.index, index=self.index).groupby(by=by)  # self.index.year
-            index = np.append(index.first().to_numpy(), index.last().to_numpy()[-1])
-            delta_index = np.diff(index)
-            if isinstance(self.index, pd.DatetimeIndex):
+            index = DataFrame(data=self.index, index=self.index).groupby(by=by)  # self.index.year
+            index = np_append(index.first().to_numpy(), index.last().to_numpy()[-1])
+            delta_index = np_diff(index)
+            if isinstance(self.index, DatetimeIndex):
                 delta_index = delta_index.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
             values = result.first().append(result.last().iloc[-1])
-            delta_values = np.diff(values.transpose())
-            result = pd.DataFrame(data=(delta_values / delta_index).transpose(), index=result.first().index,
+            delta_values = np_diff(values.transpose())
+            result = DataFrame(data=(delta_values / delta_index).transpose(), index=result.first().index,
                                columns=self.columns)
             #params_['units'] = result.get_units()
         elif agg in ['cum', 'cumulative']:
@@ -1350,10 +1465,10 @@ Copy of input object, shifted.
         """
         result = self.copy()
 
-        # if not isinstance(result.index, pd.DatetimeIndex):
+        # if not isinstance(result.index, DatetimeIndex):
         #     if len(result.index) > 0 and len(result.index[0]) == 3:
         #         try:
-        #             result.index = pd.to_datetime(['-'.join(map(str,i)) for i in result.index])
+        #             result.index = to_datetime(['-'.join(map(str,i)) for i in result.index])
         #         except:
         #             raise TypeError("Index must be DateTimeIndex.")
         #     else:
@@ -1374,14 +1489,14 @@ Copy of input object, shifted.
         by = group_by
 
         if len(by) > 3:  # user criteria to group by
-            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
+            index_backup = MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
             result.index.names = by[3:]
-            result.index = pd.MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for i in result.index]
+            result.index = MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for i in result.index]
             result = result.reset_index()
         else:
             index_backup = result.index
 
-        result.index = pd.to_datetime(['-'.join(map(str,i)) for i in index_backup])
+        result.index = to_datetime(['-'.join(map(str,i)) for i in index_backup])
         result.index.name = 'DATE'
         if len(by) == 4:
             new_df = None
@@ -1389,7 +1504,7 @@ Copy of input object, shifted.
                 group_df = result[result[by[3]] == group]
                 if len(group_df) == 0:
                     continue
-                daily_index = pd.date_range(min(group_df.index), max(group_df.index), freq='D')
+                daily_index = date_range(min(group_df.index), max(group_df.index), freq='D')
                 group_df = group_df.reindex(index=daily_index)
 
                 if fillna_method is False:
@@ -1408,7 +1523,7 @@ Copy of input object, shifted.
                 else:
                     new_df = new_df.append(group_df)
         elif len(by) == 3:
-            daily_index = pd.date_range(min(result.index), max(result.index), freq='D')
+            daily_index = date_range(min(result.index), max(result.index), freq='D')
             result = result.reindex(index=daily_index)
             if fillna_method is False:
                 pass
@@ -1444,16 +1559,16 @@ Copy of input object, shifted.
         by = group_by
 
         if len(by) > 3:  # user criteria to group by
-            index_backup = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
+            index_backup = MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
             result.index.names = by[3:]
-            result.index = pd.MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for
+            result.index = MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for
                                                                                                                 i in
                                                                                                                 result.index]
             result = result.reset_index()
         else:
             index_backup = result.index
 
-        result.index = pd.to_datetime(['-'.join(map(str, i)) for i in index_backup])
+        result.index = to_datetime(['-'.join(map(str, i)) for i in index_backup])
         result.index.name = 'DATE'
         if len(by) == 4:
             new_df = None
@@ -1461,7 +1576,7 @@ Copy of input object, shifted.
                 group_df = result[result[by[3]] == group]
                 if len(group_df) == 0:
                     continue
-                new_index = pd.date_range(min(group_df.index), max(group_df.index), freq=freq)
+                new_index = date_range(min(group_df.index), max(group_df.index), freq=freq)
                 group_df = group_df.reindex(index=new_index)
 
                 if fillna_method is False:
@@ -1480,7 +1595,7 @@ Copy of input object, shifted.
                 else:
                     new_df = new_df.append(group_df)
         elif len(by) == 3:
-            new_index = pd.date_range(min(result.index), max(result.index), freq=freq)
+            new_index = date_range(min(result.index), max(result.index), freq=freq)
             result = result.reindex(index=new_index)
             if fillna_method is False:
                 pass
@@ -1611,7 +1726,7 @@ Copy of input object, shifted.
                     df.daily(fillna_method='polynomial', order=5).
 
         """
-        if not isinstance(self.index, pd.DatetimeIndex):
+        if not isinstance(self.index, DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
         if fillna_method in ['polynomial', 'spline']:
@@ -1638,28 +1753,28 @@ Copy of input object, shifted.
             output = output._fill_daily(group_by=by, fillna_method=fillna_method, raise_by_error=raise_by_error)
 
         if user_by is None:
-            output.index = pd.MultiIndex.from_tuples([(int(y), int(m), int(d)) for y, m, d in output.index])
+            output.index = MultiIndex.from_tuples([(int(y), int(m), int(d)) for y, m, d in output.index])
         elif len(user_by) == 1:
-            output.index = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2]), i[3]) for i in output.index])
+            output.index = MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2]), i[3]) for i in output.index])
         else:
-            output.index = pd.MultiIndex.from_tuples(
+            output.index = MultiIndex.from_tuples(
                 [(int(i[0]), int(i[1]), int(i[2]),) + tuple(i[3:]) for i in output.index])
 
         if datetime_index:
             if user_by is None:
-                output.index = pd.to_datetime(
+                output.index = to_datetime(
                     [str(YYYY) + '-' + str(MM).zfill(2) + '-' + str(DD).zfill(2) for YYYY, MM, DD in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
                 if 'DATE' not in output.get_units():
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
-                output.index = pd.MultiIndex.from_tuples(
-                    [(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + '-' + str(i[2]).zfill(2)), i[3]) for i in
+                output.index = MultiIndex.from_tuples(
+                    [(to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + '-' + str(i[2]).zfill(2)), i[3]) for i in
                      output.index])
             else:
-                output.index = pd.MultiIndex.from_tuples(
-                    [(pd.to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + '-' + str(i[2]).zfill(2)),) + tuple(i[3:])
+                output.index = MultiIndex.from_tuples(
+                    [(to_datetime(str(i[0]) + '-' + str(i[1]).zfill(2) + '-' + str(i[2]).zfill(2)),) + tuple(i[3:])
                      for i in output.index])
             if user_by is not None:
                 output.index.names = ['DATE'] + user_by
@@ -1759,7 +1874,7 @@ Copy of input object, shifted.
                     df.monthly(fillna_method='polynomial', order=5).
 
         """
-        if not isinstance(self.index, pd.DatetimeIndex):
+        if not isinstance(self.index, DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
         if type(agg) is int and day is None:
@@ -1794,15 +1909,15 @@ Copy of input object, shifted.
         output = output._aggregated_calculation(by, agg)
 
         if user_by is None:
-            output.index = pd.MultiIndex.from_tuples([(int(y), int(m)) for y, m in output.index])
+            output.index = MultiIndex.from_tuples([(int(y), int(m)) for y, m in output.index])
         elif len(user_by) == 1:
-            output.index = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]), i[2]) for i in output.index])
+            output.index = MultiIndex.from_tuples([(int(i[0]), int(i[1]), i[2]) for i in output.index])
         else:
-            output.index = pd.MultiIndex.from_tuples([(int(i[0]), int(i[1]),) + tuple(i[2:]) for i in output.index])
+            output.index = MultiIndex.from_tuples([(int(i[0]), int(i[1]),) + tuple(i[2:]) for i in output.index])
 
         if datetime_index:
             if user_by is None:
-                output.index = pd.to_datetime(
+                output.index = to_datetime(
                     [str(YYYY) + '-' +
                      str(MM).zfill(2) +
                      self._make_day(day, MM, YYYY)
@@ -1812,16 +1927,16 @@ Copy of input object, shifted.
                 if 'DATE' not in output.get_units():
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
-                output.index = pd.MultiIndex.from_tuples([
-                    (pd.to_datetime(
+                output.index = MultiIndex.from_tuples([
+                    (to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
                         self._make_day(day, i[1], i[0])
                     ), i[2],)
                     for i in output.index])
             else:
-                output.index = pd.MultiIndex.from_tuples([
-                    (pd.to_datetime(
+                output.index = MultiIndex.from_tuples([
+                    (to_datetime(
                         str(i[0]) + '-' +
                         str(i[1]).zfill(2) +
                         self._make_day(day, i[1], i[0])),
@@ -1929,7 +2044,7 @@ Copy of input object, shifted.
                     df.yearly(fillna_method='polynomial', order=5).
 
         """
-        if not isinstance(self.index, pd.DatetimeIndex):
+        if not isinstance(self.index, DatetimeIndex):
             raise TypeError('index must be of datetime type.')
 
         if type(agg) is int and month is None:
@@ -1975,13 +2090,13 @@ Copy of input object, shifted.
         if user_by is None:
             output.index = [int(y) for y in output.index]
         elif len(user_by) == 1:
-            output.index = pd.MultiIndex.from_tuples([(int(i[0]), i[1]) for i in output.index])
+            output.index = MultiIndex.from_tuples([(int(i[0]), i[1]) for i in output.index])
         else:
-            output.index = pd.MultiIndex.from_tuples([(int(i[0]),) + tuple(i[1:]) for i in output.index])
+            output.index = MultiIndex.from_tuples([(int(i[0]),) + tuple(i[1:]) for i in output.index])
 
         if datetime_index:
             if user_by is None:
-                output.index = pd.to_datetime([str(YYYY) +
+                output.index = to_datetime([str(YYYY) +
                                                self._make_month_day(day, month, YYYY)
                                                for YYYY in output.index])
                 output.index.names = ['DATE']
@@ -1989,11 +2104,11 @@ Copy of input object, shifted.
                 if 'DATE' not in output.get_units():
                     output.set_units('date', 'DATE')
             elif len(user_by) == 1:
-                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
+                output.index = MultiIndex.from_tuples([(to_datetime(
                     str(i[0]) + self._make_month_day(day, month, i[0])), i[1],)
                     for i in output.index])
             else:
-                output.index = pd.MultiIndex.from_tuples([(pd.to_datetime(
+                output.index = MultiIndex.from_tuples([(to_datetime(
                     str(i[0]) + self._make_month_day(day, month, i[0])),) + tuple(
                     i[1:]) for i in output.index])
             if user_by is not None:
@@ -2059,7 +2174,7 @@ Copy of input object, shifted.
             return self
 
         if method[0] in 'tac':
-            dt = np.diff(self.index)
+            dt = np_diff(self.index)
             dt_units = self.index_units
             if str(dt.dtype).startswith('timedelta'):
                 dt = dt.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
@@ -2072,8 +2187,8 @@ Copy of input object, shifted.
             dt_units = 'days'
 
         if method[0] in 't':
-            v_min = np.minimum(self.as_pandas()[sl1].set_index(self.index[sl2]), self.as_pandas()[sl2])
-            v_max = np.maximum(self.as_pandas()[sl1].set_index(self.index[sl2]), self.as_pandas()[sl2])
+            v_min = np_minimum(self.as_pandas()[sl1].set_index(self.index[sl2]), self.as_pandas()[sl2])
+            v_max = np_maximum(self.as_pandas()[sl1].set_index(self.index[sl2]), self.as_pandas()[sl2])
             cumulative = (dt * v_min.transpose()).transpose() + (dt * (v_max - v_min).transpose() / 2.0).transpose()
         elif method[0] in 'ac':
             if at == 'same':
@@ -2098,20 +2213,20 @@ Copy of input object, shifted.
 
         if method[0] in 't' or (method[0] in 'ac' and at == 'next'):
             if str(dt.dtype).startswith('timedelta'):
-                first_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
-                                         index=['0']).set_index(pd.DatetimeIndex([self.index[0]]))
+                first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
+                                      index=['0']).set_index(DatetimeIndex([self.index[0]]))
             else:
-                first_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
-            return self._class(data=np.cumsum(first_row.append(cumulative)), **params_)
+                first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
+            return self._class(data=np_cumsum(first_row.append(cumulative)), **params_)
         elif method[0] in 'ac' and at == 'same':
             if str(dt.dtype).startswith('timedelta'):
-                last_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
-                                    index=[str(len(self) - 1)]).set_index(pd.DatetimeIndex([self.index[-1]]))
+                last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
+                                     index=[str(len(self) - 1)]).set_index(DatetimeIndex([self.index[-1]]))
             else:
-                last_row = pd.DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
-            return self._class(data=np.cumsum(cumulative.append(last_row)), **params_)
+                last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
+            return self._class(data=np_cumsum(cumulative.append(last_row)), **params_)
         else:
-            return self._class(data=np.cumsum(cumulative), **params_)
+            return self._class(data=np_cumsum(cumulative), **params_)
 
     def differentiate(self, na_position='last'):
         """
@@ -2123,13 +2238,13 @@ Copy of input object, shifted.
             logging.warning("Less than two rows, nothing to differenciate.")
             return self
 
-        dt = np.diff(self.index)
+        dt = np_diff(self.index)
         dt_units = self.index_units
         if str(dt.dtype).startswith('timedelta'):
             dt = dt.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
             dt_units = 'days'
 
-        diff = np.diff(self.as_pandas().to_numpy(), axis=0)
+        diff = np_diff(self.as_pandas().to_numpy(), axis=0)
         diff = diff / dt.reshape(-1, 1)
 
         new_units = {}
@@ -2148,19 +2263,19 @@ Copy of input object, shifted.
 
         if na_position == 'first':
             if str(dt.dtype).startswith('timedelta'):
-                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
-                    pd.DatetimeIndex([self.index[0]]))
+                nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
+                    DatetimeIndex([self.index[0]]))
             else:
-                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[0]])
-            diff = pd.DataFrame(data=diff, index=self.index[1:], columns=self.columns)
+                nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[0]])
+            diff = DataFrame(data=diff, index=self.index[1:], columns=self.columns)
             diff = nan_row.append(diff)
         else:
             if str(dt.dtype).startswith('timedelta'):
-                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
-                    pd.DatetimeIndex([self.index[-1]]))
+                nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
+                    DatetimeIndex([self.index[-1]]))
             else:
-                nan_row = pd.DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[-1]])
-            diff = pd.DataFrame(data=diff, index=self.index[:-1], columns=self.columns)
+                nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[-1]])
+            diff = DataFrame(data=diff, index=self.index[:-1], columns=self.columns)
             diff = diff.append(nan_row)
 
         params_ = self.params_
@@ -2174,11 +2289,14 @@ Copy of input object, shifted.
             del items_units_dict[None]
         if len(items_units_dict) == 0:
             return 'unitless'
-        if items is None and 'SimSeries' in str(type(self)) and len(items_units_dict) <= 2:
-            if self.name in items_units_dict:
-                return items_units_dict[self.name]
-            else:
-                return list(items_units_dict.values())[0]
+        if 'SimSeries' in str(type(self)) and len(items_units_dict) <= 2:
+            if items is None or items is not None and items not in items_units_dict:
+                if self.name in items_units_dict:
+                    return items_units_dict[self.name]
+                else:
+                    return list(items_units_dict.values())[0]
+            else:  # items is not None and items in items_units_dict
+                return items_units_dict[items]
         elif len(set(items_units_dict.values())) == 1:
             return list(set(items_units_dict.values()))[0]
         else:
@@ -2188,6 +2306,8 @@ Copy of input object, shifted.
 
     def get_UnitsString(self, items=None):
         return self.get_units_string(items)
+
+
     def set_Units(self, units, item=None):
         """
         Alias of .set_units method.
@@ -2214,6 +2334,27 @@ Copy of input object, shifted.
 
         """
         return self.set_units(units=units, item=item)
+
+    def reset_index(self, level=None, drop=False, inplace=False, col_level=0, col_fill='',
+                    allow_duplicates=True, names=None):
+        if inplace:
+            index_units, index_name = self.index_units, None if drop else self.index.name
+            super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='',
+                                allow_duplicates=allow_duplicates, names=names)
+            if type(index_units) in (str, dict) and index_name is not None:
+                self.set_units(index_units, index_name)
+            self.index = SimIndex(self.index, units=None)
+        else:
+            params_ = self.params_
+            params_['index_name'] = None
+            params_['index_units'] = None
+            result = SimDataFrame(
+                data=self.as_pandas().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level,
+                                                  col_fill='', allow_duplicates=allow_duplicates, names=names),
+                **params_)
+            if not drop and type(self.index_units) in (str, dict) and self.index.name is not None:
+                result.set_units(self.index_units, item=self.index.name)
+            return result
 
     def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
                  float_format=None, columns=None, header=True, units=True, index=True,

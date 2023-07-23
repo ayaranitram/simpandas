@@ -5,22 +5,22 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.6'
-__release__ = 20230228
+__version__ = '0.83.20'
+__release__ = 20230719
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
+from pandas.errors import IndexingError, InvalidIndexError
 from io import StringIO
 from shutil import get_terminal_size
 from pandas._config import get_option
 import fnmatch
-import numpy as np
-import pandas as pd
 import warnings
 
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
-    unit_power as _unit_power, unit_addition as _unit_addition
+    unit_power as _unit_power, unit_addition as _unit_addition, unit_base_power as _unit_base_power
+from unyts.units.unitless import unitless_names as _unitless_names
 from unyts.dictionaries import unitless_names as _unitless_names
 from unyts.helpers.common_classes import number
 from unyts import units, is_Unit, Unit
@@ -115,7 +115,7 @@ class SimSeries(SimBasics, Series):
                  index_name=None,
                  index_units=None,
                  name_separator=None,
-                 intersection_character='∩',
+                 intersection_character=None,
                  auto_append=False,
                  operate_per_name=False,
                  transposed=False,
@@ -127,7 +127,7 @@ class SimSeries(SimBasics, Series):
         self.verbose = bool(verbose)
         self.index_units_ = None
         self.name_separator = None
-        self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
+        self.intersection_character = intersection_character if type(intersection_character) is str else '&'
         self.spdLocator = _SimLocIndexer("loc", self)
         self.spdiLocator = _iSimLocIndexer("iloc", self)
         self.meta = meta
@@ -169,7 +169,7 @@ class SimSeries(SimBasics, Series):
         if index_units is None and hasattr(index, 'units'):
             index_units = index.units
 
-        # initialize pd.Series
+        # initialize Series
         super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy, fastpath=fastpath)
 
         # get name
@@ -200,7 +200,7 @@ class SimSeries(SimBasics, Series):
                 self.units[index_name] = self.units[self.index.name]
             self.index.name = index_name
 
-        # change pd.Index to SimIndex
+        # change Index to SimIndex
         self.index = SimIndex(self.index, units=self.index_units)
 
     @property
@@ -268,7 +268,7 @@ class SimSeries(SimBasics, Series):
         if not hasattr(self.index, 'units'):
             self.index = SimIndex(self.index, units=self.index_units)
         def index_params_():
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['name'] = self.index.name
             params_['units'] = self.index.units
             params_['index_name'] = None
@@ -294,20 +294,20 @@ class SimSeries(SimBasics, Series):
         else:
             try:
                 result = self.loc[key]
-            except (KeyError, pd.errors.IndexingError, TypeError):
+            except (KeyError, IndexingError, TypeError):
                 try:
                     result = self.iloc[key]
-                except (IndexError, KeyError, pd.errors.IndexingError, TypeError):
+                except (IndexError, KeyError, IndexingError, TypeError):
                     if type(key) is tuple:
                         try:
                             return self[list(key)]
-                        except (IndexError, pd.errors.InvalidIndexError):
+                        except (IndexError, InvalidIndexError):
                             pass
                     try:
                         result = self.as_simdataframe()[key]
                     except:
                         raise KeyError("the requested Key is not a valid index or name: " + str(key))
-        if isinstance(result, pd.Series) and len(result) == 1:
+        if isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
                 result = units(result.iloc[0], result.get_units_string())
             else:
@@ -371,7 +371,7 @@ class SimSeries(SimBasics, Series):
         else:
             return result
 
-    def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
+    def _arithmethic_operation(self, other, operation: str=None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
             if operation in ['+', '-']:
@@ -384,20 +384,30 @@ class SimSeries(SimBasics, Series):
                 return _unit_power(a, b)
             elif operation in ['%']:
                 return a
+            elif operation in ['==', '!=', '>=', '<=', '>', '<']:
+                return None
             else:
                 raise ValueError("Unknown operation")
 
-        params_ = self.params_.copy()
+        params_ = self.params_
         _products = ['*', '/', '//', '%']
-        valid_operations = {# operator, pd.Series.method, proposed fill_value
-            '+': [pd.Series.add, 'Addition', 0],
-            '-': [pd.Series.sub, 'Subtraction', 0],
-            '*': [pd.Series.mul, 'Product', 1],
-            '/': [pd.Series.truediv, 'Division', None],
-            '//': [pd.Series.floordiv, 'Floor Division', None],
-            '%': [pd.Series.mod, 'Module', None],
-            '**': [pd.Series.pow, 'Power', None],
-            '^': [pd.Series.pow, 'Power', None]}
+        valid_operations = {
+            # operator, Series.method, proposed fill_value
+            '+': [Series.add, 'Addition', 0],
+            '-': [Series.sub, 'Subtraction', 0],
+            '*': [Series.mul, 'Product', 1],
+            '/': [Series.truediv, 'Division', None],
+            '//': [Series.floordiv, 'Floor Division', None],
+            '%': [Series.mod, 'Module', None],
+            '**': [Series.pow, 'Power', None],
+            '^': [Series.pow, 'Power', None],
+            '==': [Series.eq, 'Equality', None],
+            '!=': [Series.ne, 'Inequality', None],
+            '>=': [Series.ge, 'Greater or Equal', None],
+            '<=': [Series.le, 'Lower or Equal', None],
+            '>': [Series.gt, 'Greater', None],
+            '<': [Series.lt, 'Lower', None],
+        }
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
@@ -515,6 +525,34 @@ class SimSeries(SimBasics, Series):
         self._reverse_ = False
         return self._class(data=result, **params_)
 
+    def _logical_operation(self, other, operation:str=None, level=None, fill_value=None, axis=0, precision:int=None):
+        if operation not in ['>', '<', '==', '<=', '>=', '!=']:
+            raise ValueError("`operation` must be a string representing a logical operation.")
+        operation = {
+            '==': Series.eq,
+            '!=': Series.ne,
+            '>=': Series.ge,
+            '<=': Series.le,
+            '>': Series.gt,
+            '<': Series.lt,
+        }[operation]
+        if precision is None and _convertible(self.units, other.units):
+            return operation(self.as_pandas(), other.to(self.units).as_pandas(),
+                             level=level, fill_value=fill_value, axis=axis)
+        elif precision is None:
+            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
+            return operation(self.as_pandas(), other.as_pandas(),
+                             level=level, fill_value=fill_value, axis=axis)
+        elif type(precision) is not int:
+            raise ValueError("`precision` must be an integer.")
+        elif _convertible(self.units, other.units):
+            return operation(self.as_pandas().round(precision), other.to(self.units).as_pandas().round(precision),
+                             level=level, fill_value=fill_value, axis=axis)
+        else:
+            warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
+            return operation(self.as_pandas().round(precision), other.as_pandas().round(precision),
+                             level=level, fill_value=fill_value, axis=axis)
+
     def __add__(self, other):
         return self._arithmethic_operation(other, operation='+', fill_value=0)
 
@@ -534,14 +572,32 @@ class SimSeries(SimBasics, Series):
     def __pow__(self, other):
         return self._arithmethic_operation(other, operation='**', fill_value=None)
 
+    def __eq__(self, other):
+        return self._arithmethic_operation(other, operation='==', fill_value=None)
+
+    def __ne__(self, other):
+        return self._arithmethic_operation(other, operation='!=', fill_value=None)
+
+    def __ge__(self, other):
+        return self._arithmethic_operation(other, operation='>=', fill_value=None)
+
+    def __le__(self, other):
+        return self._arithmethic_operation(other, operation='<=', fill_value=None)
+
+    def __gt__(self, other):
+        return self._arithmethic_operation(other, operation='>', fill_value=None)
+
+    def __lt__(self, other):
+        return self._arithmethic_operation(other, operation='<', fill_value=None)
+
     def astype(self, dtype, copy=True, errors='raise'):
-        params_ = self.params_.copy()
+        params_ = self.params_
         params_['dtype'] = dtype
         return self._class(data=self.as_pandas().astype(dtype), **params_)
 
     def copy(self):
         if type(self.units) is dict:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = self.units.copy()
             return SimSeries(data=self.as_pandas().copy(True), **params_)
         return SimSeries(data=self.as_pandas().copy(True), **self.params_)
@@ -554,7 +610,7 @@ class SimSeries(SimBasics, Series):
             units = units.units
         if type(units) is str and type(self.units) is str:
             if _convertible(self.units, units):
-                params_ = self.params_.copy()
+                params_ = self.params_
                 params_['units'] = units
                 return self._class(data=_converter(self.as_pandas(), self.units, units,
                                                    print_conversion_path=self.verbose),
@@ -562,7 +618,7 @@ class SimSeries(SimBasics, Series):
             else:
                 return self
         elif type(units) is str and type(self.units) is dict and len(set(self.units.values())) == 1:
-            params_ = self.params_.copy()
+            params_ = self.params_
             params_['units'] = units
             return self._class(data=_converter(self.as_pandas(), list(set(self.units.values()))[0], units,
                                                print_conversion_path=self.verbose),
@@ -604,6 +660,29 @@ class SimSeries(SimBasics, Series):
             self.drop(columns=filt[filt == True].index, inplace=True)
         else:
             return self.drop(columns=filt[filt == True].index, inplace=False)
+
+    def eq(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='==', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+    def ge(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='>=', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def gt(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='>', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def le(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='<=', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def lt(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='<', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
+
+    def ne(self, other, level=None, fill_value=None, axis=0, precision:int=None):
+        return self._logical_operation(other=other, operation='!=', level=level, fill_value=fill_value, axis=axis,
+                                       precision=precision)
 
     def filter(self, conditions=None, **kwargs):
         """
@@ -805,10 +884,19 @@ class SimSeries(SimBasics, Series):
         return units(self.as_pandas().mode(axis=axis, **kwargs), self.get_UnitsString())
 
     def prod(self, axis=0, **kwargs):
-        from unyts.operations import unit_base_power
-        from unyts.units.unitless import unitless_names
-        unit_base, unit_power = unit_base_power(self.get_UnitsString())
-        prod_units = unit_base if unit_base in unitless_names else (unit_base + str(unit_power * len(self)))
+        unit_base, unit_power = _unit_base_power(self.get_UnitsString())
+        prod_units = unit_base
+        if unit_base in _unitless_names:
+            prod_units = unit_base
+        else:
+            parenthesis = False
+            for s in '*/+-':
+                if s in unit_base:
+                    parenthesis = True
+            if parenthesis:
+                prod_units = '(' + unit_base + ')' + str(unit_power * len(self))
+            else:
+                prod_units = unit_base + str(unit_power * len(self))
         return units(self.as_pandas().prod(axis=axis, **kwargs), prod_units)
 
     def quantile(self, q=0.5, axis=0, **kwargs):
@@ -821,7 +909,7 @@ class SimSeries(SimBasics, Series):
         return units(self.as_pandas().std(axis=axis, **kwargs), self.get_UnitsString())
 
     def var(self, axis=0, **kwargs):
-        return units(self.as_pandas().var(axis=axis, **kwargs), self.get_UnitsString())
+        return units(self.as_pandas().var(axis=axis, **kwargs), _unit_product(self.get_UnitsString(), self.get_UnitsString()))
 
     def round(self, decimals=0, **kwargs):
         return units(self.as_pandas().round(decimals=decimals, **kwargs), self.get_UnitsString())
@@ -1192,7 +1280,7 @@ class SimSeries(SimBasics, Series):
         """
         if window is None and x is not None and y is None:
             window, x = x, None
-        params_ = self.params_.copy()
+        params_ = self.params_
         if self.name is not None and len(self.get_units(self.name)) == 1 and self.index_units is not None:
             if type(params_['units']) is dict:
                 params_['units'][self.name] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)
@@ -1216,10 +1304,6 @@ class SimSeries(SimBasics, Series):
                                                   ignore_index=ignore_index,
                                                   key=key),
                 **self.params_)
-
-    @property
-    def type(self):
-        return 'SimSeries'
 
     def plot(self, y=None, x=None, others=None, **kwargs):
         """

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simpandas"
-version = "0.83.21"
+version = "0.83.22"
 authors = [
   { name="Martin Carlos Araya", email="martinaraya@gmail.com" },
 ]
@@ -24,6 +24,8 @@ dependencies = [
     'seaborn',
     'datetime',
     'unyts >= 0.5.25',
+    'openpyxl',
+    'xlsxwriter',
 ]
 [project.urls]
 "Homepage" = "https://github.com/ayaranitram/simpandas"

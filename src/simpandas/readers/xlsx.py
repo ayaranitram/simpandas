@@ -5,8 +5,8 @@ Created on Wed Aug  3 20:24:36 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.1.4'
-__release__ = 20230122
+__version__ = '0.1.5'
+__release__ = 20230715
 
 from simpandas.frame import SimDataFrame
 
@@ -77,7 +77,13 @@ def read_excel(io,
             else:
                 header += [units]
 
-    excelread = pandas.read_excel(io, sheet_name=sheet_name, header=header, names=names, index_col=index_col, usecols=usecols, dtype=dtype, engine=engine, converters=converters, true_values=true_values, false_values=false_values, skiprows=skiprows, nrows=nrows, na_values=na_values, keep_default_na=keep_default_na, na_filter=na_filter, verbose=verbose, parse_dates=parse_dates, date_parser=date_parser, thousands=thousands, comment=comment, skipfooter=skipfooter, mangle_dupe_cols=mangle_dupe_cols, storage_options=storage_options)  # convert_float=convert_float, decimal=decimal
+    excelread = pandas.read_excel(io, sheet_name=sheet_name, header=header, names=names, index_col=index_col,
+                                  usecols=usecols, dtype=dtype, engine=engine, converters=converters,
+                                  true_values=true_values, false_values=false_values, skiprows=skiprows, nrows=nrows,
+                                  na_values=na_values, keep_default_na=keep_default_na, na_filter=na_filter,
+                                  verbose=verbose, parse_dates=parse_dates, date_parser=date_parser,
+                                  thousands=thousands, comment=comment, skipfooter=skipfooter,
+                                  storage_options=storage_options)  # convert_float=convert_float, decimal=decimal, mangle_dupe_cols=mangle_dupe_cols
 
     if type(excelread) is not dict:
         excelread = {'onesheet':excelread}
