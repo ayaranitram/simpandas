@@ -115,7 +115,7 @@ class SimSeries(SimBasics, Series):
                  index_name=None,
                  index_units=None,
                  name_separator=None,
-                 intersection_character='∩',
+                 intersection_character=None,
                  auto_append=False,
                  operate_per_name=False,
                  transposed=False,
@@ -127,7 +127,7 @@ class SimSeries(SimBasics, Series):
         self.verbose = bool(verbose)
         self.index_units_ = None
         self.name_separator = None
-        self.intersection_character = intersection_character if type(intersection_character) is str else '∩'
+        self.intersection_character = intersection_character if type(intersection_character) is str else '&'
         self.spdLocator = _SimLocIndexer("loc", self)
         self.spdiLocator = _iSimLocIndexer("iloc", self)
         self.meta = meta
