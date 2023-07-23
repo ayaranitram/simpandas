@@ -371,6 +371,22 @@ class SimSeries(SimBasics, Series):
         else:
             return result
 
+    def __setitem__(self, key, value, units=None):
+        if type(value) is tuple and units is None and len(value) == 2 and type(value[1]) in [str, list, dict]:
+            value, units = value[0], value[1]
+        if units is not None:
+            if type(self.units) is str or type(self.units) is dict and self.name in self.units:
+                self_units = self.units if type(self.units) is str else self.units[name]
+                if _convertible(units, self_units):
+                    value = _converter(value, units, self_units)
+                else:
+                    warnings.warn(f"not possible to convert value from {units} to {self_units}")
+                    self.units = {i: self.units for i in self.index}
+                    self.units[key] = units
+            elif key in self.units:
+                self.units[key] = units
+        super().__setitem__(key, value)
+
     def _arithmethic_operation(self, other, operation: str=None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
