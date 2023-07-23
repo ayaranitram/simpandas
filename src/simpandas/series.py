@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.20'
-__release__ = 20230719
+__version__ = '0.83.21'
+__release__ = 20230723
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -396,10 +396,8 @@ class SimSeries(SimBasics, Series):
                 return _unit_product(a, b)
             elif operation in ['/', '//']:
                 return _unit_division(a, b)
-            elif operation in ['**']:
+            elif operation in ['**', '^']:
                 return _unit_power(a, b)
-            elif operation in ['%']:
-                return a
             elif operation in ['==', '!=', '>=', '<=', '>', '<']:
                 return None
             else:
@@ -451,6 +449,7 @@ class SimSeries(SimBasics, Series):
                     _convertible(other.index.units, self.index.units):
                 other = other.index_to(self.index.units)
 
+            # calculate the operation, if both have string type units
             if type(self.units) is str and type(other.units) is str:
                 new_name = _string_new_name(
                     self._common_rename(other, intersection_character=intersection_character, return_names_dict_only=True),
@@ -495,11 +494,16 @@ class SimSeries(SimBasics, Series):
                             else:
                                 params_['units'][k] = u
                     else:
-                        raise NotImplementedError(op_label + ' of SimSeries with different units is not implemented.')
+                        raise NotImplementedError(f'{op_label} of SimSeries with different units is not implemented.')
                 params_['name'] = new_name
                 result = self._class(data=result, **params_)
+            elif type(self.units) is dict and type(other.units) is dict:
+                result = self.to_SimDataFrame()._arithmethic_operation(other.to_SimDataFrame(), operation=operation,
+                                                                       level=level, fill_value=fill_value, axis=axis,
+                                                                       intersection_character=intersection_character
+                                                                       ).to_SimSeries()
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f'not implemented operation for SimSeries with {self.units} and {other.units} type of units definition.')
 
         # other is Pandas Series
         elif isinstance(other, Series):
