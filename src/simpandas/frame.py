@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.14'
-__release__ = 20230715
+__version__ = '0.83.15'
+__release__ = 20230723
 __all__ = ['SimDataFrame']
 
 import logging
@@ -541,31 +541,43 @@ class SimDataFrame(SimBasics, DataFrame):
                 else:
                     self.new_units(self.columns[c], 'unitless')
 
-    def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
+    def _arithmethic_operation(self, other, operation: str=None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
-            if operation in ['+', '-', '%']:
+            if operation in ['+', '-']:
                 return _unit_addition(a, b)
             elif operation in ['*']:
                 return _unit_product(a, b)
             elif operation in ['/', '//']:
                 return _unit_division(a, b)
-            elif operation in ['**']:
+            elif operation in ['**', '^']:
                 return _unit_power(a, b)
+            elif operation in ['%']:
+                return a
+            elif operation in ['==', '!=', '>=', '<=', '>', '<']:
+                return None
             else:
                 raise ValueError("Unknown operation")
 
         params_ = self.params_
         _products = ['*', '/', '//']
-        valid_operations = {# operator, Series.method, proposed fill_value
-                            '+': [Series.add, 'Addition', 0],
-                            '-': [Series.sub, 'Subtraction', 0],
-                            '*': [Series.mul, 'Product', 1],
-                            '/': [Series.truediv, 'Division', None],
-                            '//': [eries.floordiv, 'Floor Division', None],
-                            '%': [Series.mod, 'Module', None],
-                            '**': [eries.pow, 'Power', None],
-                            '^': [Series.pow, 'Power', None]}
+        valid_operations = {
+            # operator, Series.method, proposed fill_value
+            '+': [DataFrame.add, 'Addition', 0],
+            '-': [DataFrame.sub, 'Subtraction', 0],
+            '*': [DataFrame.mul, 'Product', 1],
+            '/': [DataFrame.truediv, 'Division', None],
+            '//': [DataFrame.floordiv, 'Floor Division', None],
+            '%': [DataFrame.mod, 'Module', None],
+            '**': [DataFrame.pow, 'Power', None],
+            '^': [DataFrame.pow, 'Power', None],
+            '==': [DataFrame.eq, 'Equality', None],
+            '!=': [DataFrame.ne, 'Inequality', None],
+            '>=': [DataFrame.ge, 'Greater or Equal', None],
+            '<=': [DataFrame.le, 'Lower or Equal', None],
+            '>': [DataFrame.gt, 'Greater', None],
+            '<': [DataFrame.lt, 'Lower', None],
+        }
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
