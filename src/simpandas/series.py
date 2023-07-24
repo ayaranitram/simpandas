@@ -100,7 +100,8 @@ class SimSeries(SimBasics, Series):
                  '_auto_append_',
                  '_operate_per_name_',
                  '_transposed_',
-                 '_reverse_',]
+                 '_reverse_',
+                 '_return_singles_']
 
     def __init__(self,
                  data=None,
@@ -121,6 +122,7 @@ class SimSeries(SimBasics, Series):
                  transposed=False,
                  meta=None,
                  source_path=None,
+                 return_singles=None,
                  *args, **kwargs):
 
         self.units = {}
@@ -136,6 +138,7 @@ class SimSeries(SimBasics, Series):
         self._operate_per_name_ = bool(operate_per_name)
         self._transposed_ = bool(transposed)
         self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
+        self._return_singles_ = True if return_singles is None else bool(return_singles)
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -245,11 +248,13 @@ class SimSeries(SimBasics, Series):
         if type(self.units) is str:
             return SimDataFrame(data=self)
         elif type(self.units) is dict:
+            params = self.params_
+            params['return_singles'] = False
             return SimDataFrame(
                 data=self.values.reshape(1, self.values.size),
                 index=[self.name],
                 columns=self.index,
-                **self.params_)
+                **params)
 
     def as_simdataframe(self):
         return self.to_simdataframe()
@@ -307,9 +312,9 @@ class SimSeries(SimBasics, Series):
                         result = self.as_simdataframe()[key]
                     except:
                         raise KeyError("the requested Key is not a valid index or name: " + str(key))
-        if isinstance(result, Series) and len(result) == 1:
+        if self._return_singles_ and isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
-                result = units(result.iloc[0], result.get_units_string())
+                result = units(result.iloc[0], result.get_units_string(), name={'index': key, 'name':self.name})
             else:
                 result = result.iloc[0]
         return result

@@ -107,7 +107,8 @@ class SimDataFrame(SimBasics, DataFrame):
                  '_auto_append_',
                  '_operate_per_name_',
                  '_transposed_',
-                 '_reverse_']
+                 '_reverse_',
+                 '_return_singles_']
 
     def __init__(self,
                  data=None,
@@ -127,6 +128,7 @@ class SimDataFrame(SimBasics, DataFrame):
                  transposed_=False,
                  meta=None,
                  source_path=None,
+                 return_singles=None,
                  *args, **kwargs):
 
         self.units = {}
@@ -143,6 +145,7 @@ class SimDataFrame(SimBasics, DataFrame):
         self._operate_per_name_ = bool(operate_per_name)
         self._transposed_ = bool(transposed_)
         self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
+        self._return_singles_ = False if return_singles is None else bool(return_singles)
 
         # get units from data if it is SimDataFrame or SimSeries
         if units is None or (type(units) in [list, dict] and len(units) == 0):
@@ -240,10 +243,14 @@ class SimDataFrame(SimBasics, DataFrame):
         if len(self.columns) == 1:
             return self[self.columns[0]]
         if len(self) <= 1:
-            return SimSeries(data=Series(self.to_pandas().iloc[0].to_list(),
-                                         name=self.index[0],
-                                         index=self.columns.to_list()),
-                             **self.params_)
+            params = self.params_
+            params['return_singles'] = True
+            return SimSeries(
+                data=Series(
+                    self.to_pandas().iloc[0].to_list(),
+                    name=self.index[0],
+                    index=self.columns.to_list()),
+                **params)
         raise TypeError('Not possible to converto to SimSeries')
 
     def as_simseries(self):
@@ -442,14 +449,16 @@ class SimDataFrame(SimBasics, DataFrame):
         if by_index and isinstance(result, (Series, SimSeries)):
             result = _series_to_frame(result)
 
-        if isinstance(result, Series) and len(result) == 1:
+        if self._return_singles_ and isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
-                result = units(result.iloc[0], result.get_units_string())
+                result = units(result.iloc[0], result.get_units_string(),
+                               name={'index': result.index[0], 'name': result.name})
             else:
                 result = result.iloc[0]
-        elif isinstance(result, DataFrame) and len(result) == 1 and len(result.columns) == 1:
+        elif self._return_singles_ and isinstance(result, DataFrame) and len(result) == 1 and len(result.columns) == 1:
             if type(result.iloc[0, 0]) in number:
-                result = units(result.iloc[0, 0], self.get_units_string(list(result.columns)[0]))
+                result = units(result.iloc[0, 0], self.get_units_string(list(result.columns)[0]),
+                               name={'index': result.index[0], 'name': result.columns[0]})
             else:
                 result = result.iloc[0, 0]
         elif type(result) is DataFrame:
