@@ -569,7 +569,7 @@ class SimDataFrame(SimBasics, DataFrame):
                 raise ValueError("Unknown operation")
 
         params_ = self.params_
-        _products = ['*', '/', '//']
+        _products = ['*', '/', '//', '%']
         valid_operations = {
             # operator, Series.method, proposed fill_value
             '+': [DataFrame.add, 'Addition', 0],

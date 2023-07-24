@@ -403,6 +403,8 @@ class SimSeries(SimBasics, Series):
                 return _unit_division(a, b)
             elif operation in ['**', '^']:
                 return _unit_power(a, b)
+            elif operation in ['%']:
+                return a
             elif operation in ['==', '!=', '>=', '<=', '>', '<']:
                 return None
             else:
