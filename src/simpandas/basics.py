@@ -353,6 +353,44 @@ class SimBasics(object, metaclass=SimType):
     def pow(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self._arithmethic_operation(other, operation='**', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
 
+    def __add__(self, other):
+        return self._arithmethic_operation(other, operation='+', fill_value=0)
+
+    def __sub__(self, other):
+        return self._arithmethic_operation(other, operation='-', fill_value=0)
+    def __mul__(self, other):
+        return self._arithmethic_operation(other, operation='*', fill_value=1)
+
+    def __truediv__(self, other):
+        return self._arithmethic_operation(other, operation='/', fill_value=None)
+
+    def __floordiv__(self, other):
+        return self._arithmethic_operation(other, operation='//', fill_value=None, intersection_character='/')
+
+    def __mod__(self, other):
+        return self._arithmethic_operation(other, operation='%', fill_value=None)
+
+    def __pow__(self, other):
+        return self._arithmethic_operation(other, operation='**', fill_value=None)
+
+    def __eq__(self, other):
+        return self._arithmethic_operation(other, operation='==', fill_value=None)
+
+    def __ne__(self, other):
+        return self._arithmethic_operation(other, operation='!=', fill_value=None)
+
+    def __ge__(self, other):
+        return self._arithmethic_operation(other, operation='>=', fill_value=None)
+
+    def __le__(self, other):
+        return self._arithmethic_operation(other, operation='<=', fill_value=None)
+
+    def __gt__(self, other):
+        return self._arithmethic_operation(other, operation='>', fill_value=None)
+
+    def __lt__(self, other):
+        return self._arithmethic_operation(other, operation='<', fill_value=None)
+
     def __neg__(self):
         return self._class(data=self.as_pandas().__neg__(), **self.params_)
 
