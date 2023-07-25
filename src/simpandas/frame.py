@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.22'
-__release__ = 20230724
+__version__ = '0.83.23'
+__release__ = 20230725
 __all__ = ['SimDataFrame']
 
 import logging
@@ -632,7 +632,8 @@ class SimDataFrame(SimBasics, DataFrame):
 
             if not_fount == len(other_i.columns):
                 if self_i.name_separator is not None and other_i.name_separator is not None:
-                    self_c, other_c, new_names = self_i._common_rename(other_i)
+                    self_c, other_c, new_names = self_i._common_rename(other_i,
+                                                                       intersection_character=intersection_character)
 
                     # if no columns has common names
                     if new_names is None:
@@ -650,7 +651,32 @@ class SimDataFrame(SimBasics, DataFrame):
                                 result[col] = other_i[col]
                     else:
                         if (self_i.columns != self_c.columns).any() or (other_i.columns != other_c.columns).any():
-                            result_x = self_c + other_c
+                            if operation == '+':
+                                result_x = self_c + other_c
+                            elif operation == '-':
+                                result_x = self_c - other_c
+                            elif operation == '*':
+                                result_x = self_c * other_c
+                            elif operation == '/':
+                                result_x = self_c / other_c
+                            elif operation == '//':
+                                result_x = self_c // other_c
+                            elif operation == '%':
+                                result_x = self_c % other_c
+                            elif operation in ['**', '^']:
+                                result_x = self_c ** other_c
+                            elif operation == '==':
+                                result_x = self_c == other_c
+                            elif operation == '!=':
+                                result_x = self_c != other_c
+                            elif operation == '>=':
+                                result_x = self_c >= other_c
+                            elif operation == '<=':
+                                result_x = self_c <= other_c
+                            elif operation == '>':
+                                result_x = self_c > other_c
+                            elif operation == 'z':
+                                result_x = self_c < other_c
                             result_x.rename(columns=new_names, inplace=True)
                         else:
                             result_x = result
