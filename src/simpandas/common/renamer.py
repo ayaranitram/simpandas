@@ -6,16 +6,18 @@ Created on Wed Nov 16 18:25:41 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.1'
-__release__ = 20230115
+__version__ = '0.81.2'
+__release__ = 20230725
 __all__ = ['left', 'right', 'rename_left', 'rename_right', 'common_rename']
 
 import warnings
 
+
 def right(series_or_frame, name_separator=None):
     if not hasattr(series_or_frame, 'name_separator') or series_or_frame.name_separator in [None, False, '']:
         if name_separator is None:
-            return {col: col for col in series_or_frame.columns} if hasattr(series_or_frame, 'columns') else {series_or_frame.name: series_or_frame.name}
+            return {col: col for col in series_or_frame.columns} if hasattr(series_or_frame, 'columns') else {
+                series_or_frame.name: series_or_frame.name}
     if name_separator is None and series_or_frame.name_separator not in [None, False, '']:
         name_separator = series_or_frame.name_separator
     if not hasattr(series_or_frame, 'columns'):
@@ -28,7 +30,8 @@ def right(series_or_frame, name_separator=None):
 def left(series_or_frame, name_separator=None):
     if not hasattr(series_or_frame, 'name_separator') or series_or_frame.name_separator in [None, False, '']:
         if name_separator is None:
-            return {col: col for col in series_or_frame.columns} if hasattr(series_or_frame, 'columns') else {series_or_frame.name: series_or_frame.name}
+            return {col: col for col in series_or_frame.columns} if hasattr(series_or_frame, 'columns') else {
+                series_or_frame.name: series_or_frame.name}
     if name_separator is None and series_or_frame.name_separator not in [None, False, '']:
         name_separator = series_or_frame.name_separator
     if not hasattr(series_or_frame, 'columns'):
@@ -79,7 +82,7 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
             return new_name
         else:
             return series_or_frame_1, series_or_frame_2, new_name
-    
+
     # identify type of input objects
     if hasattr(series_or_frame_1, 'type'):
         if series_or_frame_1.type == 'SimSeries':
@@ -144,9 +147,9 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
 
     if left_right is None and \
             (len(set(left(series_or_frame_1, name_separator_1).values())) > 1 and
-            len(set(left(series_or_frame_2, name_separator_2).values())) > 1) and \
+             len(set(left(series_or_frame_2, name_separator_2).values())) > 1) and \
             (len(set(right(series_or_frame_1, name_separator_1).values())) > 1 and
-            len(set(right(series_or_frame_2, name_separator_2).values())) > 1):
+             len(set(right(series_or_frame_2, name_separator_2).values())) > 1):
         return not_possible()
 
     elif left_right == 'l' or (
@@ -160,24 +163,20 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
         series_or_frame_1_left = str(list(left(series_or_frame_1, name_separator_1).values())[0])
         series_or_frame_2_left = str(list(left(series_or_frame_2, name_separator_2).values())[0])
 
-        # common_names = {}
-        # for col in series_or_frame_1_right:
-        #     if col in series_or_frame_2_right:
-        #         common_names[col] = series_or_frame_1_left + intersection_character + series_or_frame_2_left + common_name_separator + str(col)
-        #     else:
-        #         common_names[col] = series_or_frame_1_left + common_name_separator + str(col)
-        # for col in series_or_frame_2_right:
-        #     if col not in series_or_frame_1_right:
-        #         common_names[col] = series_or_frame_2_left + common_name_separator + str(col)
-        common_names = {col: (series_or_frame_1_left + intersection_character + series_or_frame_2_left + common_name_separator + str(col))
-                        if col in series_or_frame_2_right else
-                        series_or_frame_1_left + common_name_separator + str(col)
-                        for col in series_or_frame_1_right}
-        common_names.update({col: (series_or_frame_2_left + common_name_separator + str(col)) 
+        common_names = {
+            col: (series_or_frame_1_left + intersection_character + series_or_frame_2_left
+                  + common_name_separator + str(col))
+            if col in series_or_frame_2_right else
+            series_or_frame_1_left + common_name_separator + str(col)
+            for col in series_or_frame_1_right
+        }
+        common_names.update({col: (series_or_frame_2_left + common_name_separator + str(col))
                              for col in series_or_frame_2_right
                              if col not in series_or_frame_1_right})
 
-        if left_right is None and len(common_names) > 1:
+        if len(common_names) == len(series_or_frame_1.columns) and len(common_names) == len(series_or_frame_2.columns):
+            renamer = rename_right
+        elif left_right is None and len(common_names) > 1:
             alternative = common_rename(series_or_frame_1,
                                         series_or_frame_2,
                                         left_right='right',
@@ -211,24 +210,19 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
         series_or_frame_1_right = str(list(right(series_or_frame_1, name_separator_1).values())[0])
         series_or_frame_2_right = str(list(right(series_or_frame_2, name_separator_2).values())[0])
 
-        # common_names = {}
-        # for col in series_or_frame_1_left:
-        #     if col in series_or_frame_2_left:
-        #         common_names[col] = str(col) + common_name_separator + series_or_frame_1_right + intersection_character + series_or_frame_2_right
-        #     else:
-        #         common_names[col] = str(col) + common_name_separator + series_or_frame_1_right
-        # for col in series_or_frame_2_left:
-        #     if col not in series_or_frame_1_left:
-        #         common_names[col] = str(col) + common_name_separator + series_or_frame_2_right
-        common_names = {col: (str(col) + common_name_separator + series_or_frame_1_right + intersection_character + series_or_frame_2_right)
-                        if col in series_or_frame_2_left else
-                        str(col) + common_name_separator + series_or_frame_1_right
-                        for col in series_or_frame_1_left}
-        common_names.update({col: (str(col) + common_name_separator + series_or_frame_2_right) 
+        common_names = {
+            col: (str(col) + common_name_separator + series_or_frame_1_right
+                  + intersection_character + series_or_frame_2_right)
+            if col in series_or_frame_2_left else
+            str(col) + common_name_separator + series_or_frame_1_right
+            for col in series_or_frame_1_left}
+        common_names.update({col: (str(col) + common_name_separator + series_or_frame_2_right)
                              for col in series_or_frame_2_left
                              if col not in series_or_frame_1_left})
 
-        if left_right is None and len(common_names) > 1:
+        if len(common_names) == len(series_or_frame_1.columns) and len(common_names) == len(series_or_frame_2.columns):
+            renamer = rename_left
+        elif left_right is None and len(common_names) > 1:
             alternative = common_rename(series_or_frame_1,
                                         series_or_frame_2,
                                         left_right='left',
@@ -258,11 +252,13 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
     #     if type(common_name_separator) is str and len(common_name_separator) > 0 and common_name_separator in common_names[name]:
     #         if common_names[name].split(common_name_separator)[0] == common_names[name].split(common_name_separator)[1] and common_names[name].split(common_name_separator)[0] == name:
     #             common_names[name] = name
-    common_names.update({name: name
-                         for name in common_names
-                         if type(common_name_separator) is str and len(common_name_separator) > 0 and common_name_separator in common_names[name] and \
-                             common_names[name].split(common_name_separator)[0] == common_names[name].split(common_name_separator)[1] and common_names[name].split(common_name_separator)[0] == name
-        })
+    common_names.update({
+        name: name for name in common_names
+        if type(common_name_separator) is str and len(common_name_separator) > 0
+           and common_name_separator in common_names[name]
+           and common_names[name].split(common_name_separator)[0] == common_names[name].split(common_name_separator)[1]
+           and common_names[name].split(common_name_separator)[0] == name
+    })
 
     if return_names_dict_only:
         return common_names
