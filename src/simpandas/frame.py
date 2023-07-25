@@ -675,7 +675,7 @@ class SimDataFrame(SimBasics, DataFrame):
                                 result_x = self_c <= other_c
                             elif operation == '>':
                                 result_x = self_c > other_c
-                            elif operation == 'z':
+                            elif operation == '<':
                                 result_x = self_c < other_c
                             result_x.rename(columns=new_names, inplace=True)
                         else:
