@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.22'
-__release__ = 20230724
+__version__ = '0.83.23'
+__release__ = 20230725
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -172,7 +172,7 @@ class SimBasics(object, metaclass=SimType):
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
                 'intersection_character': self.intersection_character if hasattr(self,
-                                                                                 'intersection_character') else '∩',
+                                                                                 'intersection_character') else '&',
                 'verbose': self.verbose if hasattr(self, 'verbose') else False,
                 'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
                     self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
