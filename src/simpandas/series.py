@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.22'
-__release__ = 20230724
+__version__ = '0.83.23'
+__release__ = 20230726
 __all__ = ['SimSeries']
 
 from pandas import Series, DataFrame, Index
@@ -406,7 +406,7 @@ class SimSeries(SimBasics, Series):
             elif operation in ['%']:
                 return a
             elif operation in ['==', '!=', '>=', '<=', '>', '<']:
-                return None
+                return 'unitless'
             else:
                 raise ValueError("Unknown operation")
 
@@ -545,7 +545,7 @@ class SimSeries(SimBasics, Series):
         else:
             result = op_method(self.as_pandas(), other, level=level, fill_value=fill_value, axis=axis)
 
-        if operation in ['//']:
+        if operation == '//':
             params_['dtype'] = result.dtype
         else:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
@@ -954,15 +954,17 @@ class SimSeries(SimBasics, Series):
                 units_dict[self.index.name] = self.index_units
         elif type(self.units) is str:
             units_dict = {self.name: self.units}
-            if self.index_name not in units_dict:
+            if self.index_name not in units_dict and self.index_units is not None:
                 units_dict[self.index_name] = self.index_units
             elif self.index_units != units_dict[self.index_name]:
                 if self.index_name not in self.columns:
                     units_dict[self.index_name] = self.index_units
                 else:
                     units_dict[str(self.index_name) + '_index_'] = self.index_units
-        elif type(self.units) is dict:
-            units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index }
+        elif type(self.units) is dict and len(self.units) == 0:
+            units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index}
+            if len(set(units_dict.values())) == 1:
+                units_dict = {self.name: list(units_dict.values())[0]}
         else:
             units_dict = self.units.copy() if type(self.units) is dict else {self.name: self.units}
         return units_dict

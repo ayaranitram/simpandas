@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.23'
-__release__ = 20230725
+__version__ = '0.83.25'
+__release__ = 20230726
 __all__ = ['SimDataFrame']
 
 import logging
@@ -651,32 +651,12 @@ class SimDataFrame(SimBasics, DataFrame):
                                 result[col] = other_i[col]
                     else:
                         if (self_i.columns != self_c.columns).any() or (other_i.columns != other_c.columns).any():
-                            if operation == '+':
-                                result_x = self_c + other_c
-                            elif operation == '-':
-                                result_x = self_c - other_c
-                            elif operation == '*':
-                                result_x = self_c * other_c
-                            elif operation == '/':
-                                result_x = self_c / other_c
-                            elif operation == '//':
-                                result_x = self_c // other_c
-                            elif operation == '%':
-                                result_x = self_c % other_c
-                            elif operation in ['**', '^']:
-                                result_x = self_c ** other_c
-                            elif operation == '==':
-                                result_x = self_c == other_c
-                            elif operation == '!=':
-                                result_x = self_c != other_c
-                            elif operation == '>=':
-                                result_x = self_c >= other_c
-                            elif operation == '<=':
-                                result_x = self_c <= other_c
-                            elif operation == '>':
-                                result_x = self_c > other_c
-                            elif operation == '<':
-                                result_x = self_c < other_c
+                            result_x = self_c._arithmethic_operation(other_c,
+                                                                     operation=operation,
+                                                                     level=level,
+                                                                     fill_value=fill_value,
+                                                                     axis=axis,
+                                                                     intersection_character=intersection_character)
                             result_x.rename(columns=new_names, inplace=True)
                         else:
                             result_x = result
