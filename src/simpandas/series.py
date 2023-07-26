@@ -9,6 +9,8 @@ __version__ = '0.83.23'
 __release__ = 20230726
 __all__ = ['SimSeries']
 
+import logging
+
 from pandas import Series, DataFrame, Index
 from pandas.errors import IndexingError, InvalidIndexError
 from io import StringIO
@@ -944,29 +946,36 @@ class SimSeries(SimBasics, Series):
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        dict
+            A dictionary of series.name or index.values as keys and their units as values.
 
         """
         if self.units is None:
             units_dict = {self.name: 'unitless'}
-            if self.index.name is not None and self.index_units is not None:
-                units_dict[self.index.name] = self.index_units
-        elif type(self.units) is str:
+        elif type(self.units) is str or (type(self.units) is dict and len(self.units) == 0):
             units_dict = {self.name: self.units}
-            if self.index_name not in units_dict and self.index_units is not None:
-                units_dict[self.index_name] = self.index_units
-            elif self.index_units != units_dict[self.index_name]:
-                if self.index_name not in self.columns:
-                    units_dict[self.index_name] = self.index_units
-                else:
-                    units_dict[str(self.index_name) + '_index_'] = self.index_units
-        elif type(self.units) is dict and len(self.units) == 0:
-            units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index}
-            if len(set(units_dict.values())) == 1:
-                units_dict = {self.name: list(units_dict.values())[0]}
+        elif type(self.units) is dict:
+            units_dict = self.units.copy()
         else:
-            units_dict = self.units.copy() if type(self.units) is dict else {self.name: self.units}
+            raise TypeError("unexpected type of .units attribute")
+
+        if self.index_units is None:
+            pass
+        elif self.index.name is None:
+            if '_index_' in units_dict and units_dict['_index_'] == self.index_units:
+                self.index_name = '_index_'
+            elif '_index_' not in units_dict:
+                self.index_name = '_index_'
+                units_dict['_index_'] == self.index_units
+            else:
+                logging.warn("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
+        elif self.index_name not in units_dict:
+            units_dict[self.index_name] = self.index_units
+        elif self.index_units != units_dict[self.index_name]:
+            if self.index_name not in self.columns:
+                units_dict[self.index_name] = self.index_units
+            else:
+                units_dict[str(self.index_name) + '_index_'] = self.index_units
         return units_dict
 
     def set_units(self, units, item=None):
