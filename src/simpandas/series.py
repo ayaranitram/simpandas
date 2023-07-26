@@ -381,7 +381,7 @@ class SimSeries(SimBasics, Series):
             value, units = value[0], value[1]
         if units is not None:
             if type(self.units) is str or type(self.units) is dict and self.name in self.units:
-                self_units = self.units if type(self.units) is str else self.units[name]
+                self_units = self.units if type(self.units) is str else self.units[self.name]
                 if _convertible(units, self_units):
                     value = _converter(value, units, self_units)
                 else:
