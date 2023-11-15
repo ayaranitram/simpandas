@@ -5,9 +5,11 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.20'
-__release__ = 20230719
+__version__ = '0.83.23'
+__release__ = 20230726
 __all__ = ['SimSeries']
+
+import logging
 
 from pandas import Series, DataFrame, Index
 from pandas.errors import IndexingError, InvalidIndexError
@@ -100,7 +102,8 @@ class SimSeries(SimBasics, Series):
                  '_auto_append_',
                  '_operate_per_name_',
                  '_transposed_',
-                 '_reverse_',]
+                 '_reverse_',
+                 '_return_singles_']
 
     def __init__(self,
                  data=None,
@@ -121,6 +124,7 @@ class SimSeries(SimBasics, Series):
                  transposed=False,
                  meta=None,
                  source_path=None,
+                 return_singles=None,
                  *args, **kwargs):
 
         self.units = {}
@@ -136,6 +140,7 @@ class SimSeries(SimBasics, Series):
         self._operate_per_name_ = bool(operate_per_name)
         self._transposed_ = bool(transposed)
         self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
+        self._return_singles_ = True if return_singles is None else bool(return_singles)
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -245,11 +250,13 @@ class SimSeries(SimBasics, Series):
         if type(self.units) is str:
             return SimDataFrame(data=self)
         elif type(self.units) is dict:
+            params = self.params_
+            params['return_singles'] = False
             return SimDataFrame(
                 data=self.values.reshape(1, self.values.size),
                 index=[self.name],
                 columns=self.index,
-                **self.params_)
+                **params)
 
     def as_simdataframe(self):
         return self.to_simdataframe()
@@ -307,9 +314,9 @@ class SimSeries(SimBasics, Series):
                         result = self.as_simdataframe()[key]
                     except:
                         raise KeyError("the requested Key is not a valid index or name: " + str(key))
-        if isinstance(result, Series) and len(result) == 1:
+        if self._return_singles_ and isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
-                result = units(result.iloc[0], result.get_units_string())
+                result = units(result.iloc[0], result.get_units_string(), name={'index': key, 'name':self.name})
             else:
                 result = result.iloc[0]
         return result
@@ -371,6 +378,22 @@ class SimSeries(SimBasics, Series):
         else:
             return result
 
+    def __setitem__(self, key, value, units=None):
+        if type(value) is tuple and units is None and len(value) == 2 and type(value[1]) in [str, list, dict]:
+            value, units = value[0], value[1]
+        if units is not None:
+            if type(self.units) is str or type(self.units) is dict and self.name in self.units:
+                self_units = self.units if type(self.units) is str else self.units[self.name]
+                if _convertible(units, self_units):
+                    value = _converter(value, units, self_units)
+                else:
+                    warnings.warn(f"not possible to convert value from {units} to {self_units}")
+                    self.units = {i: self.units for i in self.index}
+                    self.units[key] = units
+            elif key in self.units:
+                self.units[key] = units
+        super().__setitem__(key, value)
+
     def _arithmethic_operation(self, other, operation: str=None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
@@ -380,12 +403,12 @@ class SimSeries(SimBasics, Series):
                 return _unit_product(a, b)
             elif operation in ['/', '//']:
                 return _unit_division(a, b)
-            elif operation in ['**']:
+            elif operation in ['**', '^']:
                 return _unit_power(a, b)
             elif operation in ['%']:
                 return a
             elif operation in ['==', '!=', '>=', '<=', '>', '<']:
-                return None
+                return 'unitless'
             else:
                 raise ValueError("Unknown operation")
 
@@ -435,6 +458,7 @@ class SimSeries(SimBasics, Series):
                     _convertible(other.index.units, self.index.units):
                 other = other.index_to(self.index.units)
 
+            # calculate the operation, if both have string type units
             if type(self.units) is str and type(other.units) is str:
                 new_name = _string_new_name(
                     self._common_rename(other, intersection_character=intersection_character, return_names_dict_only=True),
@@ -479,11 +503,16 @@ class SimSeries(SimBasics, Series):
                             else:
                                 params_['units'][k] = u
                     else:
-                        raise NotImplementedError(op_label + ' of SimSeries with different units is not implemented.')
+                        raise NotImplementedError(f'{op_label} of SimSeries with different units is not implemented.')
                 params_['name'] = new_name
                 result = self._class(data=result, **params_)
+            elif type(self.units) is dict and type(other.units) is dict:
+                result = self.to_SimDataFrame()._arithmethic_operation(other.to_SimDataFrame(), operation=operation,
+                                                                       level=level, fill_value=fill_value, axis=axis,
+                                                                       intersection_character=intersection_character
+                                                                       ).to_SimSeries()
             else:
-                raise NotImplementedError
+                raise NotImplementedError(f'not implemented operation for SimSeries with {self.units} and {other.units} type of units definition.')
 
         # other is Pandas Series
         elif isinstance(other, Series):
@@ -518,7 +547,7 @@ class SimSeries(SimBasics, Series):
         else:
             result = op_method(self.as_pandas(), other, level=level, fill_value=fill_value, axis=axis)
 
-        if operation in ['//']:
+        if operation == '//':
             params_['dtype'] = result.dtype
         else:
             params_['dtype'] = self.dtype if result.astype(self.dtype).equals(result) else result.dtype
@@ -552,43 +581,6 @@ class SimSeries(SimBasics, Series):
             warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
             return operation(self.as_pandas().round(precision), other.as_pandas().round(precision),
                              level=level, fill_value=fill_value, axis=axis)
-
-    def __add__(self, other):
-        return self._arithmethic_operation(other, operation='+', fill_value=0)
-
-    def __sub__(self, other):
-        return self._arithmethic_operation(other, operation='-', fill_value=0)
-    def __mul__(self, other):
-        return self._arithmethic_operation(other, operation='*', fill_value=1)
-
-    def __truediv__(self, other):
-        return self._arithmethic_operation(other, operation='/', fill_value=None)
-
-    def __floordiv__(self, other):
-        return self._arithmethic_operation(other, operation='//', fill_value=None, intersection_character='/')
-
-    def __mod__(self, other):
-        return self._arithmethic_operation(other, operation='%', fill_value=None)
-    def __pow__(self, other):
-        return self._arithmethic_operation(other, operation='**', fill_value=None)
-
-    def __eq__(self, other):
-        return self._arithmethic_operation(other, operation='==', fill_value=None)
-
-    def __ne__(self, other):
-        return self._arithmethic_operation(other, operation='!=', fill_value=None)
-
-    def __ge__(self, other):
-        return self._arithmethic_operation(other, operation='>=', fill_value=None)
-
-    def __le__(self, other):
-        return self._arithmethic_operation(other, operation='<=', fill_value=None)
-
-    def __gt__(self, other):
-        return self._arithmethic_operation(other, operation='>', fill_value=None)
-
-    def __lt__(self, other):
-        return self._arithmethic_operation(other, operation='<', fill_value=None)
 
     def astype(self, dtype, copy=True, errors='raise'):
         params_ = self.params_
@@ -954,27 +946,36 @@ class SimSeries(SimBasics, Series):
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        dict
+            A dictionary of series.name or index.values as keys and their units as values.
 
         """
         if self.units is None:
             units_dict = {self.name: 'unitless'}
-            if self.index.name is not None and self.index_units is not None:
-                units_dict[self.index.name] = self.index_units
-        elif type(self.units) is str:
+        elif type(self.units) is str or (type(self.units) is dict and len(self.units) == 0):
             units_dict = {self.name: self.units}
-            if self.index_name not in units_dict:
-                units_dict[self.index_name] = self.index_units
-            elif self.index_units != units_dict[self.index_name]:
-                if self.index_name not in self.columns:
-                    units_dict[self.index_name] = self.index_units
-                else:
-                    units_dict[str(self.index_name) + '_index_'] = self.index_units
         elif type(self.units) is dict:
-            units_dict = {each: (self.units[each] if each in self.units else 'unitless') for each in self.index }
+            units_dict = self.units.copy()
         else:
-            units_dict = self.units.copy() if type(self.units) is dict else {self.name: self.units}
+            raise TypeError("unexpected type of .units attribute")
+
+        if self.index_units is None:
+            pass
+        elif self.index.name is None:
+            if '_index_' in units_dict and units_dict['_index_'] == self.index_units:
+                self.index_name = '_index_'
+            elif '_index_' not in units_dict:
+                self.index_name = '_index_'
+                units_dict['_index_'] == self.index_units
+            else:
+                logging.warn("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
+        elif self.index_name not in units_dict:
+            units_dict[self.index_name] = self.index_units
+        elif self.index_units != units_dict[self.index_name]:
+            if self.index_name not in self.columns:
+                units_dict[self.index_name] = self.index_units
+            else:
+                units_dict[str(self.index_name) + '_index_'] = self.index_units
         return units_dict
 
     def set_units(self, units, item=None):

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.19'
-__release__ = 20230717
+__version__ = '0.83.23'
+__release__ = 20230726
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -172,7 +172,7 @@ class SimBasics(object, metaclass=SimType):
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
                 'intersection_character': self.intersection_character if hasattr(self,
-                                                                                 'intersection_character') else '∩',
+                                                                                 'intersection_character') else '&',
                 'verbose': self.verbose if hasattr(self, 'verbose') else False,
                 'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
                     self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
@@ -184,6 +184,7 @@ class SimBasics(object, metaclass=SimType):
                     self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
                 'meta': self.meta if hasattr(self, 'meta') else False,
                 'source_path': self.source_path if hasattr(self, 'source_path') else None,
+                'return_singles': self._return_singles_ if hasattr(self, '_return_singles_') else None,
                 }
 
     def tail(self, n=5):
@@ -351,6 +352,44 @@ class SimBasics(object, metaclass=SimType):
 
     def pow(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         return self._arithmethic_operation(other, operation='**', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+
+    def __add__(self, other):
+        return self._arithmethic_operation(other, operation='+', fill_value=0)
+
+    def __sub__(self, other):
+        return self._arithmethic_operation(other, operation='-', fill_value=0)
+    def __mul__(self, other):
+        return self._arithmethic_operation(other, operation='*', fill_value=1)
+
+    def __truediv__(self, other):
+        return self._arithmethic_operation(other, operation='/', fill_value=None)
+
+    def __floordiv__(self, other):
+        return self._arithmethic_operation(other, operation='//', fill_value=None, intersection_character='/')
+
+    def __mod__(self, other):
+        return self._arithmethic_operation(other, operation='%', fill_value=None)
+
+    def __pow__(self, other):
+        return self._arithmethic_operation(other, operation='**', fill_value=None)
+
+    def __eq__(self, other):
+        return self._arithmethic_operation(other, operation='==', fill_value=None)
+
+    def __ne__(self, other):
+        return self._arithmethic_operation(other, operation='!=', fill_value=None)
+
+    def __ge__(self, other):
+        return self._arithmethic_operation(other, operation='>=', fill_value=None)
+
+    def __le__(self, other):
+        return self._arithmethic_operation(other, operation='<=', fill_value=None)
+
+    def __gt__(self, other):
+        return self._arithmethic_operation(other, operation='>', fill_value=None)
+
+    def __lt__(self, other):
+        return self._arithmethic_operation(other, operation='<', fill_value=None)
 
     def __neg__(self):
         return self._class(data=self.as_pandas().__neg__(), **self.params_)

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.14'
-__release__ = 20230715
+__version__ = '0.83.25'
+__release__ = 20230726
 __all__ = ['SimDataFrame']
 
 import logging
@@ -107,7 +107,8 @@ class SimDataFrame(SimBasics, DataFrame):
                  '_auto_append_',
                  '_operate_per_name_',
                  '_transposed_',
-                 '_reverse_']
+                 '_reverse_',
+                 '_return_singles_']
 
     def __init__(self,
                  data=None,
@@ -127,6 +128,7 @@ class SimDataFrame(SimBasics, DataFrame):
                  transposed_=False,
                  meta=None,
                  source_path=None,
+                 return_singles=None,
                  *args, **kwargs):
 
         self.units = {}
@@ -143,6 +145,7 @@ class SimDataFrame(SimBasics, DataFrame):
         self._operate_per_name_ = bool(operate_per_name)
         self._transposed_ = bool(transposed_)
         self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
+        self._return_singles_ = False if return_singles is None else bool(return_singles)
 
         # get units from data if it is SimDataFrame or SimSeries
         if units is None or (type(units) in [list, dict] and len(units) == 0):
@@ -224,15 +227,46 @@ class SimDataFrame(SimBasics, DataFrame):
     def _constructor_sliced(self):
         return SimSeries
 
-    @property
-    def _class(self):
-        return SimDataFrame
+    def to_pandas(self):
+        return self.to_dataframe()
 
-    def __repr__(self):
-        """
-        Return a string representation for a particular DataFrame, with Units.
-        """
-        return self._DataFrame_with_MultiIndex().__repr__()
+    def as_pandas(self):
+        return self.as_dataframe()
+
+    def to_series(self):
+        return self.to_simseries().to_series()
+
+    def as_series(self):
+        return self.as_simseries().as_series()
+
+    def to_simseries(self):
+        if len(self.columns) == 1:
+            return self[self.columns[0]]
+        if len(self) <= 1:
+            params = self.params_
+            params['return_singles'] = True
+            return SimSeries(
+                data=Series(
+                    self.to_pandas().iloc[0].to_list(),
+                    name=self.index[0],
+                    index=self.columns.to_list()),
+                **params)
+        raise TypeError('Not possible to converto to SimSeries')
+
+    def as_simseries(self):
+        return self.to_simseries()
+
+    def to_dataframe(self):
+        return DataFrame(self.copy())
+
+    def as_dataframe(self):
+        return DataFrame(self)
+
+    def to_simdataframe(self):
+        return self
+
+    def as_simdataframe(self):
+        return self
 
     def __call__(self, key=None):
         if key is None:
@@ -415,14 +449,16 @@ class SimDataFrame(SimBasics, DataFrame):
         if by_index and isinstance(result, (Series, SimSeries)):
             result = _series_to_frame(result)
 
-        if isinstance(result, Series) and len(result) == 1:
+        if self._return_singles_ and isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
-                result = units(result.iloc[0], result.get_units_string())
+                result = units(result.iloc[0], result.get_units_string(),
+                               name={'index': result.index[0], 'name': result.name})
             else:
                 result = result.iloc[0]
-        elif isinstance(result, DataFrame) and len(result) == 1 and len(result.columns) == 1:
+        elif self._return_singles_ and isinstance(result, DataFrame) and len(result) == 1 and len(result.columns) == 1:
             if type(result.iloc[0, 0]) in number:
-                result = units(result.iloc[0, 0], self.get_units_string(list(result.columns)[0]))
+                result = units(result.iloc[0, 0], self.get_units_string(list(result.columns)[0]),
+                               name={'index': result.index[0], 'name': result.columns[0]})
             else:
                 result = result.iloc[0, 0]
         elif type(result) is DataFrame:
@@ -431,16 +467,21 @@ class SimDataFrame(SimBasics, DataFrame):
             result = SimSeries(result, **self.params_)
         return result
 
+    def __repr__(self):
+        """
+        Return a string representation for a particular DataFrame, with Units.
+        """
+        return self._DataFrame_with_MultiIndex().__repr__()
+
     def __setitem__(self, key, value, units=None):
         u_dict = {}
         if type(key) is str:
             key = key.strip()
-        if type(value) is tuple and len(value) == 2 and type(value[1]) in [str,
-                                                                           dict] and units is None:  # and type(value[0]) in [SimSeries, Series, list, tuple, ndarray,float,int,str]
+        if type(value) is tuple and units is None and len(value) == 2 and type(value[1]) in [str, dict]:  # and type(value[0]) in [SimSeries, Series, list, tuple, ndarray,float,int,str]
             value, units = value[0], value[1]
         if type(value) is SimDataFrame and len(value.index) == 1 and type(key) is not slice and (
-                (key in self.index or _to_datetime(key) in self.index) and (
-                key not in self.columns and _to_datetime(key) not in self.columns)):
+                (key in self.index or to_datetime(key) in self.index) and (
+                key not in self.columns and to_datetime(key) not in self.columns)):
             self.loc[key] = value
             return None
         if units is None:
@@ -509,31 +550,43 @@ class SimDataFrame(SimBasics, DataFrame):
                 else:
                     self.new_units(self.columns[c], 'unitless')
 
-    def _arithmethic_operation(self, other, operation: str = None, level=None, fill_value=None, axis=0,
+    def _arithmethic_operation(self, other, operation: str=None, level=None, fill_value=None, axis=0,
                                intersection_character=None):
         def _units_operation(a, b, operation):
-            if operation in ['+', '-', '%']:
+            if operation in ['+', '-']:
                 return _unit_addition(a, b)
             elif operation in ['*']:
                 return _unit_product(a, b)
             elif operation in ['/', '//']:
                 return _unit_division(a, b)
-            elif operation in ['**']:
+            elif operation in ['**', '^']:
                 return _unit_power(a, b)
+            elif operation in ['%']:
+                return a
+            elif operation in ['==', '!=', '>=', '<=', '>', '<']:
+                return None
             else:
                 raise ValueError("Unknown operation")
 
         params_ = self.params_
-        _products = ['*', '/', '//']
-        valid_operations = {# operator, Series.method, proposed fill_value
-                            '+': [Series.add, 'Addition', 0],
-                            '-': [Series.sub, 'Subtraction', 0],
-                            '*': [Series.mul, 'Product', 1],
-                            '/': [Series.truediv, 'Division', None],
-                            '//': [eries.floordiv, 'Floor Division', None],
-                            '%': [Series.mod, 'Module', None],
-                            '**': [eries.pow, 'Power', None],
-                            '^': [Series.pow, 'Power', None]}
+        _products = ['*', '/', '//', '%']
+        valid_operations = {
+            # operator, Series.method, proposed fill_value
+            '+': [DataFrame.add, 'Addition', 0],
+            '-': [DataFrame.sub, 'Subtraction', 0],
+            '*': [DataFrame.mul, 'Product', 1],
+            '/': [DataFrame.truediv, 'Division', None],
+            '//': [DataFrame.floordiv, 'Floor Division', None],
+            '%': [DataFrame.mod, 'Module', None],
+            '**': [DataFrame.pow, 'Power', None],
+            '^': [DataFrame.pow, 'Power', None],
+            '==': [DataFrame.eq, 'Equality', None],
+            '!=': [DataFrame.ne, 'Inequality', None],
+            '>=': [DataFrame.ge, 'Greater or Equal', None],
+            '<=': [DataFrame.le, 'Lower or Equal', None],
+            '>': [DataFrame.gt, 'Greater', None],
+            '<': [DataFrame.lt, 'Lower', None],
+        }
         assert operation in valid_operations
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
@@ -575,11 +628,12 @@ class SimDataFrame(SimBasics, DataFrame):
                                                                      intersection_character=intersection_character)
                 else:
                     not_fount += 1
-                    result[col] = other_i[col]
+                    # result[col] = other_i[col]
 
             if not_fount == len(other_i.columns):
                 if self_i.name_separator is not None and other_i.name_separator is not None:
-                    self_c, other_c, new_names = self_i._common_rename(other_i)
+                    self_c, other_c, new_names = self_i._common_rename(other_i,
+                                                                       intersection_character=intersection_character)
 
                     # if no columns has common names
                     if new_names is None:
@@ -597,7 +651,12 @@ class SimDataFrame(SimBasics, DataFrame):
                                 result[col] = other_i[col]
                     else:
                         if (self_i.columns != self_c.columns).any() or (other_i.columns != other_c.columns).any():
-                            result_x = self_c + other_c
+                            result_x = self_c._arithmethic_operation(other_c,
+                                                                     operation=operation,
+                                                                     level=level,
+                                                                     fill_value=fill_value,
+                                                                     axis=axis,
+                                                                     intersection_character=intersection_character)
                             result_x.rename(columns=new_names, inplace=True)
                         else:
                             result_x = result
@@ -607,452 +666,6 @@ class SimDataFrame(SimBasics, DataFrame):
                         else:
                             result = result_x
             return result
-
-
-    def __add__(self, other):
-        # both are SimDataFrame
-        if isinstance(other, SimDataFrame):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            not_fount = 0
-
-            self_i, other_i = self._joined_index(other)
-            result = self_i.copy()
-
-            for col in other_i.columns:
-                if col in self_i.columns:
-                    result[col] = self_i[col] + other_i[col]
-                else:
-                    not_fount += 1
-                    result[col] = other_i[col]
-
-            if not_fount == len(other_i.columns):
-                if self_i.name_separator is not None and other_i.name_separator is not None:
-                    self_c, other_c, new_names = self_i._common_rename(other_i)
-
-                    # if no columns has common names
-                    if new_names is None:
-                        if len(other_c.columns) == 1 and not self._auto_append_:  # just in case there is only one column in the second operand
-                            return self_c + other_c.to_simseries()
-                        elif not self._auto_append_:
-                            raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-                        else:  # self._auto_append_ is True
-                            for col in other_i.columns:
-                                result[col] = other_i[col]
-                    else:
-                        if (self_i.columns != self_c.columns).any() or (other_i.columns != other_c.columns).any():
-                            result_x = self_c + other_c
-                            result_x.rename(columns=new_names, inplace=True)
-                        else:
-                            result_x = result
-                        if self._auto_append_:
-                            for col in new_names.values():
-                                result[col] = result_x[col]
-                        else:
-                            result = result_x
-            return result
-
-        # other is SimSeries
-        elif isinstance(other, (SimSeries, Series)):
-            if type(other) is Series:
-                other = SimSeries(other, **self.params_)
-            self_i, other_i = self._joined_index(other)
-            other_i = other_i.to_simseries()
-            result = self_i.copy()
-            if self._operate_per_name_ and other_i.name in self_i.columns:
-                result[other_i.name] = self_i[other_i.name] + other_i
-            elif self_i._auto_append_:
-                result[other_i.name] = other_i
-            else:
-                for col in self_i.columns:
-                    result[col] = self_i[col] + other_i
-            return result
-
-        # other is Pandas DataFrame
-        elif isinstance(other, DataFrame):
-            # result = self.as_pandas().add(other, fill_value=0)
-            self_c, other_c, new_names = self._common_rename(SimDataFrame(other, **self.params_))
-            result = self_c + other_c
-            return result if new_names is None else result.rename(columns=new_names)
-
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_DataFrame() + other
-            return SimDataFrame(data=result, **self.params_)
-
-    def __sub__(self, other):
-        # both are SimDataFrame
-        if isinstance(other, SimDataFrame):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-            notFount = 0
-
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-
-            for col in otherI.columns:
-                if col in selfI.columns:
-                    result[col] = selfI[col] - otherI[col]
-                else:
-                    notFount += 1
-                    result[col] = otherI[col] if selfI.intersection_character in col else -otherI[col]
-
-            if notFount == len(otherI.columns):
-                if selfI.name_separator is not None and otherI.name_separator is not None:
-                    selfC, otherC, newNames = selfI._common_rename(otherI)
-
-                    # if no columns has common names
-                    if newNames is None:
-                        if len(otherC.columns) == 1:  # just in case there is only one column in the second operand
-                            return selfC - otherC.to_simseries()
-                        else:
-                            raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-
-                    resultX = selfC - otherC
-                    resultX.rename(columns=newNames, inplace=True)
-                    if self._auto_append_:
-                        for col in newNames.values():
-                            result[col] = resultX[col]
-                    else:
-                        result = resultX
-            return result
-
-        # other is SimSeries
-        elif isinstance(other, (SimSeries, Series)):
-            if type(other) is Series:
-                other = SimSeries(other, **self.params_)
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-            if self._operate_per_name_ and otherI.name in selfI.columns:
-                result[otherI.name] = selfI[otherI.name] - otherI
-            if self._auto_append_:  # elif self._auto_append_:
-                result[otherI.name] = -otherI
-            else:
-                for col in selfI.columns:
-                    result[col] = selfI[col] - otherI
-            return result
-
-        # other is Pandas DataFrame
-        elif isinstance(other, DataFrame):
-            # result = self.as_pandas().sub(other, fill_value=0)
-            selfC, otherC, newNames = self._common_rename(SimDataFrame(other, **self.params_))
-            result = selfC - otherC
-            return result if newNames is None else result.rename(columns=newNames)
-
-        # let's Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_DataFrame() - other
-            return SimDataFrame(data=result, **self.params_)
-
-    def __mul__(self, other):
-        # both are SimDataFrame
-        if isinstance(other, SimDataFrame):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-
-            self_i, other_i = self._joined_index(other)
-            result = self_i.copy()
-
-            not_fount = 0
-            for col in other_i.columns:
-                if col in self_i.columns:
-                    result[col] = self_i[col] * other_i[col]
-                else:
-                    not_fount += 1
-
-            if not_fount == len(other_i.columns):
-                if self_i.name_separator is not None and other_i.name_separator is not None:
-                    self_c, other_c, new_names = self_i._common_rename(other_i)
-
-                    # if no columns has common names
-                    if new_names is None:
-                        if len(other_c.columns) == 1:  # just in case there is only one column in the second operand
-                            return self_c * other_c.to_simseries()
-                        else:
-                            raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-
-                    result_x = self_c * other_c
-                    result_x.rename(columns=new_names, inplace=True)
-                    if self._auto_append_:
-                        for col in new_names.values():
-                            if self.intersection_character in col:  # intersection_character = '∩'
-                                result[col] = result_x[col]
-                    else:
-                        result = result_x
-
-            return result
-
-        # other is SimSeries
-        elif isinstance(other, (SimSeries, Series)):
-            if type(other) is Series:
-                other = SimSeries(other, **self.params_)
-            self_i, other_i = self._joined_index(other)
-            result = self_i.copy()
-            if self._operate_per_name_ and other_i.name in self_i.columns:
-                result[other_i.name] = self[other_i.name] * other_i
-            else:
-                for col in self_i.columns:
-                    result[col] = self_i[col] * other_i
-            return result
-
-        # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, DataFrame):
-            return self.__mul__(SimDataFrame(data=other, **self.params_))
-
-        # let's Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_DataFrame() * other
-            return SimDataFrame(data=result, **self.params_)
-
-    def __truediv__(self, other):
-        # both are SimDataFrame
-        if isinstance(other, SimDataFrame):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-
-            notFount = 0
-            for col in otherI.columns:
-                if col in selfI.columns:
-                    result[col] = selfI[col] / otherI[col]
-                else:
-                    notFount += 1
-
-            if notFount == len(otherI.columns):
-                if self.name_separator is not None and otherI.name_separator is not None:
-                    selfC, otherC, newNames = selfI._common_rename(otherI)
-
-                    # if no columns has common names
-                    if newNames is None:
-                        if len(otherC.columns) == 1:  # just in case there is only one column in the divisor
-                            return selfC / otherC.to_simseries()
-                        else:
-                            raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-
-                    resultX = selfC / otherC
-                    resultX.rename(columns=newNames, inplace=True)
-                    if self._auto_append_:
-                        for col in newNames.values():
-                            if self.intersection_character in col:  # intersection_character = '∩'
-                                result[col] = resultX[col]
-                    else:
-                        result = resultX
-            return result
-
-        # other is SimSeries
-        elif isinstance(other, (SimSeries, Series)):
-            if type(other) is Series:
-                other = SimSeries(other, **self.params_)
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-            if self._operate_per_name_ and otherI.name in selfI.columns:
-                result[otherI.name] = selfI[otherI.name] / otherI
-            else:
-                for col in selfI.columns:
-                    result[col] = selfI[col] / otherI
-            return result
-
-        # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, DataFrame):
-            return self.__truediv__(SimDataFrame(data=other, **self.params_))
-
-        # let's Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_DataFrame() / other
-            return SimDataFrame(data=result, **self.params_)
-
-    def __floordiv__(self, other):
-        # both are SimDataFrame
-        if isinstance(other, SimDataFrame):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-
-            notFount = 0
-            for col in otherI.columns:
-                if col in selfI.columns:
-                    result[col] = selfI[col] // otherI[col]
-                else:
-                    notFount += 1
-
-            if notFount == len(otherI.columns):
-                if selfI.name_separator is not None and otherI.name_separator is not None:
-                    selfC, otherC, newNames = selfI._common_rename(otherI)
-
-                    # if no columns has common names
-                    if newNames is None:
-                        if len(otherC.columns) == 1:  # just in case there is only one column in the second operand
-                            return selfC // otherC.to_simseries()
-                        else:
-                            raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-
-                    resultX = selfC // otherC
-                    resultX.rename(columns=newNames, inplace=True)
-                    if self._auto_append_:
-                        for col in newNames.values():
-                            if self.intersection_character in col:  # intersection_character = '∩'
-                                result[col] = resultX[col]
-                    else:
-                        result = resultX
-            return result
-
-        # other is SimSeries
-        elif isinstance(other, (SimSeries, Series)):
-            if type(other) is Series:
-                other = SimSeries(other, **self.params_)
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-            if self._operate_per_name_ and otherI.name in selfI.columns:
-                result[otherI.name] = selfI[otherI.name] // otherI
-            else:
-                for col in self.columns:
-                    result[col] = self[col] // other
-            return result
-
-        # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, DataFrame):
-            return self.__floordiv__(SimDataFrame(data=other, **self.params_))
-
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_DataFrame() // other
-            return SimDataFrame(data=result, **self.params_)
-
-    def __mod__(self, other):
-        # both are SimDataFrame
-        if isinstance(other, SimDataFrame):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-
-            notFount = 0
-            for col in otherI.columns:
-                if col in selfI.columns:
-                    result[col] = selfI[col] % otherI[col]
-                else:
-                    notFount += 1
-
-            if notFount == len(otherI.columns):
-                if selfI.name_separator is not None and otherI.name_separator is not None:
-                    selfC, otherC, newNames = selfI._common_rename(otherI)
-
-                    # if no columns has common names
-                    if newNames is None:
-                        if len(otherC.columns) == 1:  # just in case there is only one column in the second operand
-                            return selfC % otherC.to_simseries()
-                        else:
-                            raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-
-                    resultX = selfC % otherC
-                    resultX.rename(columns=newNames, inplace=True)
-                    if self._auto_append_:
-                        for col in newNames.values():
-                            if self.intersection_character in col:  # intersection_character = '∩'
-                                result[col] = resultX[col]
-                    else:
-                        result = resultX
-            return result
-
-        # other is SimSeries
-        elif isinstance(other, (SimSeries, Series)):
-            if type(other) is Series:
-                other = SimSeries(other, **self.params_)
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-            if self._operate_per_name_ and otherI.name in selfI.columns:
-                result[otherI.name] = selfI[other.name] % otherI
-            else:
-                for col in selfI.columns:
-                    result[col] = selfI[col] % otherI
-            return result
-
-        # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, DataFrame):
-            return self.__mod__(SimDataFrame(data=other, **self.params_))
-
-        # let's Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_DataFrame() % other
-            return SimDataFrame(data=result, **self.params_)
-
-    def __pow__(self, other):
-        # both are SimDataFrame
-        if isinstance(other, SimDataFrame):
-            if self.index.name is not None and other.index.name is not None and self.index.name != other.index.name:
-                Warning(
-                    "indexes of both SimDataFrames are not of the same kind:\n   '" + self.index.name + "' != '" + other.index.name + "'")
-
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-
-            notFount = 0
-            for col in otherI.columns:
-                if col in selfI.columns:
-                    result[col] = selfI[col] ** otherI[col]
-                else:
-                    notFount += 1
-
-            if notFount == len(otherI.columns):
-                if selfI.name_separator is not None and otherI.name_separator is not None:
-                    selfC, otherC, newNames = self._common_rename(otherI)
-
-                    # if no columns has common names
-                    if newNames is None:
-                        if len(otherC.columns) == 1:  # just in case there is only one column in the second operand
-                            return selfC ** otherC.to_simseries()
-                        else:
-                            raise TypeError("Not possible to operate SimDataFrames if there aren't common columns")
-
-                    resultX = selfC ** otherC
-                    resultX.rename(columns=newNames, inplace=True)
-                    if self._auto_append_:
-                        for col in newNames.values():
-                            if self.intersection_character in col:  # intersection_character = '∩'
-                                result[col] = resultX[col]
-                    else:
-                        result = resultX
-            return result
-
-        # other is SimSeries
-        elif isinstance(other, (SimSeries, Series)):
-            if type(other) is Series:
-                other = SimSeries(other, **self.params_)
-            selfI, otherI = self._joined_index(other)
-            result = selfI.copy()
-            if self._operate_per_name_ and otherI.name in selfI.columns:
-                result[otherI.name] = self[otherI.name] ** otherI
-            else:
-                for col in selfI.columns:
-                    result[col] = selfI[col] ** otherI
-            return result
-
-        # if other is Pandas DataFrame, convert it to SimDataFrame to be able to deal with
-        elif isinstance(other, DataFrame):
-            return self.__pow__(SimDataFrame(data=other, **self.params_))
-
-        # if other is integer or float
-        elif type(other) in (int, float):
-            result = self.as_DataFrame() ** other
-            params_ = self.params_
-            params_['units'] = {c: _unit_power(self.get_units(c)[c], other) for c in self.columns}
-            return SimDataFrame(data=result, **params_)
-
-        # lets Pandas deal with other types, maintain units and dtype
-        else:
-            result = self.as_DataFrame() ** other
-            return SimDataFrame(data=result, **self.params_)
 
     def set_index(self, key, drop=True, append=False, inplace=False, verify_integrity=False, **kwargs):
         if type(key) is list:
@@ -1099,43 +712,6 @@ class SimDataFrame(SimBasics, DataFrame):
         params_ = self.params_
         params_['transposed'] = not self._transposed_
         return SimDataFrame(data=self.as_pandas().T, **params_)
-
-    def to_pandas(self):
-        return self.to_dataframe()
-
-    def as_pandas(self):
-        return self.as_dataframe()
-
-    def to_series(self):
-        return self.to_simseries().to_series()
-
-    def as_series(self):
-        return self.as_simseries().as_series()
-
-    def to_simseries(self):
-        if len(self.columns) == 1:
-            return self[self.columns[0]]
-        if len(self) <= 1:
-            return SimSeries(data=Series(self.to_pandas().iloc[0].to_list(),
-                                         name=self.index[0],
-                                         index=self.columns.to_list()),
-                             **self.params_)
-        raise TypeError('Not possible to converto to SimSeries')
-
-    def as_simseries(self):
-        return self.to_simseries()
-
-    def to_dataframe(self):
-        return DataFrame(self.copy())
-
-    def as_dataframe(self):
-        return DataFrame(self)
-
-    def to_simdataframe(self):
-        return self
-
-    def as_simdataframe(self):
-        return self
 
     def convert(self, units):
         """
