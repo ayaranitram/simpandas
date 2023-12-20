@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.23'
-__release__ = 20230726
+__version__ = '0.83.24'
+__release__ = 20231220
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -751,6 +751,9 @@ class SimBasics(object, metaclass=SimType):
     @property
     def type(self):
         return str(type(self))
+
+    def to_frame(self):
+        return self.to_simdataframe()
 
     def to_Pandas(self):
         return self.to_pandas()
