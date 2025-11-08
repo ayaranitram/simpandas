@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.23'
-__release__ = 20230726
+__version__ = '0.83.25'
+__release__ = 20251104
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -27,7 +27,7 @@ from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
-from .common.helpers import clean_axis as _clean_axis, hashable
+from .common.helpers import clean_axis as _clean_axis, hashable, make_units_dict
 
 logging.basicConfig(level=logging.INFO)
 
@@ -49,12 +49,22 @@ class SimBasics(object, metaclass=SimType):
         else:
             return False
 
+    @property
+    def labels(self):
+        """
+        returns columns or index depending on the SimDataFrame being transposed or not
+        Returns
+        -------
+            index
+        """
+        return self.index if self._transposed_ else self.columns
+
     def _reverse(self):
         self._reverse_ = not self._reverse_
         return self
 
     @property
-    def _SimParameters(self):
+    def _SimParameters(self) -> dict:
         return self.params_
 
     @property
@@ -71,6 +81,14 @@ class SimBasics(object, metaclass=SimType):
         """
         return self.spdiLocator
 
+    @property
+    def units(self) -> dict:
+        return dict(zip(self.labels, self._units_))
+
+    @units.setter
+    def units(self, units) -> None:
+        self.set_units(units, inplace=True)
+
     def isna(self):
         return self.as_pandas().isna()
 
@@ -83,8 +101,8 @@ class SimBasics(object, metaclass=SimType):
         Return:
             SimDataFrame
         """
-        from simpandas.common.merger import concat as _concat
-        from simpandas import SimDataFrame, SimSeries
+        from .common.merger import concat as _concat
+        from .frame import SimDataFrame, SimSeries
         from pandas import DataFrame, Series
 
         if type(objs) is list:
@@ -175,13 +193,17 @@ class SimBasics(object, metaclass=SimType):
                                                                                  'intersection_character') else '&',
                 'verbose': self.verbose if hasattr(self, 'verbose') else False,
                 'auto_append': self._auto_append_ if hasattr(self, '_auto_append_') else \
-                    self.auto_append if hasattr(self, 'auto_append') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                    self.auto_append if hasattr(self, 'auto_append') else False,
+                # option to cover old versions of SimSeries and SimDataFrames
                 'operate_per_name': self._operate_per_name_ if hasattr(self, '_operate_per_name_') else \
-                    self.operate_per_name if hasattr(self, 'operate_per_name') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                    self.operate_per_name if hasattr(self, 'operate_per_name') else False,
+                # option to cover old versions of SimSeries and SimDataFrames
                 'transposed': self._transposed_ if hasattr(self, '_transposed_') else \
-                    self.transposed if hasattr(self, 'transposed') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                    self.transposed if hasattr(self, 'transposed') else False,
+                # option to cover old versions of SimSeries and SimDataFrames
                 'reverse': self._reverse_ if hasattr(self, '_reverse_') else \
-                    self.reverse if hasattr(self, 'reverse') else False,  # option to cover old versions of SimSeries and SimDataFrames
+                    self.reverse if hasattr(self, 'reverse') else False,
+                # option to cover old versions of SimSeries and SimDataFrames
                 'meta': self.meta if hasattr(self, 'meta') else False,
                 'source_path': self.source_path if hasattr(self, 'source_path') else None,
                 'return_singles': self._return_singles_ if hasattr(self, '_return_singles_') else None,
@@ -216,148 +238,157 @@ class SimBasics(object, metaclass=SimType):
             params_['units'] = _unit_inverse(self.units)
         elif type(self.units) is dict:
             params_['units'] = {k: _unit_inverse(self.units[k]) for k in self.units}
-        return self._class(data=1/self.as_pandas(), **params_)
+        return self._class(data=1 / self.as_pandas(), **params_)
 
     def neg(self):
         return self.__neg__()
 
     def add(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self._arithmethic_operation(other, operation='+', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self._arithmethic_operation(other, operation='+', level=level, fill_value=fill_value, axis=axis,
+                                           intersection_character=intersection_character)
 
     def sub(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self._arithmethic_operation(other, operation='-', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self._arithmethic_operation(other, operation='-', level=level, fill_value=fill_value, axis=axis,
+                                           intersection_character=intersection_character)
 
     def mul(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self._arithmethic_operation(other, operation='*', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self._arithmethic_operation(other, operation='*', level=level, fill_value=fill_value, axis=axis,
+                                           intersection_character=intersection_character)
 
     def truediv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self._arithmethic_operation(other, operation='/', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self._arithmethic_operation(other, operation='/', level=level, fill_value=fill_value, axis=axis,
+                                           intersection_character=intersection_character)
 
     def div(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self.truediv(other, level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self.truediv(other, level=level, fill_value=fill_value, axis=axis,
+                            intersection_character=intersection_character)
 
     def eq0(self, other):
-        return self.eq(other,precision=0)
+        return self.eq(other, precision=0)
 
     def eq1(self, other):
-        return self.eq(other,precision=1)
+        return self.eq(other, precision=1)
 
     def eq2(self, other):
-        return self.eq(other,precision=2)
+        return self.eq(other, precision=2)
 
     def eq3(self, other):
-        return self.eq(other,precision=3)
+        return self.eq(other, precision=3)
 
     def eq4(self, other):
-        return self.eq(other,precision=4)
+        return self.eq(other, precision=4)
 
     def eq6(self, other):
-        return self.eq(other,precision=6)
+        return self.eq(other, precision=6)
 
     def ge0(self, other):
-        return self.ge(other,precision=0)
+        return self.ge(other, precision=0)
 
     def ge1(self, other):
-        return self.ge(other,precision=1)
+        return self.ge(other, precision=1)
 
     def ge2(self, other):
-        return self.ge(other,precision=2)
+        return self.ge(other, precision=2)
 
     def ge3(self, other):
-        return self.ge(other,precision=3)
+        return self.ge(other, precision=3)
 
     def ge4(self, other):
-        return self.ge(other,precision=4)
+        return self.ge(other, precision=4)
 
     def ge6(self, other):
-        return self.ge(other,precision=6)
+        return self.ge(other, precision=6)
 
     def gt0(self, other):
-        return self.gt(other,precision=0)
+        return self.gt(other, precision=0)
 
     def gt1(self, other):
-        return self.gt(other,precision=1)
+        return self.gt(other, precision=1)
 
     def gt2(self, other):
-        return self.gt(other,precision=2)
+        return self.gt(other, precision=2)
 
     def gt3(self, other):
-        return self.gt(other,precision=3)
+        return self.gt(other, precision=3)
 
     def gt4(self, other):
-        return self.gt(other,precision=4)
+        return self.gt(other, precision=4)
 
     def gt6(self, other):
-        return self.gt(other,precision=6)
+        return self.gt(other, precision=6)
 
     def le0(self, other):
-        return self.le(other,precision=0)
+        return self.le(other, precision=0)
 
     def le1(self, other):
-        return self.le(other,precision=1)
+        return self.le(other, precision=1)
 
     def le2(self, other):
-        return self.le(other,precision=2)
+        return self.le(other, precision=2)
 
     def le3(self, other):
-        return self.le(other,precision=3)
+        return self.le(other, precision=3)
 
     def le4(self, other):
-        return self.le(other,precision=4)
+        return self.le(other, precision=4)
 
     def le6(self, other):
-        return self.le(other,precision=6)
+        return self.le(other, precision=6)
 
     def lt0(self, other):
-        return self.lt(other,precision=0)
+        return self.lt(other, precision=0)
 
     def lt1(self, other):
-        return self.lt(other,precision=1)
+        return self.lt(other, precision=1)
 
     def lt2(self, other):
-        return self.lt(other,precision=2)
+        return self.lt(other, precision=2)
 
     def lt3(self, other):
-        return self.lt(other,precision=3)
+        return self.lt(other, precision=3)
 
     def lt4(self, other):
-        return self.lt(other,precision=4)
+        return self.lt(other, precision=4)
 
     def lt6(self, other):
-        return self.lt(other,precision=6)
+        return self.lt(other, precision=6)
 
     def ne0(self, other):
-        return self.ne(other,precision=0)
+        return self.ne(other, precision=0)
 
     def ne1(self, other):
-        return self.ne(other,precision=1)
+        return self.ne(other, precision=1)
 
     def ne2(self, other):
-        return self.ne(other,precision=2)
+        return self.ne(other, precision=2)
 
     def ne3(self, other):
-        return self.ne(other,precision=3)
+        return self.ne(other, precision=3)
 
     def ne4(self, other):
-        return self.ne(other,precision=4)
+        return self.ne(other, precision=4)
 
     def ne6(self, other):
-        return self.ne(other,precision=6)
+        return self.ne(other, precision=6)
 
     def floordiv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self._arithmethic_operation(other, operation='//', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self._arithmethic_operation(other, operation='//', level=level, fill_value=fill_value, axis=axis,
+                                           intersection_character=intersection_character)
 
     def mod(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self._arithmethic_operation(other, operation='%', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self._arithmethic_operation(other, operation='%', level=level, fill_value=fill_value, axis=axis,
+                                           intersection_character=intersection_character)
 
     def pow(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
-        return self._arithmethic_operation(other, operation='**', level=level, fill_value=fill_value, axis=axis, intersection_character=intersection_character)
+        return self._arithmethic_operation(other, operation='**', level=level, fill_value=fill_value, axis=axis,
+                                           intersection_character=intersection_character)
 
     def __add__(self, other):
         return self._arithmethic_operation(other, operation='+', fill_value=0)
 
     def __sub__(self, other):
         return self._arithmethic_operation(other, operation='-', fill_value=0)
+
     def __mul__(self, other):
         return self._arithmethic_operation(other, operation='*', fill_value=1)
 
@@ -727,8 +758,8 @@ class SimBasics(object, metaclass=SimType):
                                 limit_area=limit_area, downcast=downcast, **kwargs)
         else:
             return self._class(data=self.as_pandas().interpolate(method=method, axis=axis, limit=limit, inplace=inplace,
-                                                         limit_direction=limit_direction, limit_area=limit_area,
-                                                         downcast=downcast, **kwargs), **self.params_)
+                                                                 limit_direction=limit_direction, limit_area=limit_area,
+                                                                 downcast=downcast, **kwargs), **self.params_)
 
     def fillna(self, value=None, method=None, axis='index', inplace=False,
                limit=None, downcast=None):
@@ -736,8 +767,9 @@ class SimBasics(object, metaclass=SimType):
         if inplace:
             super().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast)
         else:
-            return self._class(data=self.as_pandas().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit,
-                                                    downcast=downcast), **self.params_)
+            return self._class(
+                data=self.as_pandas().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit,
+                                             downcast=downcast), **self.params_)
 
     def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method='pad'):
         if inplace:
@@ -745,12 +777,16 @@ class SimBasics(object, metaclass=SimType):
                             method=method)
         else:
             return self._class(
-                data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex,
-                                     method=method), **self.params_)
+                data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
+                                              regex=regex,
+                                              method=method), **self.params_)
 
     @property
     def type(self):
         return str(type(self))
+
+    def to_frame(self):
+        return self.to_simdataframe()
 
     def to_Pandas(self):
         return self.to_pandas()
@@ -876,7 +912,7 @@ class SimBasics(object, metaclass=SimType):
         if axis == 2:
             return self.zeros(axis=0, value=value) + self.zero(axis=1, value=value)
         limit = len(self) if axis == 0 else len(self.columns)
-        return (self==value).sum(axis=axis) == limit
+        return (self == value).sum(axis=axis) == limit
 
     def dropzeros(self, axis=None):
         """
@@ -916,8 +952,8 @@ class SimBasics(object, metaclass=SimType):
             The projection after squeezing axis or all the axes and units
 
         """
-        from simpandas.frame import SimDataFrame
-        from simpandas.series import SimSeries
+        from .frame import SimDataFrame
+        from .series import SimSeries
         if self._class is SimDataFrame:
             if len(self.columns) == 1 or len(self.index) == 1:
                 return self.to_simseries().squeeze()
@@ -959,8 +995,8 @@ class SimBasics(object, metaclass=SimType):
         return list(set(_left(self, self.name_separator).values()))
 
     def rename_right(self, inplace=False):
-        from simpandas.frame import SimDataFrame
-        from simpandas.series import SimSeries
+        from .frame import SimDataFrame
+        from .series import SimSeries
         if self.name_separator in [None, '', False]:
             warn("`name_separator` is not defined. Set it using `.set_name_separator('string')`")
             return self
@@ -977,8 +1013,8 @@ class SimBasics(object, metaclass=SimType):
             return self.rename(columns=new_names, inplace=False)
 
     def rename_left(self, inplace=False):
-        from simpandas.frame import SimDataFrame
-        from simpandas.series import SimSeries
+        from .frame import SimDataFrame
+        from .series import SimSeries
         if self.name_separator in [None, '', False]:
             warn("`name_separator` is not defined. Set it using `.set_name_separator('string')`")
             return self
@@ -1001,17 +1037,19 @@ class SimBasics(object, metaclass=SimType):
         return self.rename_left(inplace=inplace)
 
     def _common_rename(self, other,
-                      intersection_character=None,
-                      other_name_separator=None,
-                      complex_names=False,
-                      **kwargs):
+                       intersection_character=None,
+                       other_name_separator=None,
+                       complex_names=False,
+                       **kwargs):
         if intersection_character is None:
             intersection_character = self.intersection_character
         if hasattr(other, 'name_separator') and other.name_separator is not None:
             other_name_separator = other.name_separator
         elif other_name_separator is None:
             other_name_separator = self.name_separator
-            logging.warning("'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(self.name_separator) + "'.")
+            logging.warning(
+                "'other' does not have `.name_separator` attribute or it is defined as None, my `.name_separator` will be used: '" + str(
+                    self.name_separator) + "'.")
         if self._reverse_:
             return _common_rename(other, self,
                                   intersection_character=intersection_character,
@@ -1234,8 +1272,8 @@ Copy of input object, shifted.
         -------
         a new SimSeries with the resulting array and same index as the input.
         """
-        from simpandas.frame import SimDataFrame
-        from simpandas.series import SimSeries
+        from .frame import SimDataFrame
+        from .series import SimSeries
         params_ = self.params_
         params_['index'] = self.index
         params_['name'] = 'days_in_year'
@@ -1287,8 +1325,8 @@ Copy of input object, shifted.
         -------
         a new SimSeries with the resulting array and same index as the input.
         """
-        from simpandas.frame import SimDataFrame
-        from simpandas.series import SimSeries
+        from .frame import SimDataFrame
+        from .series import SimSeries
         params_ = self.params_
         params_['index'] = self.index
         params_['name'] = 'realYear'
@@ -1429,9 +1467,12 @@ Copy of input object, shifted.
                     each = tuple(each)
                 if each in self.columns:
                     new_by.append(each)
-                elif isinstance(self.index, DatetimeIndex) and each in [self.index.year, self.index.month, self.index.day]:
+                elif isinstance(self.index, DatetimeIndex) and each in [self.index.year, self.index.month,
+                                                                        self.index.day]:
                     new_by.append(each)
-                elif isinstance(self.index, MultiIndex) and each in [self.index.get_level_values(i) for i in range(len(self.index.levels))] + list(self.index.levels):
+                elif isinstance(self.index, MultiIndex) and each in [self.index.get_level_values(i) for i in
+                                                                     range(len(self.index.levels))] + list(
+                        self.index.levels):
                     new_by.append(each)
                 elif raise_by_error:
                     raise ValueError("The column '" + str(each) + "' is not present in this frame")
@@ -1474,7 +1515,7 @@ Copy of input object, shifted.
             result = result.count()
         elif agg[:3] == 'int':  # from 'integrate', 'integral'
             result = self.integrate()
-            #params_['units'] = result.get_units()
+            # params_['units'] = result.get_units()
         elif agg[:3] == 'rep':  # from 'representative'
             result = self.integrate()
             result = result.as_pandas().groupby(by=by)  # self.index.year
@@ -1487,7 +1528,7 @@ Copy of input object, shifted.
             delta_values = np_diff(values.transpose())
             result = DataFrame(data=(delta_values / delta_index).transpose(), index=result.first().index,
                                columns=self.columns)
-            #params_['units'] = result.get_units()
+            # params_['units'] = result.get_units()
         elif agg in ['cum', 'cumulative']:
             result = self.cumsum()
         else:
@@ -1522,7 +1563,7 @@ Copy of input object, shifted.
         #     except ValueError:
         #         if tuple(tb) in [tuple(g) for g in group_by]:
         #             _ = group_by.remove(tuple(tb))
-                    
+
         # by = time_by if group_by is None else time_by + group_by
 
         by = group_by
@@ -1530,12 +1571,14 @@ Copy of input object, shifted.
         if len(by) > 3:  # user criteria to group by
             index_backup = MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
             result.index.names = by[3:]
-            result.index = MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for i in result.index]
+            result.index = MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for i
+                                                                                                             in
+                                                                                                             result.index]
             result = result.reset_index()
         else:
             index_backup = result.index
 
-        result.index = to_datetime(['-'.join(map(str,i)) for i in index_backup])
+        result.index = to_datetime(['-'.join(map(str, i)) for i in index_backup])
         result.index.name = 'DATE'
         if len(by) == 4:
             new_df = None
@@ -1601,8 +1644,8 @@ Copy of input object, shifted.
             index_backup = MultiIndex.from_tuples([(int(i[0]), int(i[1]), int(i[2])) for i in self.index])
             result.index.names = by[3:]
             result.index = MultiIndex.from_tuples([tuple(i[3:]) for i in result.index]) if len(by) > 4 else [i[3] for
-                                                                                                                i in
-                                                                                                                result.index]
+                                                                                                             i in
+                                                                                                             result.index]
             result = result.reset_index()
         else:
             index_backup = result.index
@@ -1654,7 +1697,7 @@ Copy of input object, shifted.
         result = result.groupby(by=by).first()
         return result
 
-    def _make_day(self, day: str, MM:int, YYYY: int) -> str:
+    def _make_day(self, day: str, MM: int, YYYY: int) -> str:
         if day not in ['-first', '-last', '-max', '-mid']:
             if int(day.strip('-')) >= 1 and int(day.strip('-')) <= 28:
                 return day
@@ -1667,7 +1710,7 @@ Copy of input object, shifted.
                 return '-' + str(last_day_of_month)
         if day == '-first':
             return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).min().day).zfill(2)
-        elif day ==  '-last':
+        elif day == '-last':
             return '-' + str(self.index.where((self.index.year == YYYY) & (self.index.month == MM)).max().day).zfill(2)
         elif day == '-max':
             return '-' + str(days_in_month(MM, YYYY))
@@ -1684,7 +1727,7 @@ Copy of input object, shifted.
                 return '-12'
         if month == '-first':
             return '-' + str(self.index.where(self.index.year == YYYY).min().month).zfill(2)
-        elif month ==  '-last':
+        elif month == '-last':
             return '-' + str(self.index.where(self.index.year == YYYY).max().month).zfill(2)
         elif month == '-max':
             return '-12'
@@ -1937,7 +1980,7 @@ Copy of input object, shifted.
 
         if complete_index:
             output = self.daily(agg=agg, datetime_index=True, by=by,
-                       complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
+                                complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
         else:
             output = self
 
@@ -2113,7 +2156,7 @@ Copy of input object, shifted.
 
         if complete_index:
             output = self.daily(agg=agg, datetime_index=True, by=by,
-                       complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
+                                complete_index=True, fillna_method=fillna_method, raise_by_error=raise_by_error)
         else:
             output = self
 
@@ -2136,8 +2179,8 @@ Copy of input object, shifted.
         if datetime_index:
             if user_by is None:
                 output.index = to_datetime([str(YYYY) +
-                                               self._make_month_day(day, month, YYYY)
-                                               for YYYY in output.index])
+                                            self._make_month_day(day, month, YYYY)
+                                            for YYYY in output.index])
                 output.index.names = ['DATE']
                 output.index.name = 'DATE'
                 if 'DATE' not in output.get_units():
@@ -2322,6 +2365,12 @@ Copy of input object, shifted.
         params_['index_units'] = self.index_units
         return self._class(data=diff, **params_)
 
+    def get_Units(self, items=None):
+        """
+        Alias of .get_units method.
+        """
+        return self.get_units()
+
     def get_units_string(self, items=None):
         items_units_dict = self.get_units(items)
         if None in items_units_dict and items_units_dict[None] is None:
@@ -2340,12 +2389,13 @@ Copy of input object, shifted.
             return list(set(items_units_dict.values()))[0]
         else:
             result = list(items_units_dict.values())[0]
-            logging.warning("More than one units found for the item '" + str(items) + "', returning the first one: '" + str(result) + "'." )
+            logging.warning(
+                "More than one units found for the item '" + str(items) + "', returning the first one: '" + str(
+                    result) + "'.")
             return result
 
     def get_UnitsString(self, items=None):
         return self.get_units_string(items)
-
 
     def set_Units(self, units, item=None):
         """
@@ -2376,6 +2426,7 @@ Copy of input object, shifted.
 
     def reset_index(self, level=None, drop=False, inplace=False, col_level=0, col_fill='',
                     allow_duplicates=True, names=None):
+        from .frame import SimDataFrame
         if inplace:
             index_units, index_name = self.index_units, None if drop else self.index.name
             super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='',
@@ -2516,8 +2567,9 @@ Copy of input object, shifted.
                 return string.strip() + ' '
             return string.strip() + ' ' * (length - len(string.strip()) + 1)
 
-        logging.warning(str(type(self.as_pandas().index)).split('.')[-1][:-2] + ': ' + str(len(self)) + ' entries, ' + str(
-            self.index[0]) + ' to ' + str(self.index[-1]))
+        logging.warning(
+            str(type(self.as_pandas().index)).split('.')[-1][:-2] + ': ' + str(len(self)) + ' entries, ' + str(
+                self.index[0]) + ' to ' + str(self.index[-1]))
 
         columns = [str(col) for col in self.columns]
         notnulls = [str(self.iloc[:, col].notnull().sum()) for col in range(len(self.columns))]
@@ -2547,7 +2599,8 @@ Copy of input object, shifted.
             line = line + ' ' + fillblank(dtypes[i], max(len('Dtype'), max(map(len, dtypes))))
             line = line + ' ' + fillblank(units[i], max(len('Units'), max(map(len, units))))
 
-        logging.warning('dtypes: ' + ', '.join([each + '(' + str(dtypes.count(each)) + ')' for each in sorted(set(dtypes))]))
+        logging.warning(
+            'dtypes: ' + ', '.join([each + '(' + str(dtypes.count(each)) + ')' for each in sorted(set(dtypes))]))
 
         logging.warning('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
 

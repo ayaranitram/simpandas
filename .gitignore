@@ -12,3 +12,4 @@ dist/*.tar.gz
 build
 src/*.egg-info
 .DS_Store
+.idea
