@@ -129,7 +129,7 @@ class _iSimLocIndexer(_SimBaseIndexer, _iLocIndexer):
         from .frame import SimDataFrame
         from .series import SimSeries
         if type(value) in (pd.SimSeries, pd.SimDataFrame):
-            value = value.to(self.spd.get_Units())
+            value = value.to(self.spd.get_units())
         if type(value) is SimDataFrame and len(value.index) == 1:
             value = value.to_SimSeries()
 
@@ -139,13 +139,13 @@ class _iSimLocIndexer(_SimBaseIndexer, _iLocIndexer):
                     isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) and type(
                 value[0]) is not str and not hasattr(value[0], '__iter__') and len(self.spd.loc[key]) == len(value[0])):
                 value, units = value[0], value[1]
-                if key[1] not in self.spd.columns or self.spd.get_Units(key[1])[key[1]] is None or \
-                        self.spd.get_Units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
+                if key[1] not in self.spd.columns or self.spd.get_units(key[1])[key[1]] is None or \
+                        self.spd.get_units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
                     new_units = True
                 else:
                     new_units = False
-                    if _convertible(units, self.spd.get_Units(key[1])):
-                        value = _converter(value, units, self.spd.get_Units(key[1]),
+                    if _convertible(units, self.spd.get_units(key[1])[key[1]]):
+                        value = _converter(value, units, self.spd.get_units(key[1][key[1]]),
                                            print_conversion_path=self.spd.verbose)
         super().__setitem__(key, value)
         if new_units:
