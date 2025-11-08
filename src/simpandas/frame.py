@@ -410,6 +410,7 @@ class SimDataFrame(SimBasics, DataFrame):
         if type(result) is DataFrame:
             result = SimDataFrame(data=result, **self.params_)
         elif type(result) is Series:
+            print(f"{result=}")
             if len(self.get_units()) > 0:
                 if result.name is None or result.name not in self.get_units():
                     # this Series is one index for multiple columns
@@ -423,6 +424,9 @@ class SimDataFrame(SimBasics, DataFrame):
                 result_units = {result.name: 'unitless'}
             params_ = self.params_
             params_['units'] = result_units
+            if 'name' in params_:
+                print(f"{params_['name']=}")
+                del params_['name']
             result = SimSeries(data=result, **params_)
 
         # apply filter array if applicable
@@ -763,7 +767,8 @@ class SimDataFrame(SimBasics, DataFrame):
             units_dict = {i: v for k, v in units.items() for i in self.find_keys(k)}
             result = self.copy()
             for col in self.columns:
-                if col in units_dict and _convertible(self.get_units(col)[col], units_dict[col]):
+                if col in units_dict and _convertible(self.get_units(col)[col],
+                                                      units_dict[col][col] if type(units_dict[col]) is dict else units_dict[col]):
                     result[col] = self[col].to(units_dict[col])
             return result
 
