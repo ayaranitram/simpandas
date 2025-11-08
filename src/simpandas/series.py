@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.23'
-__release__ = 20230726
+__version__ = '0.83.24'
+__release__ = 20250615
 __all__ = ['SimSeries']
 
 import logging
@@ -96,7 +96,7 @@ class SimSeries(SimBasics, Series):
                  'intersection_character',
                  'spdLocator',
                  'spdiLocator',
-                 'columns',
+                 #'columns',
                  'meta',
                  'source_path',
                  '_auto_append_',
@@ -182,7 +182,7 @@ class SimSeries(SimBasics, Series):
             if type(units) is dict and len(units) == 1:
                 self.name = list(units.keys())[0]
 
-        self.columns = Index([self.name]) if columns is None else columns
+        #self.columns = Index([self.name]) if columns is None else columns
 
         # set units
         if units is not None:
@@ -220,6 +220,24 @@ class SimSeries(SimBasics, Series):
     def _constructor_expanddim(self):
         from simpandas.frame import SimDataFrame
         return SimDataFrame
+
+    @property
+    def columns(self):
+        return Index([self.name])
+    @columns.setter
+    def columns(self, columns):
+        if type(columns) is str:
+            if columns == self.name:
+                return
+            else:
+                self.rename(columns, inplace=True)
+        elif hasattr(columns, '__iter__'):
+            if len(columns) == 1:
+                self.rename(columns[0], inplace=True)
+            else:
+                raise ValueError(f"SimSeries can only take one column name, {len(columns)} items were received.")
+        else:
+            self.rename(columns, inplace=True)
 
     def to_pandas(self):
         return self.to_series()
@@ -932,9 +950,6 @@ class SimSeries(SimBasics, Series):
         else:
             return list(fnmatch.filter(keys, pattern))
 
-    def get_Units(self, items=None):
-        return self.get_units()
-
     def get_units(self, items=None):
         """
         returns the units for the selected 'items' or for all the columns in the SimDataFrame.
@@ -1207,7 +1222,7 @@ class SimSeries(SimBasics, Series):
                 catch.units = new_units
                 catch.spdLocator = _SimLocIndexer("loc", catch)
                 return catch
-        elif type(index) is str:
+        elif type(index) in (str, int, float):
             if inplace:
                 self.name = index.strip()
                 self.spdLocator = _SimLocIndexer("loc", self)
@@ -1217,6 +1232,8 @@ class SimSeries(SimBasics, Series):
                 catch.name = index
                 catch.spdLocator = _SimLocIndexer("loc", catch)
                 return catch
+        else:
+            return self
 
     def set_index(self, name):
         self.set_index_name(name)
@@ -1224,8 +1241,7 @@ class SimSeries(SimBasics, Series):
     def get_index_units(self):
         if not isinstance(self.index, SimIndex) and type(self.index_units_) in [dict, str]:
             self.index = SimIndex(self.index, units=self.index_units_)
-        elif isinstance(self.index, SimIndex) and (
-                type(self.index.units) is str and len(self.index.units) > 0
+        elif isinstance(self.index, SimIndex) and (type(self.index.units) is str and len(self.index.units) > 0
                 or type(self.index.units) is dict):
             self.index_units_ = self.index.units
         return self.index_units_
