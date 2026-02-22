@@ -14,7 +14,7 @@ from pandas.core.indexing import _LocIndexer, _iLocIndexer
 import pandas as pd
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts import units, Unit
-from unyts.helpers.common_classes import number
+from unyts.helpers.common_classes import number_, number
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,7 +25,8 @@ class _SimBaseIndexer(object):
         from .series import SimSeries
         if isinstance(result, pd.Series) and len(result) == 1:
             result = result.iloc[0]
-        if type(result) in number:
+        #if type(result) in number_:
+        if isinstance(result, number):
             return units(result, self.spd.get_units_string(args[0]))
         if isinstance(result, (pd.Series, pd.DataFrame)):
             if type(result) is pd.DataFrame:

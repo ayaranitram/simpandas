@@ -358,6 +358,7 @@ class SimBasics(object, metaclass=SimType):
 
     def __sub__(self, other):
         return self._arithmethic_operation(other, operation='-', fill_value=0)
+
     def __mul__(self, other):
         return self._arithmethic_operation(other, operation='*', fill_value=1)
 
