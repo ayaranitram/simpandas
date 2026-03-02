@@ -41,6 +41,26 @@ def zeros(series_or_frame, axis=None, value=0):
 
 
 def key_to_string(filter_str, key, pandas_agg):
+    """Internal helper converting a filter key to a string expression.
+
+    This function is used by the filtering machinery in SimDataFrame to parse
+    key tokens and rewrite them into valid pandas/numpy operations.  It
+    handles special operators, aggregation suffixes, and column patterns.
+
+    Parameters
+    ----------
+    filter_str : str
+        Accumulating filter string under construction.
+    key : str
+        Next token to process.
+    pandas_agg : str
+        Current pandas aggregation expression (e.g. 'any', 'all').
+
+    Returns
+    -------
+    tuple
+        Updated (filter_str, key, pandas_agg).
+    """
     if len(key) > 0:
         # catch particular operations performed by Pandas
         found_so, found_no = '', ''

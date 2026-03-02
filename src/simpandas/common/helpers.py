@@ -14,6 +14,23 @@ import pandas as pd
 
 
 def clean_axis(axis=None):
+    """Normalize various axis specifiers to integer codes.
+
+    The function accepts strings like ``'row'``, ``'columns'``, boolean or
+    numeric values and returns ``0`` for rows, ``1`` for columns, and
+    ``2`` for both axes.  This mirrors the behaviour of several SimPandas
+    functions that accept ``axis`` arguments.
+
+    Parameters
+    ----------
+    axis : {None, int, float, bool, str}
+        Axis specifier to clean.
+
+    Returns
+    -------
+    int
+        Normalised axis code (0, 1, or 2).
+    """
     if axis is None:
         return 0
     if type(axis) is str and axis.lower() in ['row', 'rows', 'ind', 'index']:
@@ -30,6 +47,22 @@ def clean_axis(axis=None):
 
 
 def string_new_name(new_name, intersection_character='∩'):
+    """Generate a combined name from a mapping of original to new names.
+
+    This is used when constructing intersection/union names for columns.
+
+    Parameters
+    ----------
+    new_name : dict
+        Mapping from original label to proposed new label.
+    intersection_character : str, optional
+        Character used to join multiple unique values.
+
+    Returns
+    -------
+    str
+        Single string representing the set of new names.
+    """
     if len(new_name) == 1:
         return list(new_name.values())[0]
     else:
@@ -37,6 +70,25 @@ def string_new_name(new_name, intersection_character='∩'):
 
 
 def type_of_frame(frame):
+    """Return the class corresponding to a DataFrame-like object.
+
+    Parameters
+    ----------
+    frame : object
+        Attempt to detect if ``frame`` is a SimSeries, SimDataFrame, pandas
+        Series, or pandas DataFrame.
+
+    Returns
+    -------
+    type
+        One of ``SimSeries``, ``SimDataFrame``, ``pandas.Series`` or
+        ``pandas.DataFrame``.
+
+    Raises
+    ------
+    TypeError
+        If ``frame`` is not a recognised type.
+    """
     from simpandas import SimSeries, SimDataFrame
     from pandas import Series, DataFrame
     try:
@@ -56,8 +108,25 @@ def type_of_frame(frame):
 
 
 def main_key(key, clean=True, nameSeparator=':'):
-    """
-    returns the main part (before the name of the item) in the keyword,MAIN:ITEM
+    """Extract the 'main' portion of a compound name string.
+
+    Given strings or iterable keys of the form ``MAIN:ITEM``, returns the
+    part before the separator.  Works on scalars, lists, tuples or pandas
+    Series objects.
+
+    Parameters
+    ----------
+    key : str or iterable or pandas.Series
+        Input key(s).
+    clean : bool, default True
+        Whether to deduplicate the output when a list/tuple is supplied.
+    nameSeparator : str, default ':'
+        Separator used between main and item components.
+
+    Returns
+    -------
+    str or list
+        Extracted main part(s).
     """
     if type(key) is str:
         if len(key.strip()) > 0:
@@ -79,8 +148,24 @@ def main_key(key, clean=True, nameSeparator=':'):
 
 
 def item_key(key, clean=True, nameSeparator=':'):
-    """
-    returns the item part (after the name of the item) in the keyword, MAIN:ITEM
+    """Extract the 'item' portion of a compound name string.
+
+    Similar to :func:`main_key` but returns the substring after the
+    ``nameSeparator``.
+
+    Parameters
+    ----------
+    key : str or iterable or pandas.Series
+        Input key(s).
+    clean : bool, default True
+        Whether to deduplicate the output when a list/tuple is supplied.
+    nameSeparator : str, default ':'
+        Separator used between main and item components.
+
+    Returns
+    -------
+    str or list
+        Extracted item part(s).
     """
     if type(key) is str:
         if len(key.strip()) > 0:

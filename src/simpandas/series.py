@@ -127,20 +127,21 @@ class SimSeries(SimBasics, Series):
                  return_singles=None,
                  *args, **kwargs):
 
-        self.units = {}
-        self.verbose = bool(verbose)
-        self.index_units_ = None
-        self.name_separator = None
-        self.intersection_character = intersection_character if type(intersection_character) is str else '&'
-        self.spdLocator = _SimLocIndexer("loc", self)
-        self.spdiLocator = _iSimLocIndexer("iloc", self)
-        self.meta = meta
-        self.source_path = source_path
-        self._auto_append_ = bool(auto_append)
-        self._operate_per_name_ = bool(operate_per_name)
-        self._transposed_ = bool(transposed)
-        self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
-        self._return_singles_ = True if return_singles is None else bool(return_singles)
+        # Initialize attributes needed by units property FIRST using object.__setattr__ to bypass pandas
+        object.__setattr__(self, '_transposed_', bool(transposed))
+        object.__setattr__(self, '_units_', {})
+        object.__setattr__(self, 'verbose', bool(verbose))
+        object.__setattr__(self, 'index_units_', None)
+        object.__setattr__(self, 'name_separator', None)
+        object.__setattr__(self, 'intersection_character', intersection_character if type(intersection_character) is str else '&')
+        object.__setattr__(self, 'spdLocator', _SimLocIndexer("loc", self))
+        object.__setattr__(self, 'spdiLocator', _iSimLocIndexer("iloc", self))
+        object.__setattr__(self, 'meta', meta)
+        object.__setattr__(self, 'source_path', source_path)
+        object.__setattr__(self, '_auto_append_', bool(auto_append))
+        object.__setattr__(self, '_operate_per_name_', bool(operate_per_name))
+        object.__setattr__(self, '_reverse_', kwargs['reverse'] if 'reverse' in kwargs else False)
+        object.__setattr__(self, '_return_singles_', True if return_singles is None else bool(return_singles))
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -1022,16 +1023,16 @@ class SimSeries(SimBasics, Series):
 
         if self.units is None or type(self.units) is str:
             if units is None:
-                self.units = None
+                object.__setattr__(self, '_units_', None)
             elif type(units) is str:
-                self.units = units.strip()
+                object.__setattr__(self, '_units_', units.strip())
             elif type(units) is dict:
                 old_units = self.units
                 try:
-                    self.units = {}
+                    object.__setattr__(self, '_units_', {})
                     return self.set_units(units)
                 except:
-                    self.units = old_units
+                    object.__setattr__(self, '_units_', old_units)
                     raise ValueError("not able to process dictionary of units.")
             else:
                 raise TypeError("units must be a string.")
@@ -1059,7 +1060,7 @@ class SimSeries(SimBasics, Series):
                         pass
             elif type(units) is str:
                 if item is None:
-                    self.units = units.strip()
+                    object.__setattr__(self, '_units_', units.strip())
                 else:
                     if type(item) not in (str, dict) and hasattr(item, '__iter__'):
                         units = units.strip()
@@ -1075,7 +1076,13 @@ class SimSeries(SimBasics, Series):
             if item is None and len(self.columns) > 1:
                 raise ValueError("More than one column in this SimSeries, item must not be None")
             elif item is None and type(units) is str and len(self.columns) == 1:
-                return self.set_units(units, list(self.columns)[0])
+                # assign directly to the sole column instead of recursing
+                col = list(self.columns)[0]
+                if units is None:
+                    self.units[col] = None
+                else:
+                    self.units[col] = units.strip()
+                return
             elif item is not None:
                 if item in self.columns:
                     if units is None:
@@ -1215,7 +1222,7 @@ class SimSeries(SimBasics, Series):
             for i in range(len(col_before)):
                 new_units[col_after[i]] = self.units[col_before[i]]
             if inplace:
-                self.units = new_units
+                object.__setattr__(self, '_units_', new_units)
                 self.spdLocator = _SimLocIndexer("loc", self)
                 return None
             else:

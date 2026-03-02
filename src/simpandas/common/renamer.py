@@ -14,6 +14,25 @@ import warnings
 
 
 def right(series_or_frame, name_separator=None):
+    """Return dictionary mapping object names to their rightmost segment.
+
+    Splits column/series names on ``name_separator`` and returns only the
+    component to the right of the separator.  Falls back to identity when no
+    separator is defined.
+
+    Parameters
+    ----------
+    series_or_frame : Series, DataFrame, SimSeries, SimDataFrame
+        Input object whose labels will be processed.
+    name_separator : str, optional
+        Separator to use; if ``None`` the object's own ``name_separator``
+        attribute is consulted.
+
+    Returns
+    -------
+    dict
+        Mapping each original label to the right-hand substring.
+    """
     if not hasattr(series_or_frame, 'name_separator') or series_or_frame.name_separator in [None, False, '']:
         if name_separator is None:
             return {col: col for col in series_or_frame.columns} if hasattr(series_or_frame, 'columns') else {
@@ -28,6 +47,10 @@ def right(series_or_frame, name_separator=None):
 
 
 def left(series_or_frame, name_separator=None):
+    """Return dictionary mapping labels to their leftmost segment.
+
+    Similar to :func:`right` but returns the part before the separator.
+    """
     if not hasattr(series_or_frame, 'name_separator') or series_or_frame.name_separator in [None, False, '']:
         if name_separator is None:
             return {col: col for col in series_or_frame.columns} if hasattr(series_or_frame, 'columns') else {
@@ -42,21 +65,36 @@ def left(series_or_frame, name_separator=None):
 
 
 def rename_right(series_or_frame, name_separator=None):
+    """Return a copy with column/series names replaced by their right-hand parts.
+
+    Parameters and behaviour mirror :func:`right`.
+    """
     if not hasattr(series_or_frame, 'name_separator') or series_or_frame.name_separator in [None, False, '']:
         if name_separator is None:
             return series_or_frame
     new_names = right(series_or_frame, name_separator=name_separator)
-    if not hasattr(series_or_frame, 'columns'):
+    from pandas import Series
+    from simpandas import SimSeries
+    if not hasattr(series_or_frame, 'columns') or isinstance(series_or_frame, (Series, SimSeries)):
         return series_or_frame.rename(list(new_names.values())[0])
     return series_or_frame.rename(columns=new_names, inplace=False)
 
 
 def rename_left(series_or_frame, name_separator=None):
-    if not hasattr(series_or_frame, 'nameSeparator') or series_or_frame.name_separator in [None, False, '']:
+    """Return object with names replaced by left-hand segments.
+
+    Wrapper around :func:`left`.
+    """
+    # check for explicit separator; use object's own if available
+    if not hasattr(series_or_frame, 'name_separator') or series_or_frame.name_separator in [None, False, '']:
         if name_separator is None:
             return series_or_frame
     new_names = left(series_or_frame, name_separator=name_separator)
-    if not hasattr(series_or_frame, 'columns'):
+    # Series-like objects should be renamed by value, not columns
+    from pandas import Series
+    from simpandas import SimSeries
+    if not hasattr(series_or_frame, 'columns') or isinstance(series_or_frame, (Series, SimSeries)):
+        # pick single new name
         return series_or_frame.rename(list(new_names.values())[0])
     return series_or_frame.rename(columns=new_names, inplace=False)
 
@@ -68,6 +106,36 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
                   name_separator_2=None,
                   complex_names=False,
                   return_names_dict_only=False):
+    """Compute a shared naming scheme for two Series/DataFrames.
+
+    The helper tries to determine compatible column names by breaking each
+    label into left/right parts and optionally combining them with an
+    intersection character.  It is used internally when aligning data from
+    different sources that should share a name prefix/suffix.
+
+    Parameters
+    ----------
+    series_or_frame_1, series_or_frame_2 : Series/DataFrame
+        Objects whose names are to be harmonized.
+    left_right : {'left','right',None}
+        Prefer using the left or right portion of the names for the common
+        mapping.  ``None`` allows the function to pick automatically.
+    intersection_character : str, optional
+        Character inserted between names when building a compound label.
+    name_separator_1, name_separator_2 : str
+        Separators used within the input names.
+    complex_names : bool
+        Allow the procedure to handle more intricate patterns (slower).
+    return_names_dict_only : bool
+        If True, return only the mapping dictionary instead of renaming the
+        objects.
+
+    Returns
+    -------
+    tuple or dict
+        Either ``(new_obj1, new_obj2, mapping)`` or just ``mapping`` depending
+        on ``return_names_dict_only``.
+    """
     def not_possible():
         # warnings.warn(Warning("No possible to found common name."))
         if sum(types) == 0:  # common naming for both Series or SimSeries
@@ -245,7 +313,23 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
         else:
             renamer = rename_left
     else:
-        return not_possible()
+        # fallback generic mapping when no uniform left/right patterns
+        # collect left and right parts for all columns
+        left1 = left(series_or_frame_1, name_separator_1)
+        left2 = left(series_or_frame_2, name_separator_2)
+        right1 = right(series_or_frame_1, name_separator_1)
+        right2 = right(series_or_frame_2, name_separator_2)
+        all_lefts = set(left1.values()) | set(left2.values())
+        all_suffixes = set(right1.values()) | set(right2.values())
+        common_names = {
+            L: str(L) + common_name_separator + '&'.join(sorted(all_suffixes))
+            for L in all_lefts
+        }
+        # choose renamer behaviour based on complex_names
+        if complex_names:
+            renamer = rename_left
+        else:
+            renamer = lambda x, name_separator=None: x
 
     # check if proposed names are not repetitions of original names
     # for name in common_names:
@@ -263,16 +347,18 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
     if return_names_dict_only:
         return common_names
     elif complex_names:
-        out1 = renamer(series_or_frame_1)
-        if hasattr(series_or_frame_1, 'columns'):
-            out1 = out1.rename(columns=common_names)
-        else:
-            out1 = out1.rename(list(common_names.values())[0])
-        out2 = renamer(series_or_frame_2)
-        if hasattr(series_or_frame_2, 'columns'):
-            out2 = out2.rename(columns=common_names)
-        else:
-            out2 = out2.rename(list(common_names.values())[0])
+        out1 = renamer(series_or_frame_1, name_separator=name_separator_1)
+        out2 = renamer(series_or_frame_2, name_separator=name_separator_2)
+        # only apply mapping when renamer converts to right-hand portions
+        if renamer is rename_right:
+            if hasattr(series_or_frame_1, 'columns'):
+                out1 = out1.rename(columns=common_names)
+            else:
+                out1 = out1.rename(list(common_names.values())[0])
+            if hasattr(series_or_frame_2, 'columns'):
+                out2 = out2.rename(columns=common_names)
+            else:
+                out2 = out2.rename(list(common_names.values())[0])
     else:
         out1 = renamer(series_or_frame_1, name_separator=name_separator_1)
         out2 = renamer(series_or_frame_2, name_separator=name_separator_2)

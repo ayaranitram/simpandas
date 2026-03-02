@@ -5,9 +5,54 @@ Created on Tue Sep 27 19:01:26 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-from simpandas import SimSeries
+from simpandas import SimSeries, SimDataFrame
 from pandas import Series
+import pandas as pd
 import numpy as np
+import pytest
+
+
+def test_basic_creation():
+    s = SimSeries([1,2,3], units='m', name='x')
+    assert isinstance(s, SimSeries)
+    assert s.get_units()['x']=='m'
+
+
+def test_head_tail():
+    s = SimSeries([1,2,3,4,5], units='kg', name='y')
+    assert s.head(2).shape[0]==2
+    assert s.tail(2).shape[0]==2
+
+
+def test_arithmetic():
+    s1 = SimSeries([1,2], units='m', name='a')
+    s2 = SimSeries([3,4], units='m', name='b')
+    result = s1.add(s2)
+    assert result.iloc[0]==4
+
+
+def test_to_dataframe():
+    s = SimSeries([1,2,3], units='m', name='col')
+    df = s.to_dataframe()
+    assert isinstance(df, pd.DataFrame)
+    assert df.shape == (3,1)
+
+
+def test_to_simdataframe():
+    s = SimSeries([1,2,3], units='m', name='col')
+    df = s.to_simdataframe()
+    assert isinstance(df, SimDataFrame)
+
+
+def test_loc_access():
+    s = SimSeries([1,2,3], units='m', index=['a','b','c'], name='x')
+    assert s.loc['a']==1
+
+
+def test_iloc_access():
+    s = SimSeries([10,20,30], units='s', name='t')
+    assert s.iloc[1]==20
+
 from unyts import convert, units
 
 # assert default parameters
@@ -17,7 +62,7 @@ assert SimSeries().units == {}
 assert SimSeries().verbose is False
 assert SimSeries().index_units is None
 assert SimSeries().name_separator == ':'
-assert SimSeries().intersection_character == '∩'
+assert SimSeries().intersection_character == '&'
 assert SimSeries()._auto_append_ is False
 assert SimSeries()._operate_per_name_ is False
 assert SimSeries()._transposed_ is False

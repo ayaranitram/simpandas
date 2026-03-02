@@ -20,12 +20,28 @@ logging.basicConfig(level=logging.INFO)
 
 
 class _SimBaseIndexer(object):
+    """Shared logic for SimSeries/SimDataFrame indexers.
+
+    Provides _postprocess which wraps pandas outputs back into Sim types and
+    handles unit tagging of scalars.
+    """
     def _postprocess(self, result, args):
+        """Convert raw pandas/indexer output into appropriate Sim object.
+
+        Parameters
+        ----------
+        result : any
+            Value returned by pandas indexing.
+        args : tuple
+            Original arguments passed to the indexer (used for unit lookup).
+        """
         from .frame import SimDataFrame, _series_to_frame
         from .series import SimSeries
         if isinstance(result, pd.Series) and len(result) == 1:
             result = result.iloc[0]
-        if type(result) in number:
+        # if the result is a scalar number, wrap it with units
+        from numbers import Number
+        if isinstance(result, Number):
             return units(result, self.spd.get_units_string(args[0]))
         if isinstance(result, (pd.Series, pd.DataFrame)):
             if type(result) is pd.DataFrame:
@@ -43,12 +59,23 @@ class _SimBaseIndexer(object):
 
 
 class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
+    """Enhanced ``.loc`` indexer for Sim objects.
+
+    Overrides ``__getitem__`` and ``__setitem__`` to perform unit conversion,
+    propagate metadata and support setting tuples ``(value, unit)``.
+    """
 
     def __init__(self, *args):
+        # args[1] is the SimSeries/SimDataFrame instance
         self.spd = args[1]
         super().__init__(*args)
 
     def __getitem__(self, *args):
+        """Indexing access for ``.loc``.
+
+        Converts SimSeries arguments to pandas before delegating, then
+        postprocesses the result.
+        """
         from .frame import SimDataFrame, _series_to_frame
         from .series import SimSeries
         if type(args[0]) is SimSeries:
@@ -117,11 +144,18 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
 
 
 class _iSimLocIndexer(_SimBaseIndexer, _iLocIndexer):
+    """Enhanced ``.iloc`` indexer for Sim objects.
+
+    Works similarly to ``_SimLocIndexer`` but uses integer positional
+    indexing.
+    """
     def __init__(self, *args):
         self.spd = args[1]
         super().__init__(*args)
 
     def __getitem__(self, *args):
+        """Get item via positional index.
+        """
         result = self.spd.as_pandas().iloc[args[0]]
         return self._postprocess(result, args)
 

@@ -94,7 +94,7 @@ class SimDataFrame(SimBasics, DataFrame):
     pandas.DataFrame
 
     """
-    _metadata = ['units',
+    _metadata = [#'units',
                  'verbose',
                  'index_units_',
                  'name_separator',
@@ -108,7 +108,8 @@ class SimDataFrame(SimBasics, DataFrame):
                  '_operate_per_name_',
                  '_transposed_',
                  '_reverse_',
-                 '_return_singles_']
+                 '_return_singles_',
+                 '_units_']
 
     def __init__(self,
                  data=None,
@@ -131,22 +132,21 @@ class SimDataFrame(SimBasics, DataFrame):
                  return_singles=None,
                  *args, **kwargs):
 
-        # Initialize attributes needed by units property FIRST using object.__setattr__ to bypass pandas
-        object.__setattr__(self, '_units_', {})
-        object.__setattr__(self, 'verbose', bool(verbose))
-        object.__setattr__(self, 'index_units_', None)
-        object.__setattr__(self, 'name_separator', None)
-        object.__setattr__(self, 'intersection_character', intersection_character if type(intersection_character) is str else '&')
-        object.__setattr__(self, 'spdLocator', _SimLocIndexer("loc", self))
-        object.__setattr__(self, 'spdiLocator', _iSimLocIndexer("iloc", self))
-        object.__setattr__(self, 'name', name)
-        object.__setattr__(self, 'meta', meta)
-        object.__setattr__(self, 'source_path', source_path)
-        object.__setattr__(self, '_auto_append_', bool(auto_append))
-        object.__setattr__(self, '_operate_per_name_', bool(operate_per_name))
-        object.__setattr__(self, '_transposed_', bool(transposed_))
-        object.__setattr__(self, '_reverse_', kwargs['reverse'] if 'reverse' in kwargs else False)
-        object.__setattr__(self, '_return_singles_', False if return_singles is None else bool(return_singles))
+        self._units_ = []
+        self.verbose = bool(verbose)
+        self.index_units_ = None
+        self.name_separator = None
+        self.intersection_character = intersection_character if type(intersection_character) is str else '&'
+        self.spdLocator = _SimLocIndexer("loc", self)
+        self.spdiLocator = _iSimLocIndexer("iloc", self)
+        self.name = name
+        self.meta = meta
+        self.source_path = source_path
+        self._auto_append_ = bool(auto_append)
+        self._operate_per_name_ = bool(operate_per_name)
+        self._transposed_ = bool(transposed_)
+        self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
+        self._return_singles_ = False if return_singles is None else bool(return_singles)
 
         # get units from data if it is SimDataFrame or SimSeries
         if units is None or (type(units) in [list, dict] and len(units) == 0):
@@ -200,7 +200,7 @@ class SimDataFrame(SimBasics, DataFrame):
             self.index.name = index_name
 
         # set units
-        self.set_units(units)
+        self.set_units(units, inplace=True)
 
         # get index_units
         if index_units is None:
@@ -1754,7 +1754,7 @@ class SimDataFrame(SimBasics, DataFrame):
                     units_dict[each] == self.index_units
         return units_dict
 
-    def set_units(self, units, item=None):
+    def set_units(self, units, item=None, inplace=False):
         """
         This method can be used to define the units related to the values of a column (item).
 
@@ -1765,6 +1765,9 @@ class SimDataFrame(SimBasics, DataFrame):
         item : str, optional
             The name of the column to apply the units.
             The default is None. In this case the unit
+        inplace : bool
+            set to True will apply the changes in-situ
+            set to False will return a new SimDataFrame
 
         Raises
         ------
@@ -1778,122 +1781,104 @@ class SimDataFrame(SimBasics, DataFrame):
         None.
 
         """
+        inplace = bool(inplace)
+
+        # if None input, exit
         if units is None and item is None:
-            return None
-
-        if item is not None and \
-            units is not None and \
-            type(item) is not str and hasattr(units, '__iter__') and \
-            type(units) not in (str, dict) and hasattr(units, '__iter__'):
-            if len(item) == len(units):
-                return self.set_units(dict(zip(item, units)))
+            if inplace:
+                return
             else:
-                raise ValueError("both units and item must have the same length.")
-        elif item is not None and \
-            type(item) is not str and hasattr(item, '__iter__') and \
-            type(units) is str:
-            return self.set_units({i: units for i in item})
-        elif item is not None and \
-            item not in list(self.columns) + [self.index_name] + [self.index.name] + self.index.names:
-            # the provided 'item' is not recognised; the caller may have passed
-            # parameters swapped (units, item).  We check if `units` looks like
-            # a column/index name and recurse accordingly.  Guard against
-            # unhashable values while doing membership tests.
+                return self
+
+        ## input validation
+        # if units argument is an instance of Unit
+        if isinstance(units, Unit):
+            units = units.get_units()
+
+        # units is dict
+        elif type(units) is dict:
+            item, units = list(units.keys()), list(units.values())
+
+        # units is a Series
+        elif item is None and type(units) is Series:
+            item, units = units.index, units.values
+
+        # units is a SimSeries
+        elif item is None and type(units) is SimSeries:
+            if units.get_units() == {}:
+                item, units = units.index, units.values
+            else:
+                item, units = units.labels, units._units_
+
+        # units is SimDataFrame
+        elif item is None and type(units) is SimDataFrame:
+            if units.get_units() == {}:
+                raise ValueError("No units founs in this SimDataFrame")
+            else:
+                item, units = units.labels, units._units_
+
+        # units is an instance that has get_units method
+        elif item is None and hasattr(units, 'get_units'):
             try:
-                in_cols = units in self.columns
-            except TypeError:
-                in_cols = False
-            try:
-                in_idxnames = units in self.index.names
-            except TypeError:
-                in_idxnames = False
-            if in_cols or units == self.index.name or in_idxnames:
-                return self.set_units(item, units)
-            else:
-                ValueError("the required item '" + str(item) + "' is not in this SimDataFrame.")
+                units = units.get_units()
+            except:
+                raise TypeError("not possible to extract units from the received `units` argument.")
+            return self.set_units(units, inplace=inplace)
 
-        if type(units) not in (str, dict, Series, SimSeries) and hasattr(units, '__iter__'):
-            if item is not None and type(item) is not str and hasattr(item, '__iter__'):
-                if len(item) == len(units):
-                    return self.set_units(dict(zip(item, units)))
-                else:
-                    raise ValueError("both units and item must have the same length.")
-            elif item is None:
-                if len(units) == len(self.columns):
-                    return self.set_units(dict(zip(list(self.columns), units)))
-                else:
-                    raise ValueError(
-                        "units list must be the same length of columns in the SimDataFrame or must be followed by a list of items.")
-            else:
-                raise TypeError("if units is a list, items must be a list of the same length.")
+        # item and units are str
+        if type(item) is str and type(units) is str:
+            units = [units if each == item else unit for col, unit in zip(self.labels, self._units_)]
 
-        if isinstance(units, Series):
-            units = units.to_dict()
+        # same unit for every column
+        elif type(units) is str and item is None:
+            #return self.set_units({k: units for k in self.columns}, inplace=inplace)
+            units = [units for each in self.labels ]
 
-        if type(units) is dict:
-            # decide whether dict is {column:unit} or {unit:column}
-            cols = (self.index if self._transposed_ else self.columns)
-            key_matches = [k for k in units.keys() if k in cols]
-            value_matches = []
-            for u in units.values():
-                try:
-                    if u in cols:
-                        value_matches.append(u)
-                except TypeError:
-                    # unhashable value cannot be in cols
-                    pass
-            if len(key_matches) >= len(value_matches):
-                ku = True
+        # two arrays are received (one for item and one for units)
+        elif item is not None and units is not None and type(item) is not str and hasattr(units, '__iter__') and \
+            type(units) is not str and not isinstance(units, Series) and hasattr(units, '__iter__'):
+            if len(item) == len(units) and len(item) == len(self.labels) and list(item) == list(self.labels):
+                pass # units is correct list
+            elif len(item) == len(units):  # labels and units are unsorted or incomplete
+                if len(set(item)) == len(item):  # not repeated items
+                    units = [units[items.index(label)] for label in self.labels]
+                else:  # some repeated items
+                    new_units = [None for item in items]
+                    for u, label in enumerate(self.labels):
+                        if label in items:
+                            i = items.index(label)
+                            _ = items.pop(i)
+                            unit = units.pop(i)
+                        else:
+                            unit = self._units_[u]
+                        new_units[u] = unit
+                    units = new_units
             else:
-                ku = False
-            if ku:
-                for k, u in units.items():
-                    self.set_units(u, k)
-                return None
+                raise ValueError("Length mismatch: Both units and item must have the same length.")
+
+        # the same units for several items
+        elif item is not None and type(item) is not str and hasattr(item, '__iter__') and type(units) is str:
+            return self.set_units([units] * len(items), items, inplace=inplace)
+
+        # just an iterable of units has been received
+        elif item is None and type(units) not in (str, dict, Series, SimSeries) and hasattr(units, '__iter__'):
+            if len(units) == len(self.labels):
+                pass  # units input is correct
             else:
-                for u, k in units.items():
-                    self.set_units(u, k)
-                return None
-            
-        elif type(units) is str:
-            self.units[item] = units.strip().strip('[').strip(']')
-        elif units is None:
-            pass  # units = 'unitless'
+                raise ValueError(f"Length mismatch: Expected axis has {len(self.labels)} elements, new values have {len(units)} units.\nUnits array-like must be the same length of labels in the SimDataFrame or must be accompained by a list of items.")
+
+        # not identifity units structure
         else:
-            raise TypeError("units must be a string.")
+            raise ValueError("The value of `units` is not a recognized structure")
 
-        if self.units is None:
-            self.units = {}
-
-        # if type(self.units) is dict:
-        if not self._transposed_:
-            if item is None and None not in self.columns and units is not None:
-                self.units[item] = units
-            elif item is None and units is not None and len(self.columns) > 1:
-                raise ValueError("This SimDataFrame has multiple columns, item parameter must be provided.")
-            elif item is None and len(self.columns) == 1:
-                return self.set_units(units, [list(self.columns)[0]])
-            elif item is not None:
-                if item in self.columns:
-                    self.units[item] = units
-                elif item == self.index.name:
-                    self.index_units = units
-                    self.units[item] = units
-                elif item in self.index.names:
-                    self.units[item] = units
-        else:  # if self._transposed_:
-            if item is None and len(self.index) > 1:
-                raise ValueError("item must not be None")
-            elif item is None and len(self.index) == 1:
-                return self.set_units(units, [list(self.index)[0]])
-            elif item is not None:
-                if item in self.index:
-                    self.units[item] = units
-                elif item == self.index.name:
-                    self.index_units = units
-                    self.units[item] = units
-                elif item in self.index.names:
-                    self.units[item] = units
+        # inplace, return new SimDataFrame or apply changes
+        if inplace:
+            self._units_ = units
+            return
+        else:
+            params_ = self.params_
+            params_['units'] = units
+            return SimDataFrame(data=self.as_pandas().copy(deep=deep), **params_)
 
     def keys_by_units(self):
         """
