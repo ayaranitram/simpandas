@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Created on Sun Oct 11 11:14:32 2020
 
-@author: Martín Carlos Araya <martinaraya@gmail.com>
+@author: MartÃ­n Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.25'
-__release__ = 20251104
+__version__ = '0.84.0'
+__release__ = 20260303
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -24,6 +24,7 @@ from unyts.dictionaries import unitless_names as _unitless_names
 from unyts import Unit
 
 from .indexer import _SimLocIndexer, _iSimLocIndexer
+from .common.compat import concat_compat
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
@@ -72,7 +73,7 @@ class SimBasics(object, metaclass=SimType):
         """Toggle the ``_reverse_`` flag and return self.
 
         This is used internally by certain operations that invert the sense of
-        names or units.  It mutates in‑place and returns the object for
+        names or units.  It mutates in-place and returns the object for
         convenience.
         """
         self._reverse_ = not self._reverse_
@@ -188,8 +189,8 @@ class SimBasics(object, metaclass=SimType):
         Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
 
         Parameters:
-            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
-                The index or the name of the axis. 0 is equivalent to None or ‘index’.
+            axis : {0 or 'index', 1 or 'columns'}, default 0
+                The index or the name of the axis. 0 is equivalent to None or 'index'.
 
         skipna: bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result will be NA.
@@ -1174,7 +1175,8 @@ class SimBasics(object, metaclass=SimType):
         -------
         SimSeries or SimDataFrame
             First differences with units and metadata preserved.
-        \"\"\"\n        axis = _clean_axis(axis)
+        """
+        axis = _clean_axis(axis)
         if type(periods) is bool:
             periods, forward = 1, periods
         if axis == 0:
@@ -1596,7 +1598,7 @@ class SimBasics(object, metaclass=SimType):
 
         Parameters
         ----------
-        axis : {0 or ‘index’, 1 or ‘columns’, None}, default None
+        axis : {0 or 'index', 1 or 'columns', None}, default None
             A specific axis to squeeze. By default, all length-1 axes are squeezed., optional
 
         Returns
@@ -1745,16 +1747,16 @@ class SimBasics(object, metaclass=SimType):
 
         When freq is not passed, shift the index without realigning the data.
         If freq is passed (in this case, the index must be date or datetime,
-        or it will raise a NotImplementedError), the index will be increased using the periods and the freq. freq can be inferred when specified as “infer” as long as either freq or inferred_freq attribute is set in the index.
+        or it will raise a NotImplementedError), the index will be increased using the periods and the freq. freq can be inferred when specified as "infer" as long as either freq or inferred_freq attribute is set in the index.
 
         Parameters
 periodsint
 Number of periods to shift. Can be positive or negative.
 
 freqDateOffset, tseries.offsets, timedelta, or str, optional
-Offset to use from the tseries module or time rule (e.g. ‘EOM’). If freq is specified then the index values are shifted but the data is not realigned. That is, use freq if you would like to extend the index when shifting and preserve the original data. If freq is specified as “infer” then it will be inferred from the freq or inferred_freq attributes of the index. If neither of those attributes exist, a ValueError is thrown.
+Offset to use from the tseries module or time rule (e.g. 'EOM'). If freq is specified then the index values are shifted but the data is not realigned. That is, use freq if you would like to extend the index when shifting and preserve the original data. If freq is specified as "infer" then it will be inferred from the freq or inferred_freq attributes of the index. If neither of those attributes exist, a ValueError is thrown.
 
-axis{0 or ‘index’, 1 or ‘columns’, None}, default None
+axis{0 or 'index', 1 or 'columns', None}, default None
 Shift direction.
 
 fill_valueobject, optional
@@ -2177,7 +2179,7 @@ Copy of input object, shifted.
             delta_index = np_diff(index)
             if isinstance(self.index, DatetimeIndex):
                 delta_index = delta_index.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
-            values = result.first().append(result.last().iloc[-1])
+            values = concat_compat([result.first(), result.last().iloc[-1:]])
             delta_values = np_diff(values.transpose())
             result = DataFrame(data=(delta_values / delta_index).transpose(), index=result.first().index,
                                columns=self.columns)
@@ -2256,7 +2258,7 @@ Copy of input object, shifted.
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
-                    new_df = new_df.append(group_df)
+                    new_df = concat_compat([new_df, group_df])
         elif len(by) == 3:
             daily_index = date_range(min(result.index), max(result.index), freq='D')
             result = result.reindex(index=daily_index)
@@ -2328,7 +2330,7 @@ Copy of input object, shifted.
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
-                    new_df = new_df.append(group_df)
+                    new_df = concat_compat([new_df, group_df])
         elif len(by) == 3:
             new_index = date_range(min(result.index), max(result.index), freq=freq)
             result = result.reindex(index=new_index)
@@ -2418,9 +2420,9 @@ Copy of input object, shifted.
 
         by : label or list of labels, optional.
             Used to determine the groups for the groupby.
-            If by is a function, it’s called on each value of the object’s index.
+            If by is a function, it's called on each value of the object's index.
             If a dict or Series is passed, the Series or dict VALUES will be used
-            to determine the groups (the Series’ values are first aligned; see .align() method).
+            to determine the groups (the Series' values are first aligned; see .align() method).
             If an ndarray is passed, the values are used as-is to determine the groups.
             A label or list of labels may be passed to group by the columns in self.
             Notice that a tuple is interpreted as a (single) key.
@@ -2558,9 +2560,9 @@ Copy of input object, shifted.
 
         by :  label, or list of labels
             Used to determine the groups for the groupby.
-            If by is a function, it’s called on each value of the object’s index.
+            If by is a function, it's called on each value of the object's index.
             If a dict or Series is passed, the Series or dict VALUES will be used
-            to determine the groups (the Series’ values are first aligned; see .align() method).
+            to determine the groups (the Series' values are first aligned; see .align() method).
             If an ndarray is passed, the values are used as-is to determine the groups.
             A label or list of labels may be passed to group by the columns in self.
             Notice that a tuple is interpreted as a (single) key.
@@ -2720,9 +2722,9 @@ Copy of input object, shifted.
 
         by :  label, or list of labels, optional
             Used to determine the groups for the groupby.
-            If by is a function, it’s called on each value of the object’s index.
+            If by is a function, it's called on each value of the object's index.
             If a dict or Series is passed, the Series or dict VALUES will be used
-            to determine the groups (the Series’ values are first aligned; see .align() method).
+            to determine the groups (the Series' values are first aligned; see .align() method).
             If an ndarray is passed, the values are used as-is to determine the groups.
             A label or list of labels may be passed to group by the columns in self.
             Notice that a tuple is interpreted as a (single) key.
@@ -2952,14 +2954,14 @@ Copy of input object, shifted.
                                       index=['0']).set_index(DatetimeIndex([self.index[0]]))
             else:
                 first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
-            return self._class(data=np_cumsum(first_row.append(cumulative)), **params_)
+            return self._class(data=np_cumsum(concat_compat([first_row, cumulative])), **params_)
         elif method[0] in 'ac' and at == 'same':
             if str(dt.dtype).startswith('timedelta'):
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
                                      index=[str(len(self) - 1)]).set_index(DatetimeIndex([self.index[-1]]))
             else:
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
-            return self._class(data=np_cumsum(cumulative.append(last_row)), **params_)
+            return self._class(data=np_cumsum(concat_compat([cumulative, last_row])), **params_)
         else:
             return self._class(data=np_cumsum(cumulative), **params_)
 
@@ -3003,7 +3005,7 @@ Copy of input object, shifted.
             else:
                 nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[0]])
             diff = DataFrame(data=diff, index=self.index[1:], columns=self.columns)
-            diff = nan_row.append(diff)
+            diff = concat_compat([nan_row, diff])
         else:
             if str(dt.dtype).startswith('timedelta'):
                 nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
@@ -3011,7 +3013,7 @@ Copy of input object, shifted.
             else:
                 nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[-1]])
             diff = DataFrame(data=diff, index=self.index[:-1], columns=self.columns)
-            diff = diff.append(nan_row)
+            diff = concat_compat([diff, nan_row])
 
         params_ = self.params_
         params_['units'] = new_units
@@ -3259,3 +3261,5 @@ Copy of input object, shifted.
         logging.warning('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
 
         return None
+
+

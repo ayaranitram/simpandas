@@ -138,7 +138,7 @@ def write_schedule(self, path, units='FIELD', ControlMode=None, ShutStop=None):
             out['WCONINJH']['keyword'] = 'WCONINJH'
             out['WCONPROD']['keyword'] = 'WCONPROD'
             out['WCONINJE']['keyword'] = 'WCONINJE'
-            keywords = out['WCONHIST'].append(out['WCONINJH']).append(out['WCONPROD']).append(out['WCONINJE'])
+            keywords = concat_compat([out['WCONHIST'], out['WCONINJH'], out['WCONPROD'], out['WCONINJE']])
             keywords.dropna(axis=0, how='all',subset=range(2,13),inplace=True)
 
             prodh = keywords['keyword'] == 'WCONHIST'

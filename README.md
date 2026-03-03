@@ -3,21 +3,110 @@ A couple of Pandas DataFrame and Series subclasses, extended to work with units 
 
 This package is under development and is regularly updated. Back-compatibility is intended to be maintained when possible.
 
+**Version:** 0.84.0 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 2.x
+
 ## What Contains This Package
 It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>, <a href="https://seaborn.pydata.org/">**seaborn**</a> and <a href="https://github.com/ayaranitram/unyts">**unyts**</a> and further own methods, to be able to deal with tables of quantities and facilitate common manipulations of time-dependent data.
 
-## To install this package:
-To install it from the <a href="https://pypi.org/search/?q=simpandas">pypi.org</a> repository:  
-`pip install simpandas`
-or upgrade to the latest version:
-`pip install --upgrade simpandas`
+### Key Features
+- **Unit-aware DataFrames and Series:** Automatic unit tracking and conversion using unyts
+- **Pandas 2.x compatible:** Works with both pandas 1.x and 2.x
+- **Enhanced I/O:** Read/write Excel files with unit metadata preservation
+- **Time-series utilities:** Built-in methods for daily, monthly, yearly aggregations
+- **Eclipse simulator support:** Handle column naming conventions from reservoir simulators
 
-## Requisites
-- Pandas
-- NumPy
-- matplotlib
-- seaborn
-- datetime
-- unyts
-- openpyxl
-- xlsxwriter
+## Installation
+
+To install from <a href="https://pypi.org/search/?q=simpandas">pypi.org</a>:  
+```bash
+pip install simpandas
+```
+
+To upgrade to the latest version:
+```bash
+pip install --upgrade simpandas
+```
+
+## Requirements
+- **pandas** ≥1.3.0, <3.0.0
+- **numpy**
+- **matplotlib**
+- **seaborn**
+- **unyts** ≥0.5.25
+- **openpyxl** (for Excel support)
+- **xlsxwriter** (for Excel writing)
+- **packaging** (for version detection)
+
+## Quick Start
+
+```python
+from simpandas import SimDataFrame, SimSeries
+
+# Create a DataFrame with units
+df = SimDataFrame(
+    {'velocity': [1, 2, 3], 'temperature': [25, 30, 35]},
+    units={'velocity': 'm/s', 'temperature': 'degC'}
+)
+
+# Units are preserved through operations
+result = df * 2
+print(df.get_units())  # Access unit information
+
+# Read Excel with units
+df = SimDataFrame.read_excel('data.xlsx', units=0)  # units in row 0
+```
+
+## Compatibility Notes
+
+### Pandas 2.x Support
+Version 0.84.0+ is fully compatible with pandas 2.x while maintaining backward compatibility with pandas 1.3.0+. The deprecated `.append()` method has been replaced with `pd.concat()` internally.
+
+### Python Version
+- **Minimum:** Python 3.7
+- **Recommended:** Python 3.8 or higher
+
+### Breaking Changes in v0.84.0
+The `writters` module has been renamed to `writers` (correcting spelling). For backward compatibility:
+
+```python
+# Deprecated (still works with warning):
+from simpandas.writters import write_excel
+
+# New (recommended):
+from simpandas.writers import write_excel
+```
+
+## Documentation
+
+For detailed documentation, examples, and API reference, see:
+- **CHANGELOG.md** - Version history and migration guides
+- **simpandas_demo.ipynb** - Interactive examples and tutorials
+- **test/** - Comprehensive test suite with usage examples
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+1. Code passes all tests: `pytest test/`
+2. Follow existing code style
+3. Add tests for new features
+4. Update documentation as needed
+
+## Testing
+
+Run the test suite:
+```bash
+cd simpandas
+pytest test/ -v
+```
+
+## License
+
+See LICENSE file for details.
+
+## Author
+
+Martín Carlos Araya <martinaraya@gmail.com>
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.

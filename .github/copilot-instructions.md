@@ -19,7 +19,7 @@ adds a handful of domain‑specific helpers.
   are imported liberally; they favour pure‑Python utility functions and are good
   examples when adding new shared logic.
 
-* I/O wrappers are under `src/simpandas/readers` and `src/simpandas/writters`.
+* I/O wrappers are under `src/simpandas/readers` and `src/simpandas/writers`.
   They all follow the same pattern of calling the underlying pandas function and
   then constructing a `SimDataFrame` with the extracted `units` metadata.
 

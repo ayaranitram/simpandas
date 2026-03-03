@@ -150,7 +150,7 @@ def read_excel(io,
                 if df.name is not None:
                     dataunits = {df.name:'date'}
         if str(df.index.dtype).startswith('date'):
-            if str(indexUnits).lowrt().strip() not in dateunits:
+            if str(indexUnits).lower().strip() not in dateunits:
                 indexUnits = 'date'
 
         output[name] = SimDataFrame(data=df,

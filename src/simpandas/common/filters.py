@@ -9,6 +9,8 @@ __version__ = '0.81.0'
 __release__ = 20230108
 __all__ = ['zeros']
 
+from .helpers import clean_axis as _clean_axis
+
 
 def zeros(series_or_frame, axis=None, value=0):
     """
@@ -32,7 +34,7 @@ def zeros(series_or_frame, axis=None, value=0):
             axis = 1
     axis = _clean_axis(axis)
     if axis == 2:
-        return zeros(axis=0, value=value) + zero(axis=1, value=value)
+        return zeros(series_or_frame, axis=0, value=value) + zeros(series_or_frame, axis=1, value=value)
     if hasattr(series_or_frame, 'columns'):
         limit = len(series_or_frame) if axis == 0 else len(series_or_frame.columns)
     else:

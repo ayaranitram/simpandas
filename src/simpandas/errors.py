@@ -5,7 +5,7 @@ Created on Wed May 13 15:14:35 2020
 """
 
 __version__ = '0.0.3'
-__release = 20221116
+__release__ = 20221116
 __all__ = []
 
 
