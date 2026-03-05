@@ -206,9 +206,14 @@ class SimDataFrame(SimBasics, DataFrame):
 
         # get index_units
         if index_units is None:
-            if self.index.name is not None and self.index.name in self.units:
-                self.index_units_ = self.units[self.index.name]
-            elif hasattr(data, 'index_units'):
+            if self.index.name is not None:
+                # Get index units from proper storage (works with both dict and list formats)
+                if isinstance(self.units, dict) and self.index.name in self.units:
+                    self.index_units_ = self.units[self.index.name]
+                elif isinstance(self.units, list) and self.index.name in self.columns:
+                    idx = list(self.columns).index(self.index.name)
+                    self.index_units_ = self.units[idx] if idx < len(self.units) else None
+            if self.index_units_ is None and hasattr(data, 'index_units'):
                 self.index_units_ = data.index_units.copy() if type(data.index_units) is dict else data.index_units
         else:  # override index.units with index_units
             self.index_units = index_units
@@ -503,10 +508,9 @@ class SimDataFrame(SimBasics, DataFrame):
                     self.index_units = value.index_units
             elif isinstance(value, SimDataFrame):
                 if len(value.columns) == 1:
-                    if value.columns[0] in value.units:
-                        u_dict = {str(key): value.units[value.columns[0]]}
-                    else:
-                        u_dict = {str(key): 'unitless'}
+                    # Get unit for first column using helper method
+                    units_dict = value._units_as_dict()
+                    u_dict = {str(key): units_dict.get(value.columns[0], 'unitless')}
                 else:
                     u_dict = value.units.copy() if type(value.units) is dict else {str(key): value.units}
                     if value.index.name not in value.columns and value.index.name in u_dict:
@@ -730,22 +734,30 @@ class SimDataFrame(SimBasics, DataFrame):
         if self._transposed_:
             return self.transpose().convert(units).transpose()
         elif type(units) is str:
-            if len(set(self.units.values())) == 1:
-                if _convertible(list(set(self.units.values()))[0], units):
+            # Get units as dict for comparison
+            units_dict = self._units_as_dict()
+            unique_units = set(u for u in units_dict.values() if u is not None)
+            
+            if len(unique_units) == 1:
+                # All columns have same unit
+                current_unit = list(unique_units)[0]
+                if _convertible(current_unit, units):
                     params_ = self.params_
                     params_['units'] = units
                     params_['columns'] = self.columns
                     params_['index'] = self.index
-                    return SimDataFrame(data=_converter(self, list(set(self.units.values()))[0],
+                    return SimDataFrame(data=_converter(self, current_unit,
                                                         units, print_conversion_path=self.verbose),
                                         **params_)
                 else:
                     return None
             else:
+                # Different units per column
                 result = SimDataFrame(index=self.index, columns=self.columns, **self.params_)
                 valid = False
                 for col in self.columns:
-                    if _convertible(self.get_units(col)[col], units):
+                    col_unit = units_dict.get(col)
+                    if _convertible(col_unit, units):
                         result[col] = self[col].to(units)
                         valid = True
                     else:
@@ -754,10 +766,12 @@ class SimDataFrame(SimBasics, DataFrame):
                     return result
         elif type(units) not in (str, dict) and hasattr(units, '__iter__'):
             result = self.copy()
+            units_dict = self._units_as_dict()
             valid = False
             for col in self.columns:
+                col_unit = units_dict.get(col)
                 for ThisUnits in units:
-                    if _convertible(self.get_units(col)[col], ThisUnits):
+                    if _convertible(col_unit, ThisUnits):
                         result[col] = self[col].to(ThisUnits)
                         valid = True
                         break
@@ -767,12 +781,15 @@ class SimDataFrame(SimBasics, DataFrame):
                 logging.warning('No columns could be to converted to the requested units.')
                 return self
         elif type(units) is dict:
-            units_dict = {i: v for k, v in units.items() for i in self.find_keys(k)}
+            units_dict_keys = {i: v for k, v in units.items() for i in self.find_keys(k)}
             result = self.copy()
+            current_units = self._units_as_dict()
             for col in self.columns:
-                if col in units_dict and _convertible(self.get_units(col)[col],
-                                                      units_dict[col][col] if type(units_dict[col]) is dict else units_dict[col]):
-                    result[col] = self[col].to(units_dict[col])
+                if col in units_dict_keys:
+                    col_unit = current_units.get(col)
+                    target_unit = units_dict_keys[col][col] if type(units_dict_keys[col]) is dict else units_dict_keys[col]
+                    if _convertible(col_unit, target_unit):
+                        result[col] = self[col].to(target_unit)
             return result
 
     def corr(self, method='pearson', min_periods=1, numeric_only=True):
@@ -1048,16 +1065,24 @@ class SimDataFrame(SimBasics, DataFrame):
             catch = super().rename(mapper=mapper, index=index, columns=columns, axis=axis, copy=copy, inplace=inplace,
                                    level=level, errors=errors)
             col_after = list(catch.columns)
-        new_units = {}
+        
+        # Map units from old column names to new column names/positions
+        # Use helper method to get units as dict for lookup
+        old_units_dict = self._units_as_dict()
+        new_units_list = []
+        
         for i in range(len(col_before)):
-            if col_before[i] in self.units:
-                new_units[col_after[i]] = self.units[col_before[i]]
+            old_col = col_before[i]
+            new_col = col_after[i]
+            # Get unit for old column and apply to new position
+            new_units_list.append(old_units_dict.get(old_col))
+        
         if inplace:
-            self.units = new_units
+            object.__setattr__(self, '_units_', new_units_list)
             self.spdLocator = _SimLocIndexer("loc", self)
             return None
         else:
-            catch.units = new_units
+            object.__setattr__(catch, '_units_', new_units_list)
             catch.spdLocator = _SimLocIndexer("loc", catch)
             return catch
 
@@ -1444,10 +1469,6 @@ class SimDataFrame(SimBasics, DataFrame):
             return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_).transpose()
         if axis == 1:
             new_name = '.sum'
-            if len(set(self.get_units(self.columns).values())) == 1:
-                units = list(set(self.get_units(self.columns).values()))[0]
-            else:
-                units = 'dimensionless'
             if len(set(self.columns)) == 1:
                 new_name = list(set(self.columns))[0] + new_name
             elif len(set(self.rename_right(inplace=False).columns)) == 1:
@@ -1462,6 +1483,7 @@ class SimDataFrame(SimBasics, DataFrame):
                 else:
                     new_name = common_r + new_name
             if len(set(self.get_units(self.columns).values())) == 1:
+                units = list(set(self.get_units(self.columns).values()))[0]
                 data = self.as_pandas().sum(axis=axis, **kwargs)
             else:
                 i = 0
@@ -1620,10 +1642,10 @@ class SimDataFrame(SimBasics, DataFrame):
                     else:
                         keySearch += ' ' + keyParts[P]
                 datesFilter = temporal.filter(keySearch, returnFilter=True)
-                return self.as_pandas().iloc[datesFilter.array]
+                return self._class(self.as_pandas().iloc[datesFilter.array], **self.params_)
 
             else:
-                return self.as_pandas().iloc[key]
+                return self._class(self.as_pandas().iloc[key], **self.params_)
 
     def _columns_name_and_units_to_MultiIndex(self):
         out = []  # out = {}
@@ -1773,6 +1795,23 @@ class SimDataFrame(SimBasics, DataFrame):
             # We can't know which positions were removed, so we keep the first N units
             # This is a limitation - for accurate tracking, use non-inplace operations
             self._units_ = self._units_[:len(self.columns)]
+
+    def _units_as_dict(self):
+        """
+        Helper to safely get units as a dict.
+        Works with both list-based (new) and dict-based (legacy) units storage.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping column names to units
+        """
+        if isinstance(self._units_, list):
+            return {col: self._units_[i] for i, col in enumerate(self.columns)}
+        elif isinstance(self._units_, dict):
+            return self._units_.copy()
+        else:
+            return {col: None for col in self.columns}
 
     def get_units(self, items=None):
         """
