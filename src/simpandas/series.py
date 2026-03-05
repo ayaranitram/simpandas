@@ -203,7 +203,7 @@ class SimSeries(SimBasics, Series):
         # override index.name with index_name
         if index_name is not None:
             if type(self.units) is dict and self.index.name in self.units:
-                self.units[index_name] = self.units[self.index.name]
+                self._units_[index_name] = self.units[self.index.name]
             self.index.name = index_name
 
         # change Index to SimIndex
@@ -1065,13 +1065,13 @@ class SimSeries(SimBasics, Series):
                     if type(item) not in (str, dict) and hasattr(item, '__iter__'):
                         units = units.strip()
                         for i in item:
-                            if i in self.units:
-                                self.units[i] = units
+                            if i in self._units_:
+                                self._units_[i] = units
                     elif type(item) is str:
-                        if item in self.units:
-                            self.units[item] = units
+                        if item in self._units_:
+                            self._units_[item] = units
                         elif item in self.columns or item in self.index:
-                            self.units[item] = units
+                            self._units_[item] = units
 
             if item is None and len(self.columns) > 1:
                 raise ValueError("More than one column in this SimSeries, item must not be None")
@@ -1079,25 +1079,25 @@ class SimSeries(SimBasics, Series):
                 # assign directly to the sole column instead of recursing
                 col = list(self.columns)[0]
                 if units is None:
-                    self.units[col] = None
+                    self._units_[col] = None
                 else:
-                    self.units[col] = units.strip()
+                    self._units_[col] = units.strip()
                 return
             elif item is not None:
                 if item in self.columns:
                     if units is None:
-                        self.units[item] = None
+                        self._units_[item] = None
                     elif type(units) is str:
-                        self.units[item] = units.strip()
+                        self._units_[item] = units.strip()
                     else:
                         raise TypeError("units must be a string.")
                 if item == self.index.name:
                     self.index_units = units.strip()
-                    self.units[item] = units.strip()
+                    self._units_[item] = units.strip()
                 elif item in self.index.names:
-                    self.units[item] = units.strip()
+                    self._units_[item] = units.strip()
                 elif item in self.index:
-                    self.units[item] = units.strip()
+                    self._units_[item] = units.strip()
 
     def daily(self, agg='mean', datetime_index=False):
         """

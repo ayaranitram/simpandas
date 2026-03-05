@@ -107,25 +107,43 @@ class SimBasics(object, metaclass=SimType):
         return self.spdiLocator
 
     @property
-    def units(self) -> dict:
-        """Return a mapping from labels to unit strings.
+    def units(self):
+        """Return units as dict (no duplicates) or list (has duplicates).
 
-        The internal ``_units_`` attribute may be a dict, a string, or an
-        iterable.  This property normalises it into a dictionary keyed by the
-        current labels (usually column names or the Series name).
+        The internal ``_units_`` attribute is stored as a list parallel to columns.
+        This property returns:
+        - dict {column: unit} when all column names are unique (backward compatible)
+        - list [unit, unit, ...] when duplicate column names exist (position-based)
+        - For Series with string units, returns the string directly
         """
-        if isinstance(self._units_, dict):
-            return self._units_.copy()
+        # Handle string units (for Series)
         if isinstance(self._units_, str):
-            # single unit applies to the whole object
-            label = self.name if hasattr(self, 'name') else None
-            return {label: self._units_}
-        try:
-            # assume iterable of same length as labels
-            return dict(zip(self.labels, self._units_))
-        except Exception:
-            # fallback: empty mapping
-            return {}
+            return self._units_
+        
+        # Handle list units (standard storage)
+        if isinstance(self._units_, list):
+            labels = list(self.labels)
+            # Check for duplicate column names
+            if len(labels) == len(set(labels)):
+                # No duplicates: return dict for backward compatibility
+                return dict(zip(labels, self._units_))
+            else:
+                # Has duplicates: return list for position-based access
+                return self._units_.copy()
+        
+        # Handle legacy dict storage (convert to list internally)
+        if isinstance(self._units_, dict):
+            labels = list(self.labels)
+            units_list = [self._units_.get(label, None) for label in labels]
+            object.__setattr__(self, '_units_', units_list)
+            # Return dict if no duplicates, list if duplicates
+            if len(labels) == len(set(labels)):
+                return dict(zip(labels, units_list))
+            else:
+                return units_list.copy()
+        
+        # Fallback: empty list
+        return []
 
     @units.setter
     def units(self, units) -> None:
@@ -552,6 +570,7 @@ class SimBasics(object, metaclass=SimType):
 
     def gt6(self, other):
         """Test > against `other` at 6 decimal places precision."""
+        return self.gt(other, precision=6)
 
     def le0(self, other):
         """Test <= against `other` at 0 decimal places precision."""
@@ -623,6 +642,7 @@ class SimBasics(object, metaclass=SimType):
 
     def ne6(self, other):
         """Test != against `other` at 6 decimal places precision."""
+        return self.ne(other, precision=6)
 
     def floordiv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
         """Floor division of this object by `other`.
@@ -3027,6 +3047,9 @@ Copy of input object, shifted.
         return self.get_units()
 
     def get_units_string(self, items=None):
+        """
+        Alias of .get_units method, but returns a string with the units instead of a dict.
+        """
         items_units_dict = self.get_units(items)
         if None in items_units_dict and items_units_dict[None] is None:
             del items_units_dict[None]
@@ -3050,6 +3073,9 @@ Copy of input object, shifted.
             return result
 
     def get_UnitsString(self, items=None):
+        """
+        Alias of .get_units_string method.
+        """
         return self.get_units_string(items)
 
     def set_Units(self, units, item=None):
@@ -3063,7 +3089,7 @@ Copy of input object, shifted.
             the units to be assigned
         item : str, optional
             The name of the column to apply the units.
-            The default is None. In this case the unit
+            The default is None. In this case the units are applied to all columns.
 
         Raises
         ------
@@ -3081,6 +3107,10 @@ Copy of input object, shifted.
 
     def reset_index(self, level=None, drop=False, inplace=False, col_level=0, col_fill='',
                     allow_duplicates=True, names=None):
+        """
+        Wrapper of .reset_index method from Pandas, but keeping the units of the index if they exist and are compatible with the new index after reseting.
+        If the new index is not compatible with the old one, the units of the index will be removed.
+        """
         from .frame import SimDataFrame
         from .index import SimIndex
         if inplace:
