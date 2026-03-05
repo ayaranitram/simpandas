@@ -14,7 +14,6 @@ from pandas.core.indexing import _LocIndexer, _iLocIndexer
 import pandas as pd
 from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
 from unyts import units, Unit
-from unyts.helpers.common_classes import number
 
 logging.basicConfig(level=logging.INFO)
 

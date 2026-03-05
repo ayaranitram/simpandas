@@ -28,7 +28,6 @@ from unyts import Unit, units
 from .basics import SimBasics
 from .common.slope import slope as _slope
 from .common.stringformat import multisplit as _multisplit, is_date as _is_date, date as _date
-from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
 from .series import SimSeries

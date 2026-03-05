@@ -29,7 +29,6 @@ from unyts import units, is_Unit, Unit
 
 from .basics import SimBasics
 from .common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
-from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.slope import slope as _slope
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
@@ -1024,8 +1023,10 @@ class SimSeries(SimBasics, Series):
         if self.units is None or type(self.units) is str:
             if units is None:
                 object.__setattr__(self, '_units_', None)
+                return
             elif type(units) is str:
                 object.__setattr__(self, '_units_', units.strip())
+                return
             elif type(units) is dict:
                 old_units = self.units
                 try:
@@ -1061,6 +1062,7 @@ class SimSeries(SimBasics, Series):
             elif type(units) is str:
                 if item is None:
                     object.__setattr__(self, '_units_', units.strip())
+                    return
                 else:
                     if type(item) not in (str, dict) and hasattr(item, '__iter__'):
                         units = units.strip()

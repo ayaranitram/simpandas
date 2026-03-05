@@ -79,9 +79,20 @@ from simpandas.writers import write_excel
 ## Documentation
 
 For detailed documentation, examples, and API reference, see:
+- **docs/USER_GUIDE.md** - Comprehensive user manual for classes, functions, and modules
 - **CHANGELOG.md** - Version history and migration guides
 - **simpandas_demo.ipynb** - Interactive examples and tutorials
 - **test/** - Comprehensive test suite with usage examples
+
+### API At A Glance
+
+```python
+from simpandas import SimDataFrame, SimSeries, read_excel, concat
+from simpandas.index import SimIndex
+
+from simpandas.writers.xlsx import write_excel
+from simpandas.writers.schedule import write_schedule
+```
 
 ## Contributing
 

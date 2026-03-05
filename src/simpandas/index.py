@@ -27,6 +27,12 @@ def convert(values, from_units, to_units):
 
 
 class SimIndex(pd.MultiIndex, ABC):
+    """SimIndex with unit-aware behavior for simpandas.
+
+    Notes
+    -----
+    This class extends pandas objects and carries units metadata through operations.
+    """
     _metadata = ['units']
 
     def __new__(cls, *args, **kwargs):

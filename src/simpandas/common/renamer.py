@@ -10,7 +10,6 @@ __version__ = '0.81.2'
 __release__ = 20230725
 __all__ = ['left', 'right', 'rename_left', 'rename_right', 'common_rename']
 
-import warnings
 
 
 def right(series_or_frame, name_separator=None):

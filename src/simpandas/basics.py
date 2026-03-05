@@ -21,7 +21,6 @@ from unyts import is_Unit
 from unyts.converter import convertible as _convertible
 from unyts.operations import unit_inverse as _unit_inverse
 from unyts.dictionaries import unitless_names as _unitless_names
-from unyts import Unit
 
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.compat import concat_compat
@@ -133,6 +132,10 @@ class SimBasics(object, metaclass=SimType):
         
         # Handle legacy dict storage (convert to list internally)
         if isinstance(self._units_, dict):
+            # If _units_ is empty dict, return it directly
+            if not self._units_:
+                return {}
+            
             labels = list(self.labels)
             units_list = [self._units_.get(label, None) for label in labels]
             object.__setattr__(self, '_units_', units_list)

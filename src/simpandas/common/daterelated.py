@@ -14,6 +14,18 @@ import numpy as np
 
 
 def check_day(day):
+    """Perform the `check_day` operation.
+
+    Parameters
+    ----------
+    day : object, optional
+        Input for `day`.
+
+    Returns
+    -------
+    object
+        Result of the operation.
+    """
     if day is None:
         day = '01'
     elif type(day) in [int, float]:
@@ -36,6 +48,18 @@ def check_day(day):
 
 
 def check_month(month):
+    """Perform the `check_month` operation.
+
+    Parameters
+    ----------
+    month : object, optional
+        Input for `month`.
+
+    Returns
+    -------
+    object
+        Result of the operation.
+    """
     months_names = {'JAN': 1, 'ENE': 1, 'GEN': 1,
                     'FEB': 2,
                     'MAR': 3,
