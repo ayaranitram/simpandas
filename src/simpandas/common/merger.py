@@ -160,82 +160,203 @@ def merge_index(left, right, how='outer', *, drop_duplicates=True, keep='first')
 
 def merge_units(left, right=None, suffixes=('_x', '_y')):
     """
-    return a dictionary with the units of both SimDataFrames merged, corresponding to the merged DataFrame.
+    Merge units from SimDataFrames/SimSeries using position-based storage.
+    
+    Handles both dict-based and list-based units storage.
+    Returns a list to support position-based storage and duplicate column names.
 
     Parameters
     ----------
-    left : SimDataFrame
-    right : SimDataFrame
+    left : SimDataFrame, SimSeries, or list
+        Left DataFrame/Series, or list of multiple objects for recursive merge
+    right : SimDataFrame or SimSeries, optional
+        Right DataFrame/Series to merge with left
     suffixes : tuple of str, optional
-        tuple indicating the suffixes to be used for repeated column names. The default is ('_x', '_y').
+        Suffixes for duplicate column names. Default is ('_x', '_y').
 
     Returns
     -------
-    dict of units
+    list or dict
+        Units in order matching the merged DataFrame columns.
+        Returns list if duplicates exist, dict otherwise.
     """
+    # Handle list of objects - merge pairwise
     if type(left) in (list, tuple) and len(left) > 1 and right is None:
-        merged = left[0]
-        for i in range(1, len(left)):
-            merged = merge_units(merged, left[i])
-        return merged
+        # For multiple objects, merge them pairwise from left to right
+        result_units = None
+        result_cols = None
+        
+        for obj in left:
+            if type(obj) not in [SimDataFrame, SimSeries]:
+                continue
+                
+            obj_cols = list(obj.columns)
+            
+            if result_cols is None:
+                # First object
+                if isinstance(obj._units_, list):
+                    result_units = obj._units_.copy()
+                elif isinstance(obj._units_, dict):
+                    result_units = [obj._units_.get(col) for col in obj_cols]
+                else:
+                    result_units = [None] * len(obj_cols)
+                result_cols = obj_cols
+            else:
+                # Subsequent objects - check if columns match
+                if obj_cols == result_cols:
+                    # Same columns - keep first object's units (assuming same units)
+                    pass
+                else:
+                    # Different columns - need to merge
+                    # Get this object's units
+                    if isinstance(obj._units_, list):
+                        obj_units = obj._units_.copy()
+                    elif isinstance(obj._units_, dict):
+                        obj_units = [obj._units_.get(col) for col in obj_cols]
+                    else:
+                        obj_units = [None] * len(obj_cols)
+                    
+                    # Build merged columns and units
+                    merged_cols = []
+                    merged_units = []
+                    
+                    for i, col in enumerate(result_cols):
+                        if col in obj_cols:
+                            merged_cols.append(col + suffixes[0])
+                            merged_units.append(result_units[i])
+                        else:
+                            merged_cols.append(col)
+                            merged_units.append(result_units[i])
+                    
+                    for i, col in enumerate(obj_cols):
+                        if col in result_cols:
+                            merged_cols.append(col + suffixes[1])
+                            merged_units.append(obj_units[i])
+                        else:
+                            merged_cols.append(col)
+                            merged_units.append(obj_units[i])
+                    
+                    result_cols = merged_cols
+                    result_units = merged_units
+        
+        return result_units if result_units is not None else []
 
-    merged = {}
+    # Helper function: extract units as list from SimDataFrame/SimSeries
+    def get_units_list(obj):
+        """Get units as list from SimDataFrame/SimSeries"""
+        if type(obj) not in [SimDataFrame, SimSeries]:
+            return None
+        
+        if isinstance(obj._units_, list):
+            return obj._units_.copy()
+        elif isinstance(obj._units_, dict):
+            return [obj._units_.get(col) for col in obj.columns]
+        else:
+            return [None] * len(obj.columns)
+    
+    # Case 1: Both are SimDataFrame/SimSeries
     if type(left) in [SimDataFrame, SimSeries] and type(right) in [SimDataFrame, SimSeries]:
-        for col in left.columns:
-            if col in right.columns:
-                merged[col + suffixes[0]] = left.get_units(col)[col]
+        left_cols = list(left.columns)
+        right_cols = list(right.columns)
+        left_units = get_units_list(left)
+        right_units = get_units_list(right)
+        
+        # Check if columns are identical (typical for axis=0 concat)
+        if left_cols == right_cols:
+            # Same columns - verify units match and return
+            if left_units == right_units:
+                return left_units
             else:
-                merged[col] = left.get_units(col)[col]
-        for col in right.columns:
-            if col in left.columns:
-                merged[col + suffixes[1]] = right.get_units(col)[col]
+                # Units differ - prefer left's units and warn
+                logging.warning(
+                    "Units differ between objects being concatenated. Using left object's units.")
+                return left_units
+        
+        # Different columns (typical for axis=1 concat or merge)
+        merged_cols = []
+        merged_units = []
+        
+        # Add left columns
+        for i, col in enumerate(left_cols):
+            if col in right_cols:
+                merged_cols.append(col + suffixes[0])
+                merged_units.append(left_units[i])
             else:
-                merged[col] = right.get_units(col)[col]
-
+                merged_cols.append(col)
+                merged_units.append(left_units[i])
+        
+        # Add right columns
+        for i, col in enumerate(right_cols):
+            if col in left_cols:
+                merged_cols.append(col + suffixes[1])
+                merged_units.append(right_units[i])
+            else:
+                merged_cols.append(col)
+                merged_units.append(right_units[i])
+        
+        # Return list (position-based) - handles duplicates naturally
+        return merged_units
+    
+    # Case 2: Left is SimDataFrame/SimSeries, right is not
     elif type(left) in [SimDataFrame, SimSeries] and type(right) not in [SimDataFrame, SimSeries]:
-
+        left_cols = list(left.columns)
+        left_units = get_units_list(left)
+        
+        # Get right's columns
         if isinstance(right, pd.DataFrame):
-            columns = right.columns
-        elif isinstance(right, pd.Series) and type(right.name) is str and len(right.name.strip()) > 0:
-            columns = [right.name]
+            right_cols = list(right.columns)
+        elif isinstance(right, pd.Series):
+            right_cols = [right.name] if right.name else []
         else:
-            columns = []
-
-        for col in left.columns:
-            if col in columns:
-                merged[col + suffixes[0]] = left.get_units(col)[col]
-            else:
-                merged[col] = left.get_units(col)[col]
-        for col in columns:
-            if col in left.columns:
-                merged[col + suffixes[1]] = 'UNDEFINED'
-            else:
-                merged[col] = 'UNDEFINED'
-
+            right_cols = []
+        
+        # If columns match (axis=0 concat), return left units
+        if left_cols == right_cols:
+            return left_units
+        
+        # Different columns - create merged units
+        merged_units = left_units.copy()
+        
+        # Add undefined units for new columns from right
+        for col in right_cols:
+            if col not in left_cols:
+                merged_units.append(None)
+        
+        return merged_units
+    
+    # Case 3: Right is SimDataFrame/SimSeries, left is not
     elif type(left) not in [SimDataFrame, SimSeries] and type(right) in [SimDataFrame, SimSeries]:
-
+        right_cols = list(right.columns)
+        right_units = get_units_list(right)
+        
+        # Get left's columns
         if isinstance(left, pd.DataFrame):
-            columns = left.columns
-        elif isinstance(left, pd.Series) and type(left.name) is str and len(left.name.strip()) > 0:
-            columns = [left.name]
+            left_cols = list(left.columns)
+        elif isinstance(left, pd.Series):
+            left_cols = [left.name] if left.name else []
         else:
-            columns = []
-
-        for col in right.columns:
-            if col in columns:
-                merged[col + suffixes[0]] = right.get_units(col)[col]
+            left_cols = []
+        
+        # If columns match (axis=0 concat), return right units
+        if left_cols == right_cols:
+            return right_units
+        
+        # Different columns - create merged units
+        merged_units = [None] * len(left_cols)
+        
+        # Add right's units for matching/new columns
+        for i, col in enumerate(right_cols):
+            if col in left_cols:
+                merged_units[left_cols.index(col)] = right_units[i]
             else:
-                merged[col] = right.get_units(col)[col]
-        for col in columns:
-            if col in right.columns:
-                merged[col + suffixes[1]] = 'UNDEFINED'
-            else:
-                merged[col] = 'UNDEFINED'
-
+                merged_units.append(right_units[i])
+        
+        return merged_units
+    
     else:
-        raise TypeError("'left' and 'right' parameters most be SimDataFrame or SimSeries")
+        raise TypeError("'left' and 'right' parameters must be SimDataFrame or SimSeries")
 
-    return merged
+
 
 
 def merge_SimParameters(left, right=None):
