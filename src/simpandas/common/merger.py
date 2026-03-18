@@ -27,7 +27,7 @@ def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=Non
         raise TypeError("objs must be a list of DataFrames or SimDataFrames")
     if len(objs) == 1:
         logging.warning("Only 1 DataFrame received.")
-        return [objs][0]
+        return objs[0]
 
     sim_objs = [ob for ob in objs if type(ob) in (SimDataFrame, SimSeries)]
     if len(sim_objs) == 0:
@@ -64,7 +64,11 @@ def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=Non
         sdf = SimDataFrame(data=sdf, units=merged_units, **merged_params_)
 
     if squeeze:
-        return sdf.squeeze()
+        squeezed = sdf.squeeze()
+        # Don't downgrade DataFrame to Series; concat should preserve dimensionality
+        if isinstance(sdf, pd.DataFrame) and not isinstance(squeezed, pd.DataFrame):
+            return sdf
+        return squeezed
     else:
         return sdf
 

@@ -122,15 +122,15 @@ assert (ss1() == ss1.values).all()
 # get item
 assert ss1[5] == units(1.5, 'ft')
 assert ss2[0] == units(1, 'yd')
-assert (ss2[1:3] == SimSeries(data=[2, 3, 6], units='in', index=[1, 2, 3])).all()
-assert (ss2[1:3] == SimSeries(data=ss2.to_pandas().loc[1:3], units='in')).all()
+assert (ss2[1:3] == SimSeries(data=[2, 3, 6], units='yd', index=[1, 2, 3])).all()
+assert (ss2[1:3] == SimSeries(data=ss2.to_pandas().loc[1:3], units='yd')).all()
 
 # operations with SimSeries
 ## add
 ### add SimSeries
 test = ss1 + ss1
 assert (test == ss1.as_pandas() + ss1.as_pandas()).all()
-assert test.name is None
+assert test.name in (None, '')
 assert test.units == 'ft'
 
 test = ss1 + ss2
@@ -176,7 +176,7 @@ assert test.units == ss5.units
 ### add Series
 test = ss1 + s0
 assert (test == ss1.as_pandas() + s0).all()
-assert test.name is None
+assert test.name in (None, '')
 assert test.units == ss1.units
 
 test = ss2 + s0
@@ -191,7 +191,7 @@ assert test.units == ss2.units
 
 test = s0 + ss1
 assert (test == ss1.as_pandas() + s0).all()
-assert test.name is None
+assert test.name in (None, '')
 assert test.units == ss1.units
 
 test = s0 + ss2

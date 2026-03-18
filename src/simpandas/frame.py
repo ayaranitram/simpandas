@@ -74,6 +74,45 @@ def _series_to_frame(a_SimSeries, params_=None):
             return a_SimSeries
 
 
+class _SimWindowProxy:
+    """Proxy pandas window objects and wrap aggregated results back to Sim types."""
+
+    def __init__(self, window_obj, parent):
+        self._window_obj = window_obj
+        self._parent = parent
+
+    def _wrap_result(self, result):
+        if isinstance(result, DataFrame):
+            wrapped = SimDataFrame(result, **self._parent.params_)
+            try:
+                parent_units = self._parent.get_units()
+                if isinstance(parent_units, dict):
+                    wrapped.set_units({c: parent_units.get(c, None) for c in wrapped.columns})
+            except Exception:
+                pass
+            return wrapped
+        if isinstance(result, Series):
+            params = self._parent.params_.copy()
+            try:
+                unit_str = self._parent.get_units_string(result.name)
+                if isinstance(unit_str, str) and unit_str != 'unitless':
+                    params['units'] = unit_str
+                else:
+                    params['units'] = None
+            except Exception:
+                params['units'] = None
+            return SimSeries(result, **params)
+        return result
+
+    def __getattr__(self, name):
+        target = getattr(self._window_obj, name)
+        if callable(target):
+            def _wrapped(*args, **kwargs):
+                return self._wrap_result(target(*args, **kwargs))
+            return _wrapped
+        return target
+
+
 class SimDataFrame(SimBasics, DataFrame):
     """
     A SimDataFrame object is a pandas.DataFrame that units associated with to
@@ -233,6 +272,14 @@ class SimDataFrame(SimBasics, DataFrame):
     @property
     def _constructor_sliced(self):
         return SimSeries
+
+    def rolling(self, *args, **kwargs):
+        """Return a rolling window proxy that preserves SimPandas metadata on outputs."""
+        return _SimWindowProxy(super().rolling(*args, **kwargs), self)
+
+    def expanding(self, *args, **kwargs):
+        """Return an expanding window proxy that preserves SimPandas metadata on outputs."""
+        return _SimWindowProxy(super().expanding(*args, **kwargs), self)
 
     def to_pandas(self):
         return self.to_dataframe()
@@ -417,7 +464,6 @@ class SimDataFrame(SimBasics, DataFrame):
         if type(result) is DataFrame:
             result = SimDataFrame(data=result, **self.params_)
         elif type(result) is Series:
-            print(f"{result=}")
             if len(self.get_units()) > 0:
                 if result.name is None or result.name not in self.get_units():
                     # this Series is one index for multiple columns
@@ -432,7 +478,6 @@ class SimDataFrame(SimBasics, DataFrame):
             params_ = self.params_
             params_['units'] = result_units
             if 'name' in params_:
-                print(f"{params_['name']=}")
                 del params_['name']
             result = SimSeries(data=result, **params_)
 
@@ -730,7 +775,7 @@ class SimDataFrame(SimBasics, DataFrame):
         """
         if isinstance(units, (Unit, SimSeries, SimDataFrame)):
             units = units.units
-        if self._transposed_:
+        if self._ensure_transposed_exists():
             return self.transpose().convert(units).transpose()
         elif type(units) is str:
             # Get units as dict for comparison
@@ -1662,7 +1707,7 @@ class SimDataFrame(SimBasics, DataFrame):
         return out
 
     def _DataFrame_with_MultiIndex(self):
-        if self._transposed_:
+        if self._ensure_transposed_exists():
             result = self.as_pandas().copy()
             units = []
             for i in result.index:
@@ -1933,7 +1978,7 @@ class SimDataFrame(SimBasics, DataFrame):
                     raise TypeError("When units is a list, item must be a list or None")
             else:
                 # list of units for all columns
-                cols = self.index if self._transposed_ else self.columns
+                cols = self.index if self._ensure_transposed_exists() else self.columns
                 if len(units) != len(cols):
                     raise ValueError(f"units list length ({len(units)}) must match column count ({len(cols)})")
                 object.__setattr__(self, '_units_', list(units))
@@ -1944,7 +1989,7 @@ class SimDataFrame(SimBasics, DataFrame):
             if item is not None:
                 raise TypeError("When units is a dict, item must be None")
             
-            cols = list(self.index if self._transposed_ else self.columns)
+            cols = list(self.index if self._ensure_transposed_exists() else self.columns)
             
             # Decide if dict is {column:unit} or {unit:column}
             key_matches = sum(1 for k in units.keys() if k in cols)
@@ -1968,7 +2013,7 @@ class SimDataFrame(SimBasics, DataFrame):
         # Case 3: units is a string
         if isinstance(units, str):
             units = units.strip().strip('[').strip(']')
-            cols = list(self.index if self._transposed_ else self.columns)
+            cols = list(self.index if self._ensure_transposed_exists() else self.columns)
             
             # Ensure _units_ is a proper list
             if not isinstance(self._units_, list):

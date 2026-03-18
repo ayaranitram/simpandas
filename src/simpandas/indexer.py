@@ -41,7 +41,12 @@ class _SimBaseIndexer(object):
         # if the result is a scalar number, wrap it with units
         from numbers import Number
         if isinstance(result, Number):
-            return units(result, self.spd.get_units_string(args[0]))
+            key = args[0]
+            if isinstance(key, tuple) and len(key) >= 2:
+                unit_key = key[1]  # column part of (row, col) tuple
+            else:
+                unit_key = key
+            return units(result, self.spd.get_units_string(unit_key))
         if isinstance(result, (pd.Series, pd.DataFrame)):
             if type(result) is pd.DataFrame:
                 return SimDataFrame(data=result, **self.spd.params_)
@@ -85,10 +90,7 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
         elif type(args) is SimSeries:
             args = args.as_pandas()
         if type(args[0]) is not slice and type(args[0]) is tuple and len(args[0]) == 2:
-            result = super().__getitem__(args[0][0])
-            if type(self.spd) is SimDataFrame and type(result) is SimSeries:
-                result = _series_to_frame(result, self.spd.params_)
-            return result.__getitem__(args[0][1])
+            result = self.spd.as_pandas().loc[args[0]]
         else:
             result = super().__getitem__(*args)
         return self._postprocess(result, args)
@@ -120,26 +122,28 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
 
         # check if received value is tuple (value, units)
         new_units = False
-        if type(value) is tuple and len(value) == 2:
-            if key[1] not in self.spd.columns or not isinstance(self.spd.loc[key],
-                                                                (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) or (
-                    isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) and type(
-                value[0]) is not str and hasattr(value[0], '__iter__') and len(self.spd.loc[key]) == len(value[0])):
-                value, units = value[0], value[1]
-                if key[1] not in self.spd.columns or self.spd.get_units(key[1])[key[1]] is None or \
-                        self.spd.get_units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
+        if type(key) is tuple and len(key) >= 2 and type(value) is tuple and len(value) == 2:
+            _target = self.spd.as_pandas().loc[key] if key[1] in self.spd.columns else None
+            if key[1] not in self.spd.columns or not isinstance(_target,
+                                                                (pd.Series, pd.DataFrame)) or (
+                    isinstance(_target, (pd.Series, pd.DataFrame)) and type(
+                value[0]) is not str and hasattr(value[0], '__iter__') and len(_target) == len(value[0])):
+                value, new_unit_str = value[0], value[1]
+                existing_unit = self.spd.get_units_string(key[1]) if key[1] in self.spd.columns else None
+                if key[1] not in self.spd.columns or existing_unit is None or \
+                        existing_unit.lower() in ('dimensionless', 'unitless', 'none', ''):
                     new_units = True
                 else:
-                    if units == self.spd.get_units(key[1])[key[1]]:
+                    if new_unit_str == existing_unit:
                         pass
-                    elif _convertible(units, self.spd.get_units(key[1])[key[1]]):
-                        value = _converter(value, units, self.spd.get_units(key[1])[key[1]],
+                    elif _convertible(new_unit_str, existing_unit):
+                        value = _converter(value, new_unit_str, existing_unit,
                                            print_conversion_path=self.spd.verbose)
                     else:
-                        logging.warning(' Not able to convert ' + str(units) + ' to ' + str(self.spd.get_units(key[1])[key[1]]))
+                        logging.warning(' Not able to convert ' + str(new_unit_str) + ' to ' + str(existing_unit))
         super().__setitem__(key, value)
         if new_units:
-            self.spd.set_units({key[1]: units})
+            self.spd.set_units({key[1]: new_unit_str})
 
 
 class _iSimLocIndexer(_SimBaseIndexer, _iLocIndexer):
@@ -161,28 +165,31 @@ class _iSimLocIndexer(_SimBaseIndexer, _iLocIndexer):
     def __setitem__(self, key, value):
         from .frame import SimDataFrame
         from .series import SimSeries
-        if type(value) in (pd.SimSeries, pd.SimDataFrame):
+        if type(value) in (SimSeries, SimDataFrame):
             value = value.to(self.spd.get_units())
         if type(value) is SimDataFrame and len(value.index) == 1:
             value = value.to_SimSeries()
 
         # check if received value is tuple (value,units)
-        if type(value) is tuple and len(value) == 2:
-            if not isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) or (
-                    isinstance(self.spd.loc[key], (pd.Series, SimSeries, pd.DataFrame, SimDataFrame)) and type(
-                value[0]) is not str and not hasattr(value[0], '__iter__') and len(self.spd.loc[key]) == len(value[0])):
-                value, units = value[0], value[1]
-                if key[1] not in self.spd.columns or self.spd.get_units(key[1])[key[1]] is None or \
-                        self.spd.get_units(key[1])[key[1]].lower() in ('dimensionless', 'unitless', 'none', ''):
+        new_units = False
+        if type(key) is tuple and len(key) >= 2 and type(value) is tuple and len(value) == 2:
+            col_name = self.spd.columns[key[1]] if isinstance(key[1], int) else key[1]
+            _target = self.spd.as_pandas().iloc[key]
+            if not isinstance(_target, (pd.Series, pd.DataFrame)) or (
+                    isinstance(_target, (pd.Series, pd.DataFrame)) and type(
+                value[0]) is not str and hasattr(value[0], '__iter__') and len(_target) == len(value[0])):
+                value, new_unit_str = value[0], value[1]
+                existing_unit = self.spd.get_units_string(col_name) if col_name in self.spd.columns else None
+                if col_name not in self.spd.columns or existing_unit is None or \
+                        existing_unit.lower() in ('dimensionless', 'unitless', 'none', ''):
                     new_units = True
                 else:
-                    new_units = False
-                    if _convertible(units, self.spd.get_units(key[1])[key[1]]):
-                        value = _converter(value, units, self.spd.get_units(key[1][key[1]]),
+                    if _convertible(new_unit_str, existing_unit):
+                        value = _converter(value, new_unit_str, existing_unit,
                                            print_conversion_path=self.spd.verbose)
         super().__setitem__(key, value)
         if new_units:
-            self.spd.set_Units({key[1]: units})
+            self.spd.set_units({col_name: new_unit_str})
 
 # class SimRolling(Rolling):
 #     def __init__(self, df, window, min_periods=None, center=False, win_type=None, on=None, axis=0, closed=None, method='single', SimParameters=None):

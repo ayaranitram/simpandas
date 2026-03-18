@@ -66,7 +66,20 @@ class SimBasics(object, metaclass=SimType):
         The property returns ``self.columns`` normally or ``self.index`` when the
         object has been transposed via the custom ``.T`` implementation.
         """
+        # Defensive initialization for _transposed_ in case pandas operations created this without it
+        if not hasattr(self, '_transposed_'):
+            object.__setattr__(self, '_transposed_', False)
         return self.index if self._transposed_ else self.columns
+
+    def _ensure_transposed_exists(self):
+        """Ensure _transposed_ attribute exists (defensive for pandas operations).
+        
+        Some pandas operations may create new instances without calling __init__,
+        which can leave _transposed_ uninitialized. This helper ensures it exists.
+        """
+        if not hasattr(self, '_transposed_'):
+            object.__setattr__(self, '_transposed_', False)
+        return self._transposed_
 
     def _reverse(self):
         """Toggle the ``_reverse_`` flag and return self.
@@ -92,9 +105,9 @@ class SimBasics(object, metaclass=SimType):
     def loc(self) -> _SimLocIndexer:
         """Custom ``.loc`` indexer handling unit conversion and metadata.
 
-        Returns the internal ``_SimLocIndexer`` instance bound to this object.
+        Returns a fresh ``_SimLocIndexer`` instance bound to this object.
         """
-        return self.spdLocator
+        return _SimLocIndexer("loc", self)
 
     @property
     def iloc(self) -> _iSimLocIndexer:
@@ -103,7 +116,7 @@ class SimBasics(object, metaclass=SimType):
         The returned ``_iSimLocIndexer`` converts results back to Sim objects
         and performs unit-aware assignment.
         """
-        return self.spdiLocator
+        return _iSimLocIndexer("iloc", self)
 
     @property
     def units(self):
@@ -115,6 +128,12 @@ class SimBasics(object, metaclass=SimType):
         - list [unit, unit, ...] when duplicate column names exist (position-based)
         - For Series with string units, returns the string directly
         """
+        # Some pandas internals may materialize subclass instances without
+        # calling our __init__. Ensure _units_ always exists.
+        if not hasattr(self, '_units_'):
+            labels = list(self.labels) if hasattr(self, 'labels') else []
+            object.__setattr__(self, '_units_', [None] * len(labels))
+
         # Handle string units (for Series)
         if isinstance(self._units_, str):
             return self._units_
@@ -122,6 +141,11 @@ class SimBasics(object, metaclass=SimType):
         # Handle list units (standard storage)
         if isinstance(self._units_, list):
             labels = list(self.labels)
+            # Keep positional units aligned with current axis labels.
+            if len(self._units_) < len(labels):
+                self._units_.extend([None] * (len(labels) - len(self._units_)))
+            elif len(self._units_) > len(labels):
+                object.__setattr__(self, '_units_', self._units_[:len(labels)])
             # Check for duplicate column names
             if len(labels) == len(set(labels)):
                 # No duplicates: return dict for backward compatibility
@@ -181,9 +205,9 @@ class SimBasics(object, metaclass=SimType):
         else:
             objs = [objs]
 
-        if len(objs) == 1:
-            warn("WARNING: only 1 DataFrame received, nothing to concatenate!")
-            return [objs][0]
+        if len(objs) == 0:
+            warn("WARNING: no DataFrames received, nothing to concatenate!")
+            return self
 
         return _concat([self] + objs, axis=axis, join=join,
                        ignore_index=ignore_index, keys=keys, levels=levels,
@@ -267,9 +291,9 @@ class SimBasics(object, metaclass=SimType):
         operations so that properties such as units, index units, verbosity,
         etc. are preserved.
         """
-        return {'name': self.name,
+        return {'name': self.name if hasattr(self, 'name') else None,
                 'units': self.get_units() if type(self.units) is dict else self.units,
-                'index_name': self.index.name,
+                'index_name': self.index.name if hasattr(self.index, 'name') else None,
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
                 'intersection_character': self.intersection_character if hasattr(self,
@@ -3054,6 +3078,11 @@ Copy of input object, shifted.
         Alias of .get_units method, but returns a string with the units instead of a dict.
         """
         items_units_dict = self.get_units(items)
+        if items_units_dict is None:
+            return 'unitless'
+        if not isinstance(items_units_dict, dict):  # Already a string/unit object, return as-is
+            return str(items_units_dict)
+        # Now safe to proceed with dict operations
         if None in items_units_dict and items_units_dict[None] is None:
             del items_units_dict[None]
         if len(items_units_dict) == 0:
