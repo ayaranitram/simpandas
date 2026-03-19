@@ -40,8 +40,8 @@ class TestSimIndex:
         """Test unit conversion on SimIndex"""
         # This is a basic test - actual conversion depends on unyts
         index = SimIndex([[100, 200, 300]], names=['distance'], units={'distance': 'cm'})
-        # Test the convert method exists
-        assert hasattr(index, 'convert')
+        # Test the 'to' method exists (set in __new__)
+        assert hasattr(index, 'to')
     
     def test_simindex_to_method(self):
         """Test the 'to' method for unit conversion"""

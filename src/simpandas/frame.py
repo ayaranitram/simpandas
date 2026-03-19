@@ -23,7 +23,7 @@ from unyts.operations import unit_power as _unit_power, unit_addition as _unit_a
     unit_division as _unit_division
 from unyts.dictionaries import unitless_names as _unitless_names
 from unyts.helpers.common_classes import number
-from unyts import Unit, units
+from unyts import Unit, units, is_Unit
 
 from .basics import SimBasics
 from .common.slope import slope as _slope
@@ -106,6 +106,103 @@ class _SimWindowProxy:
 
     def __getattr__(self, name):
         target = getattr(self._window_obj, name)
+        if callable(target):
+            def _wrapped(*args, **kwargs):
+                return self._wrap_result(target(*args, **kwargs))
+            return _wrapped
+        return target
+
+
+class _SimGroupBy:
+    """Proxy for pandas GroupBy that wraps aggregated results back into Sim types."""
+
+    def __init__(self, groupby_obj, parent):
+        self._groupby_obj = groupby_obj
+        self._parent = parent
+
+    def _wrap_result(self, result):
+        if isinstance(result, DataFrame):
+            wrapped = SimDataFrame(result, **self._parent.params_)
+            try:
+                parent_units = self._parent.get_units()
+                if isinstance(parent_units, dict):
+                    wrapped.set_units({c: parent_units.get(c, None)
+                                       for c in wrapped.columns if c in parent_units})
+            except Exception:
+                pass
+            return wrapped
+        if isinstance(result, Series):
+            params = self._parent.params_.copy()
+            try:
+                unit_str = self._parent.get_units_string(result.name)
+                if isinstance(unit_str, str) and unit_str != 'unitless':
+                    params['units'] = unit_str
+                else:
+                    params['units'] = None
+            except Exception:
+                params['units'] = None
+            if 'name' in params:
+                del params['name']
+            return SimSeries(result, **params)
+        return result
+
+    # Explicitly wrap common aggregation methods
+    def sum(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.sum(*args, **kwargs))
+
+    def mean(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.mean(*args, **kwargs))
+
+    def median(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.median(*args, **kwargs))
+
+    def std(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.std(*args, **kwargs))
+
+    def var(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.var(*args, **kwargs))
+
+    def min(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.min(*args, **kwargs))
+
+    def max(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.max(*args, **kwargs))
+
+    def count(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.count(*args, **kwargs))
+
+    def first(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.first(*args, **kwargs))
+
+    def last(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.last(*args, **kwargs))
+
+    def agg(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.agg(*args, **kwargs))
+
+    aggregate = agg
+
+    def apply(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.apply(*args, **kwargs))
+
+    def transform(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.transform(*args, **kwargs))
+
+    def filter(self, *args, **kwargs):
+        return self._wrap_result(self._groupby_obj.filter(*args, **kwargs))
+
+    def __iter__(self):
+        for key, group in self._groupby_obj:
+            yield key, self._wrap_result(group)
+
+    def __len__(self):
+        return len(self._groupby_obj)
+
+    def __getitem__(self, key):
+        return _SimGroupBy(self._groupby_obj[key], self._parent)
+
+    def __getattr__(self, name):
+        target = getattr(self._groupby_obj, name)
         if callable(target):
             def _wrapped(*args, **kwargs):
                 return self._wrap_result(target(*args, **kwargs))
@@ -218,7 +315,15 @@ class SimDataFrame(SimBasics, DataFrame):
 
         # catch index units if index is instance of SimIndex
         if index_units is None and hasattr(index, 'units'):
-            index_units = index.units
+            idx_units = index.units
+            # If units is a dict, extract the value for the index name (or single value)
+            if isinstance(idx_units, dict) and len(idx_units) == 1:
+                index_units = list(idx_units.values())[0]
+            elif isinstance(idx_units, dict) and index_name is not None and index_name in idx_units:
+                index_units = idx_units[index_name]
+            elif isinstance(idx_units, str):
+                index_units = idx_units
+            # else: leave index_units = None (dict with multiple values not handled as a string)
 
         # initialize DataFrame
         if isinstance(data, SimBasics):
@@ -258,8 +363,9 @@ class SimDataFrame(SimBasics, DataFrame):
             if self.index.name in self._units_:
                 self._units_[self.index.name] = index_units
 
-        # change Index to SimIndex
-        self.index = SimIndex(self.index, units=self.index_units_)
+        # change Index to SimIndex (skip if already a SimIndex to avoid unnecessary object creation)
+        if not isinstance(self.index, SimIndex):
+            self.index = SimIndex(self.index, units=self.index_units_)
 
     @property
     def _class(self):
@@ -280,6 +386,99 @@ class SimDataFrame(SimBasics, DataFrame):
     def expanding(self, *args, **kwargs):
         """Return an expanding window proxy that preserves SimPandas metadata on outputs."""
         return _SimWindowProxy(super().expanding(*args, **kwargs), self)
+
+    def ewm(self, *args, **kwargs):
+        """Return an EWM window proxy that preserves SimPandas metadata on outputs."""
+        return _SimWindowProxy(super().ewm(*args, **kwargs), self)
+
+    def groupby(self, *args, **kwargs):
+        """Return a GroupBy proxy that preserves SimPandas metadata on outputs."""
+        return _SimGroupBy(super().groupby(*args, **kwargs), self)
+
+    def join(self, other, on=None, how='left', lsuffix='', rsuffix='', sort=False, validate=None):
+        """Join columns with other DataFrame, preserving units."""
+        result = self.as_dataframe().join(other if not hasattr(other, 'as_pandas') else other.as_pandas(),
+                                          on=on, how=how, lsuffix=lsuffix, rsuffix=rsuffix,
+                                          sort=sort, validate=validate)
+        return self._rewrap(result)
+
+    def stack(self, *args, **kwargs):
+        """Stack prescribed level(s) of columns into index, preserving units."""
+        return self._rewrap(self.as_dataframe().stack(*args, **kwargs))
+
+    def unstack(self, *args, **kwargs):
+        """Pivot a level of the index labels, preserving units."""
+        return self._rewrap(self.as_dataframe().unstack(*args, **kwargs))
+
+    def pivot_table(self, *args, **kwargs):
+        """Create a spreadsheet-style pivot table, preserving units."""
+        import pandas as pd
+        return self._rewrap(pd.pivot_table(self.as_dataframe(), *args, **kwargs))
+
+    def pivot(self, *args, **kwargs):
+        """Return reshaped DataFrame organized by index/column values, preserving units."""
+        return self._rewrap(self.as_dataframe().pivot(*args, **kwargs))
+
+    def melt(self, *args, **kwargs):
+        """Unpivot a DataFrame from wide to long format, preserving units."""
+        return self._rewrap(self.as_dataframe().melt(*args, **kwargs))
+
+    def merge(self, right, *args, **kwargs):
+        """Merge with another DataFrame, preserving units."""
+        right_df = right.as_pandas() if hasattr(right, 'as_pandas') else right
+        return self._rewrap(self.as_dataframe().merge(right_df, *args, **kwargs))
+
+    def query(self, expr, *args, **kwargs):
+        """Query the columns with a boolean expression, preserving units."""
+        return self._rewrap(self.as_dataframe().query(expr, *args, **kwargs))
+
+    def eval(self, expr, *args, **kwargs):
+        """Evaluate a string describing operations on DataFrame columns, preserving units."""
+        return self._rewrap(self.as_dataframe().eval(expr, *args, **kwargs))
+
+    def iterrows(self):
+        """Iterate over DataFrame rows as (index, SimSeries) pairs."""
+        for idx, row in self.as_dataframe().iterrows():
+            params = self.params_.copy()
+            if 'name' in params:
+                del params['name']
+            yield idx, SimSeries(row, **params)
+
+    def itertuples(self, index=True, name='Pandas'):
+        """Iterate over DataFrame rows as namedtuples."""
+        yield from self.as_dataframe().itertuples(index=index, name=name)
+
+    def to_csv(self, path_or_buf=None, *args, **kwargs):
+        """Write to CSV, embedding units as the second row when units are present."""
+        import pandas as pd
+        if path_or_buf is not None:
+            try:
+                units = self.get_units()
+                if isinstance(units, dict) and any(v is not None for v in units.values()):
+                    unit_vals = [units.get(c, '') or '' for c in self.columns]
+                    unit_row = pd.DataFrame([unit_vals], columns=self.columns)
+                    combined = pd.concat([unit_row, self.as_dataframe()], ignore_index=True)
+                    combined.to_csv(path_or_buf, *args, **kwargs)
+                    return None
+            except Exception:
+                pass
+        return self.as_dataframe().to_csv(path_or_buf, *args, **kwargs)
+
+    def to_json(self, path_or_buf=None, *args, **kwargs):
+        """Write to JSON with units metadata."""
+        import json
+        data_json = self.as_dataframe().to_json(*args, **kwargs)
+        try:
+            units = self.get_units()
+        except Exception:
+            units = {}
+        payload = {'data': json.loads(data_json) if isinstance(data_json, str) else data_json,
+                   'units': units if isinstance(units, dict) else {}}
+        if path_or_buf is not None:
+            with open(path_or_buf, 'w') as f:
+                json.dump(payload, f)
+            return None
+        return json.dumps(payload)
 
     def to_pandas(self):
         return self.to_dataframe()
@@ -720,6 +919,52 @@ class SimDataFrame(SimBasics, DataFrame):
                                 result[col] = result_x[col]
                         else:
                             result = result_x
+            return result
+
+        # other is int or float scalar
+        elif type(other) in (int, float, complex):
+            result = op_method(self.as_pandas(), other)
+            return SimDataFrame(data=result, **params_)
+
+        # other is a plain pandas Series
+        elif isinstance(other, Series) and not isinstance(other, SimSeries):
+            result = op_method(self.as_pandas(), other)
+            return SimDataFrame(data=result, **params_)
+
+        # other is SimSeries — align on columns (axis=1) if indices match column names
+        elif isinstance(other, SimSeries):
+            other_pd = other.as_pandas()
+            # If SimSeries index matches this frame's column names, broadcast column-wise
+            if set(other_pd.index).issubset(set(self.columns)):
+                result = op_method(self.as_pandas(), other_pd, axis='columns')
+            elif len(other_pd) == 1:
+                # Treat single-element SimSeries as scalar (e.g. result of SimSeries arithmetic with no units)
+                result = op_method(self.as_pandas(), other_pd.iloc[0])
+            else:
+                result = op_method(self.as_pandas(), other_pd)
+            if isinstance(result, DataFrame):
+                return SimDataFrame(data=result, **params_)
+            return result
+
+        # other is an instance of unyts Unit
+        elif is_Unit(other):
+            units_dict = self._units_as_dict()
+            new_units = {}
+            for col in self.columns:
+                col_unit = units_dict.get(col)
+                if col_unit is not None and type(col_unit) is str:
+                    new_units[col] = _units_operation(col_unit, other.units, operation)
+                else:
+                    new_units[col] = None
+            result = op_method(self.as_pandas(), other.value)
+            params_['units'] = new_units
+            return SimDataFrame(data=result, **params_)
+
+        # fallback: let pandas handle it, preserve units and metadata
+        else:
+            result = op_method(self.as_pandas(), other)
+            if isinstance(result, DataFrame):
+                return SimDataFrame(data=result, **params_)
             return result
 
     def set_index(self, key, drop=True, append=False, inplace=False, verify_integrity=False, **kwargs):
@@ -1238,7 +1483,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def count(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().count(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().count(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.count'
             if len(set(self.columns)) == 1:
@@ -1257,7 +1502,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def rms(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=((self.as_pandas() ** 2).mean(axis=axis, **kwargs)) ** 0.5, **self.params_)
+            return self._rewrap(((self.as_pandas() ** 2).mean(axis=axis, **kwargs)) ** 0.5)
         if axis == 1:
             new_name = '.rms'
             if len(set(self.columns)) == 1:
@@ -1277,7 +1522,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def min(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().min(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().min(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.min'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1300,7 +1545,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def max(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().max(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().max(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.max'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1323,7 +1568,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def mean(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().mean(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().mean(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.mean'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1346,7 +1591,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def median(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().median(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().median(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.median'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1369,7 +1614,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def mode(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().mode(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().mode(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.mode'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1394,15 +1639,20 @@ class SimDataFrame(SimBasics, DataFrame):
         from unyts.units.unitless import unitless_names
         axis = _clean_axis(axis)
         if axis == 0:
-            params_ = self.params_
-            for key in params_['units']:
-                if params_['units'][key] is not None:
-                    unit_base, unit_power = unit_base_power(params_['units'][key])
+            units_dict = self._units_as_dict()
+            new_units = {}
+            for key in units_dict:
+                if units_dict[key] is not None:
+                    unit_base, unit_power = unit_base_power(units_dict[key])
                     if unit_base in unitless_names:
-                        params_['units'][key] = unit_base
+                        new_units[key] = unit_base
                     else:
-                        params_['units'][key] = unit_base + str(unit_power * len(self))
-            return self._class(data=self.as_pandas().prod(axis=axis, **kwargs), **params_)
+                        new_units[key] = unit_base + str(unit_power * len(self))
+                else:
+                    new_units[key] = None
+            raw = self.as_pandas().prod(axis=axis, **kwargs)
+            from .series import SimSeries
+            return SimSeries(data=raw, units=new_units, name=raw.name)
         if axis == 1:
             new_name = '.prod'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1425,7 +1675,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def quantile(self, q=0.5, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().quantile(q=q, axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().quantile(q=q, axis=axis, **kwargs))
         if axis == 1 and hasattr(q, '__iter__'):  # q is a list
             namedecimals = 1
             if 'namedecimals' in kwargs:
@@ -1481,7 +1731,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def std(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().std(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().std(axis=axis, **kwargs))
         if axis == 1:
             newName = '.std'
             if len(set(self.get_units(self.columns).values())) == 1:
@@ -1504,13 +1754,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def sum(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            params_ = self.params_
-            if len(set(self.get_units(self.columns).values())) == 1:
-                params_['units'] = list(set(self.get_units(self.columns).values()))[0]
-            else:
-                if type(params_['units']) is dict:
-                    params_['units']['.sum'] = '*units per row'
-            return self._class(data=self.as_pandas().sum(axis=axis, **kwargs).rename('.sum'), **params_).transpose()
+            return self._rewrap(self.as_pandas().sum(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.sum'
             if len(set(self.columns)) == 1:
@@ -1548,7 +1792,7 @@ class SimDataFrame(SimBasics, DataFrame):
     def var(self, axis=0, **kwargs):
         axis = _clean_axis(axis)
         if axis == 0:
-            return self._class(data=self.as_pandas().var(axis=axis, **kwargs), **self.params_)
+            return self._rewrap(self.as_pandas().var(axis=axis, **kwargs))
         if axis == 1:
             new_name = '.var'
             if len(set(self.get_units(self.columns).values())) == 1:

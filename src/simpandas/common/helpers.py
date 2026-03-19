@@ -91,20 +91,16 @@ def type_of_frame(frame):
     """
     from simpandas import SimSeries, SimDataFrame
     from pandas import Series, DataFrame
-    try:
-        if frame._isSimSeries:
-            return SimSeries
-    except:
-        try:
-            if frame._isSimDataFrame:
-                return SimDataFrame
-        except:
-            if type(frame) is Series:
-                return Series
-            elif type(frame) is DataFrame:
-                return DataFrame
-            else:
-                raise TypeError('frame is not an instance of Pandas or SimPandas frames')
+    if isinstance(frame, SimSeries):
+        return SimSeries
+    elif isinstance(frame, SimDataFrame):
+        return SimDataFrame
+    elif isinstance(frame, Series):
+        return Series
+    elif isinstance(frame, DataFrame):
+        return DataFrame
+    else:
+        raise TypeError('frame is not an instance of Pandas or SimPandas frames')
 
 
 def main_key(key, clean=True, nameSeparator=':'):
@@ -140,7 +136,7 @@ def main_key(key, clean=True, nameSeparator=':'):
         for K in key:
             results.append(main_key(K))
         if clean:
-            return list(set(results))
+            return list(dict.fromkeys(results))
         else:
             return list(results)
     if isinstance(key, pd.Series):
@@ -180,7 +176,7 @@ def item_key(key, clean=True, nameSeparator=':'):
         for K in key:
             results.append(item_key(K))
         if clean:
-            return list(set(results))
+            return list(dict.fromkeys(results))
         else:
             return list(results)
     if isinstance(key, pd.Series):

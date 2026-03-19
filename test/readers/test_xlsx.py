@@ -61,7 +61,7 @@ class TestReadExcel:
     
     def test_read_excel_basic(self, sample_excel_file):
         """Test basic Excel reading"""
-        result = read_excel(sample_excel_file)
+        result = read_excel(sample_excel_file, units=None)
         
         assert isinstance(result, SimDataFrame)
         assert len(result) == 3

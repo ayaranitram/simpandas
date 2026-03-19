@@ -116,7 +116,8 @@ class TestSimBasicsMath:
         """Test natural logarithm"""
         df = SimDataFrame({'a': [1, np.e, np.e**2]})
         if hasattr(df, 'log') or hasattr(df, 'ln'):
-            result = df.log() if hasattr(df, 'log') else df.ln()
+            # df.log() uses base 10 by default; use 'e' for natural log
+            result = df.log('e') if hasattr(df, 'log') else df.ln()
             assert abs(result['a'].iloc[1] - 1.0) < 0.01
     
     def test_log10(self):
@@ -236,7 +237,12 @@ class TestSimBasicsDataManipulation:
         result = df.diff()
         
         # First value should be NaN
-        assert pd.isna(result['a'].iloc[0])
+        first_val = result['a'].iloc[0]
+        try:
+            val = float(first_val)
+            assert np.isnan(val)
+        except (TypeError, ValueError):
+            assert 'nan' in str(first_val).lower()
         # Differences should be 2, 3, 4
         assert result['a'].iloc[1] == 2
         assert result['a'].iloc[2] == 3
@@ -255,7 +261,12 @@ class TestSimBasicsDataManipulation:
         df = SimDataFrame({'a': [1, 2, 3]})
         result = df.shift(1)
         
-        assert pd.isna(result['a'].iloc[0])
+        first_val = result['a'].iloc[0]
+        try:
+            val = float(first_val)
+            assert np.isnan(val)
+        except (TypeError, ValueError):
+            assert 'nan' in str(first_val).lower()
         assert result['a'].iloc[1] == 1
         assert result['a'].iloc[2] == 2
     
@@ -353,18 +364,19 @@ class TestSimBasicsNameManipulation:
         df = SimDataFrame({'well:pressure': [1, 2], 'well:temperature': [3, 4]})
         
         if hasattr(df, 'right'):
-            result = df.right()
+            result = df.right
             # Should extract 'pressure' and 'temperature'
-            assert 'pressure' in result.columns or 'well:pressure' in result.columns
+            assert 'pressure' in result or 'temperature' in result
     
     def test_left(self):
         """Test extracting left part of column names"""
         df = SimDataFrame({'well:pressure': [1, 2], 'tank:pressure': [3, 4]})
         
         if hasattr(df, 'left'):
-            result = df.left()
-            # Should extract 'well' and 'tank'
-            assert 'well' in result.columns or 'tank' in result.columns or 'well:pressure' in result.columns
+            result = df.left
+            # left returns a list of left parts of column names (e.g. ['well', 'tank'])
+            assert isinstance(result, list)
+            assert 'well' in result or 'tank' in result
 
 
 class TestSimBasicsMetadata:

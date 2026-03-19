@@ -87,7 +87,7 @@ class TestWriteExcel:
             assert os.path.exists(path)
             
             # Read back and check index was written
-            result = pd.read_excel(path, index_col=0)
+            result = read_excel(path, index_col=0)
             assert len(result) == len(sample_simdataframe)
         
         finally:
@@ -104,7 +104,7 @@ class TestWriteExcel:
             df.to_excel(path)
             
             # Verify it's a valid Excel file by reading it back
-            check = pd.read_excel(path)
+            check = read_excel(path)
             assert len(check) == 3
         
         finally:

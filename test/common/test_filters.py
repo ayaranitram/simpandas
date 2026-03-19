@@ -11,5 +11,5 @@ def test_zeros_dataframe():
 
 def test_zeros_series():
     s = pd.Series([0,0,0])
-    out = zeros(s, axis=1)
+    out = zeros(s, axis=0)  # Series only has axis 0
     assert out.dtype == bool

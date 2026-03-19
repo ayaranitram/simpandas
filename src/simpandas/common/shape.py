@@ -62,7 +62,7 @@ def melt(df, hue='--auto', label='--auto', SimObject=None, full_output=False, **
         else:
             itemLabel = 'item'
 
-    if _is_SimulationResult(SimObject):
+    if hasattr(SimObject, 'get_plotUnits'):
         unitsLabel = ' [' + SimObject.get_plotUnits(_main_key(list(df[var_name]))[0]) + ']'
     else:
         unitsLabel = ''
@@ -239,6 +239,8 @@ def pivot(df, item=None, index=None, values=None, nameSeparator=':'):
                                                                                              if cols != names[
                                                                                                  item] and cols !=
                                                                                              names[index]]
+    elif isinstance(values, str):
+        values = [values]
 
     newdf = pandas.DataFrame(index=newindex)
     for ite in df[item].squeeze().unique():

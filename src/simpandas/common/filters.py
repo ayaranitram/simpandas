@@ -31,7 +31,7 @@ def zeros(series_or_frame, axis=None, value=0):
         if hasattr(series_or_frame, 'columns'):
             axis = 1 if axis is None and len(series_or_frame.columns) == 1 else 0
         else:
-            axis = 1
+            axis = 0  # Series only has axis 0
     axis = _clean_axis(axis)
     if axis == 2:
         return zeros(series_or_frame, axis=0, value=value) + zeros(series_or_frame, axis=1, value=value)
