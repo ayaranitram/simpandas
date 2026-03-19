@@ -81,6 +81,40 @@ class SimBasics(object, metaclass=SimType):
             object.__setattr__(self, '_transposed_', False)
         return self._transposed_
 
+    def _rewrap(self, result):
+        """Wrap a pandas result back into the appropriate Sim type with metadata.
+
+        Handles DataFrame -> SimDataFrame, Series -> SimSeries, and passes
+        through scalars and other types unchanged.
+        """
+        import pandas as pd
+        from .frame import SimDataFrame
+        from .series import SimSeries
+        if isinstance(result, pd.DataFrame):
+            wrapped = SimDataFrame(data=result, **self.params_)
+            try:
+                parent_units = self.get_units()
+                if isinstance(parent_units, dict):
+                    wrapped.set_units({c: parent_units.get(c, None)
+                                       for c in wrapped.columns if c in parent_units})
+            except Exception:
+                pass
+            return wrapped
+        if isinstance(result, pd.Series):
+            params = self.params_.copy()
+            try:
+                unit_str = self.get_units_string(result.name)
+                if isinstance(unit_str, str) and unit_str != 'unitless':
+                    params['units'] = unit_str
+                else:
+                    params['units'] = None
+            except Exception:
+                params['units'] = None
+            if 'name' in params:
+                del params['name']
+            return SimSeries(data=result, **params)
+        return result
+
     def _reverse(self):
         """Toggle the ``_reverse_`` flag and return self.
 
@@ -252,6 +286,137 @@ class SimBasics(object, metaclass=SimType):
     def describe(self, *args, **kwargs):
         return self._class(data=self.to_Pandas().describe(*args, **kwargs),
                            **self.params_)
+
+    def apply(self, func, axis=0, raw=False, result_type=None, args=(), **kwargs):
+        """Apply a function along an axis of the DataFrame/Series, preserving units."""
+        return self._rewrap(self.as_pandas().apply(func, axis=axis, raw=raw,
+                                                   result_type=result_type, args=args, **kwargs))
+
+    def transform(self, func, axis=0, *args, **kwargs):
+        """Call func on self producing a same-shaped object, preserving units."""
+        return self._rewrap(self.as_pandas().transform(func, axis=axis, *args, **kwargs))
+
+    def pipe(self, func, *args, **kwargs):
+        """Apply chainable functions that expect DataFrames/Series, preserving units."""
+        return self._rewrap(self.as_pandas().pipe(func, *args, **kwargs))
+
+    def map(self, func, na_action=None, **kwargs):
+        """Apply a function element-wise, preserving units."""
+        return self._rewrap(self.as_pandas().map(func, na_action=na_action, **kwargs))
+
+    def where(self, cond, other=None, *args, **kwargs):
+        """Replace values where the condition is False, preserving units."""
+        return self._rewrap(self.as_pandas().where(cond, other, *args, **kwargs))
+
+    def mask(self, cond, other=None, *args, **kwargs):
+        """Replace values where the condition is True, preserving units."""
+        return self._rewrap(self.as_pandas().mask(cond, other, *args, **kwargs))
+
+    def sample(self, *args, **kwargs):
+        """Return a random sample of items, preserving units."""
+        return self._rewrap(self.as_pandas().sample(*args, **kwargs))
+
+    def cummax(self, axis=0, skipna=True, *args, **kwargs):
+        """Return cumulative maximum, preserving units."""
+        return self._rewrap(self.as_pandas().cummax(axis=axis, skipna=skipna, *args, **kwargs))
+
+    def cummin(self, axis=0, skipna=True, *args, **kwargs):
+        """Return cumulative minimum, preserving units."""
+        return self._rewrap(self.as_pandas().cummin(axis=axis, skipna=skipna, *args, **kwargs))
+
+    def cumprod(self, axis=0, skipna=True, *args, **kwargs):
+        """Return cumulative product, preserving units."""
+        return self._rewrap(self.as_pandas().cumprod(axis=axis, skipna=skipna, *args, **kwargs))
+
+    def skew(self, axis=0, skipna=True, numeric_only=False, **kwargs):
+        """Return unbiased skew, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().skew(axis=axis, skipna=skipna,
+                                                  numeric_only=numeric_only, **kwargs))
+
+    def kurtosis(self, axis=0, skipna=True, numeric_only=False, **kwargs):
+        """Return unbiased kurtosis, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().kurtosis(axis=axis, skipna=skipna,
+                                                      numeric_only=numeric_only, **kwargs))
+
+    kurt = kurtosis
+
+    def sem(self, axis=0, skipna=True, ddof=1, numeric_only=False, **kwargs):
+        """Return unbiased standard error of the mean, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().sem(axis=axis, skipna=skipna, ddof=ddof,
+                                                 numeric_only=numeric_only, **kwargs))
+
+    def idxmin(self, axis=0, skipna=True, numeric_only=False):
+        """Return index of first occurrence of minimum, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().idxmin(axis=axis, skipna=skipna,
+                                                    numeric_only=numeric_only))
+
+    def idxmax(self, axis=0, skipna=True, numeric_only=False):
+        """Return index of first occurrence of maximum, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().idxmax(axis=axis, skipna=skipna,
+                                                    numeric_only=numeric_only))
+
+    def explode(self, column=None, ignore_index=False):
+        """Transform each element of a list-like to a row, preserving units."""
+        if column is not None:
+            return self._rewrap(self.as_pandas().explode(column, ignore_index=ignore_index))
+        return self._rewrap(self.as_pandas().explode(ignore_index=ignore_index))
+
+    def rank(self, axis=0, method='average', numeric_only=False, na_option='keep',
+             ascending=True, pct=False):
+        """Compute numerical data ranks, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().rank(axis=axis, method=method,
+                                                  numeric_only=numeric_only,
+                                                  na_option=na_option,
+                                                  ascending=ascending, pct=pct))
+
+    def clip(self, lower=None, upper=None, axis=None, *args, **kwargs):
+        """Trim values at input thresholds, preserving units."""
+        return self._rewrap(self.as_pandas().clip(lower=lower, upper=upper, axis=axis,
+                                                  *args, **kwargs))
+
+    def abs(self):
+        """Return element-wise absolute value, preserving units."""
+        return self._rewrap(self.as_pandas().abs())
+
+    def round(self, decimals=0, *args, **kwargs):
+        """Round values, preserving units."""
+        return self._rewrap(self.as_pandas().round(decimals=decimals, *args, **kwargs))
+
+    def drop_duplicates(self, *args, **kwargs):
+        """Return with duplicate rows removed, preserving units."""
+        return self._rewrap(self.as_pandas().drop_duplicates(*args, **kwargs))
+
+    def sort_values(self, *args, **kwargs):
+        """Sort by the values, preserving units."""
+        return self._rewrap(self.as_pandas().sort_values(*args, **kwargs))
+
+    def sort_index(self, *args, **kwargs):
+        """Sort by the index, preserving units."""
+        return self._rewrap(self.as_pandas().sort_index(*args, **kwargs))
+
+    def nlargest(self, n=5, columns=None, keep='first'):
+        """Return the first n rows ordered by columns in descending order, preserving units."""
+        if columns is not None:
+            return self._rewrap(self.as_pandas().nlargest(n, columns, keep=keep))
+        return self._rewrap(self.as_pandas().nlargest(n, keep=keep))
+
+    def nsmallest(self, n=5, columns=None, keep='first'):
+        """Return the first n rows ordered by columns in ascending order, preserving units."""
+        if columns is not None:
+            return self._rewrap(self.as_pandas().nsmallest(n, columns, keep=keep))
+        return self._rewrap(self.as_pandas().nsmallest(n, keep=keep))
+
+    def value_counts(self, *args, **kwargs):
+        """Return a Series containing counts of unique values."""
+        return self._rewrap(self.as_pandas().value_counts(*args, **kwargs))
+
+    def nunique(self, axis=0, dropna=True):
+        """Count number of distinct elements."""
+        return self._rewrap(self.as_pandas().nunique(axis=axis, dropna=dropna))
+
+    def astype(self, dtype, copy=True, errors='raise'):
+        """Cast to a specified dtype, preserving units."""
+        return self._rewrap(self.as_pandas().astype(dtype, copy=copy, errors=errors))
 
     def head(self, n=5):
         """
@@ -1448,7 +1613,7 @@ class SimBasics(object, metaclass=SimType):
                 data=self.as_pandas().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit,
                                              downcast=downcast), **self.params_)
 
-    def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method='pad'):
+    def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False):
         """Replace values in the object.
 
         This wraps :py:meth:`pandas.DataFrame.replace` or :py:meth:`pandas.Series.replace`
@@ -1466,8 +1631,6 @@ class SimBasics(object, metaclass=SimType):
             Maximum size gap to forward or backward fill.
         regex : bool, default False
             Whether to interpret to_replace and/or value as regular expressions.
-        method : {'pad', 'ffill', 'bfill'}, default 'pad'
-            Method to use for filling holes when applying regex.
 
         Returns
         -------
@@ -1475,13 +1638,11 @@ class SimBasics(object, metaclass=SimType):
             Object with replaced values (or None if inplace=True).
         """
         if inplace:
-            super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex,
-                            method=method)
+            super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex)
         else:
             return self._class(
                 data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
-                                              regex=regex,
-                                              method=method), **self.params_)
+                                              regex=regex), **self.params_)
 
     @property
     def type(self):
@@ -3255,25 +3416,27 @@ Copy of input object, shifted.
             if int == 0 will keep the current order of the columns.
 
         """
-        return self.to_SimDataFrame().to_excel(excel_writer,
-                                               split_by=split_by,
-                                               sheet_name=sheet_name,
-                                               na_rep=na_rep,
-                                               float_format=float_format,
-                                               columns=columns,
-                                               header=header,
-                                               units=units,
-                                               index=index,
-                                               index_label=index_label,
-                                               startrow=startrow,
-                                               startcol=startcol,
-                                               engine=engine,
-                                               merge_cells=merge_cells,
-                                               encoding=encoding,
-                                               inf_rep=inf_rep,
-                                               verbose=verbose,
-                                               freeze_panes=freeze_panes,
-                                               sort=sort)
+        from .writers.xlsx import write_excel
+        return write_excel(self.to_SimDataFrame(),
+                           excel_writer=excel_writer,
+                           split_by=split_by,
+                           sheet_name=sheet_name,
+                           na_rep=na_rep,
+                           float_format=float_format,
+                           columns=columns,
+                           header=header,
+                           units=units,
+                           index=index,
+                           index_label=index_label,
+                           startrow=startrow,
+                           startcol=startcol,
+                           engine=engine,
+                           merge_cells=merge_cells,
+                           encoding=encoding,
+                           inf_rep=inf_rep,
+                           verbose=verbose,
+                           freeze_panes=freeze_panes,
+                           sort=sort)
 
     def info(self, *args, **kwargs):
         """

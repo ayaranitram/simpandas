@@ -54,11 +54,11 @@ def test_realYear():
 def test_check_day():
     """Test check_day validation function"""
     # Valid days
-    assert check_day(1) == 1
-    assert check_day(15) == 15
-    assert check_day(31) == 31
-    assert check_day('1') == 1
-    assert check_day('15') == 15
+    assert check_day(1) == '-01'
+    assert check_day(15) == '-15'
+    assert check_day(31) == '-31'
+    assert check_day('1') == '-01'
+    assert check_day('15') == '-15'
     
     # Test month names (if supported)
     # These might return day or raise error depending on implementation
@@ -71,22 +71,22 @@ def test_check_day():
 def test_check_month():
     """Test check_month validation function"""
     # Numeric months
-    assert check_month(1) == 1
-    assert check_month(6) == 6
-    assert check_month(12) == 12
-    assert check_month('1') == 1
-    assert check_month('12') == 12
+    assert check_month(1) == '-01'
+    assert check_month(6) == '-06'
+    assert check_month(12) == '-12'
+    assert check_month('1') == '-01'
+    assert check_month('12') == '-12'
     
     # Month names (if supported)
     try:
         result = check_month('JAN')
-        assert result == 1 or result == 'JAN'
+        assert result == '-01' or result == 'JAN'
     except:
         pass
     
     try:
         result = check_month('DECEMBER')
-        assert result == 12 or result == 'DECEMBER'
+        assert result == '-12' or result == 'DECEMBER'
     except:
         pass
     

@@ -290,12 +290,15 @@ class SimSeries(SimBasics, Series):
 
     def __getitem__(self, key=None):
         from .frame import SimDataFrame
-        if not hasattr(self.index, 'units'):
-            self.index = SimIndex(self.index, units=self.index_units)
+        # Use getattr to avoid converting self.index to SimIndex, which breaks
+        # regular Index-based access (e.g. index=['a'] after aggregation)
+        index_name = getattr(self.index, 'name', None)
+        index_units = getattr(self.index, 'units', self.index_units)
+
         def index_params_():
             params_ = self.params_
-            params_['name'] = self.index.name
-            params_['units'] = self.index.units
+            params_['name'] = index_name
+            params_['units'] = index_units
             params_['index_name'] = None
             params_['index_units'] = None
             return params_
@@ -304,16 +307,16 @@ class SimSeries(SimBasics, Series):
             return self
         elif type(key) is str and key not in self.index and key == self.name:
             return self
-        elif type(key) is str and key == self.index.name:
+        elif type(key) is str and index_name is not None and key == index_name:
             params_ = index_params_()
             return SimSeries(data=self.index.to_numpy(),
                              index=range(len(self.index)),
                              **params_)
         elif type(key) is list and key in [[], [self.name]]:
             return self.as_simdataframe()
-        elif type(key) is list and key == [self.index.name]:
+        elif type(key) is list and index_name is not None and key == [index_name]:
             params_ = index_params_()
-            return SimDataFrame(data={self.index.name: self.index.to_numpy()},
+            return SimDataFrame(data={index_name: self.index.to_numpy()},
                                 index=range(len(self.index)),
                                 **params_)
         else:
@@ -600,17 +603,61 @@ class SimSeries(SimBasics, Series):
             return operation(self.as_pandas().round(precision), other.as_pandas().round(precision),
                              level=level, fill_value=fill_value, axis=axis)
 
+    def rolling(self, *args, **kwargs):
+        """Return a rolling window proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimWindowProxy
+        return _SimWindowProxy(super().rolling(*args, **kwargs), self)
+
+    def expanding(self, *args, **kwargs):
+        """Return an expanding window proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimWindowProxy
+        return _SimWindowProxy(super().expanding(*args, **kwargs), self)
+
+    def ewm(self, *args, **kwargs):
+        """Return an EWM window proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimWindowProxy
+        return _SimWindowProxy(super().ewm(*args, **kwargs), self)
+
+    def groupby(self, *args, **kwargs):
+        """Return a GroupBy proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimGroupBy
+        return _SimGroupBy(super().groupby(*args, **kwargs), self)
+
+    def unique(self):
+        """Return unique values as a numpy array."""
+        return self.as_pandas().unique()
+
+    def to_csv(self, path_or_buf=None, *args, **kwargs):
+        """Write Series to CSV."""
+        return self.as_pandas().to_csv(path_or_buf, *args, **kwargs)
+
+    def to_json(self, path_or_buf=None, *args, **kwargs):
+        """Write Series to JSON with units metadata."""
+        import json
+        data_json = self.as_pandas().to_json(*args, **kwargs)
+        try:
+            units = self.get_units()
+        except Exception:
+            units = None
+        payload = {'data': json.loads(data_json) if isinstance(data_json, str) else data_json,
+                   'units': units}
+        if path_or_buf is not None:
+            with open(path_or_buf, 'w') as f:
+                json.dump(payload, f)
+            return None
+        return json.dumps(payload)
+
     def astype(self, dtype, copy=True, errors='raise'):
         params_ = self.params_
         params_['dtype'] = dtype
         return self._class(data=self.as_pandas().astype(dtype), **params_)
 
-    def copy(self):
+    def copy(self, deep=True):
         if type(self.units) is dict:
             params_ = self.params_
             params_['units'] = self.units.copy()
-            return SimSeries(data=self.as_pandas().copy(True), **params_)
-        return SimSeries(data=self.as_pandas().copy(True), **self.params_)
+            return SimSeries(data=self.as_pandas().copy(deep), **params_)
+        return SimSeries(data=self.as_pandas().copy(deep), **self.params_)
 
     def convert(self, units):
         """

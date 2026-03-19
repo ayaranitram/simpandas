@@ -7,10 +7,10 @@ Created on Sun Oct 11 11:14:32 2020
 
 __version__ = '0.84.0'
 __release__ = 20260303
-__all__ = ['SimSeries', 'SimDataFrame', 'read_excel', 'concat']
+__all__ = ['SimSeries', 'SimDataFrame', 'read_excel', 'read_csv', 'read_json', 'concat']
 
 from .series import SimSeries
 from .frame import SimDataFrame
 from .index import SimIndex
-from .readers import read_excel
+from .readers import read_excel, read_csv, read_json
 from .common.merger import concat

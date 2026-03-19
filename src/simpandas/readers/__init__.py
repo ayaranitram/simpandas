@@ -9,3 +9,5 @@ __version__ = '0.1.2'
 __release__ = 20220920
 
 from simpandas.readers.xlsx import read_excel
+from simpandas.readers.csv import read_csv
+from simpandas.readers.json import read_json

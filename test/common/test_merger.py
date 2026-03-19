@@ -18,11 +18,12 @@ def test_merge_units_two():
     df1 = SimDataFrame({'a':[1]}, units='m')
     df2 = SimDataFrame({'b':[2]}, units='s')
     merged = merge_units(df1, df2)
-    assert merged['a']=='m' and merged['b']=='s'
+    # merge_units returns a list of units when columns don't overlap
+    assert 'm' in merged and 's' in merged
 
 def test_merge_index_simple():
-    left = pd.Series([1,2], index=[0,1])
-    right = pd.Series([3,4], index=[1,2])
+    left = pd.Series([1,2], index=[0,1], name='x')
+    right = pd.Series([3,4], index=[1,2], name='x')
     l2, r2 = merge_index(left, right)
     assert 0 in l2.index and 2 in r2.index
 

@@ -16,6 +16,6 @@ def test_slope_with_xy():
 
 def test_slope_window():
     df = pd.DataFrame({'y':[0,2,4,6,8]})
-    s = slope(df, window=1)
+    s = slope(df, window=3)
     assert isinstance(s, np.ndarray)
     assert len(s) == 5

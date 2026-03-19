@@ -46,7 +46,10 @@ class _SimBaseIndexer(object):
                 unit_key = key[1]  # column part of (row, col) tuple
             else:
                 unit_key = key
-            return units(result, self.spd.get_units_string(unit_key))
+            unit_str = self.spd.get_units_string(unit_key)
+            if isinstance(unit_str, str):
+                return units(result, unit_str)
+            return result  # no valid unit string, return raw scalar
         if isinstance(result, (pd.Series, pd.DataFrame)):
             if type(result) is pd.DataFrame:
                 return SimDataFrame(data=result, **self.spd.params_)
