@@ -13,3 +13,38 @@ build
 src/*.egg-info
 .DS_Store
 .idea
+
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Testing
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# IDEs
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+temp_*.py
+validate_phase*.py
+run_phase*.py
+fix_*.py
+inspect_*.py
+import_test.py

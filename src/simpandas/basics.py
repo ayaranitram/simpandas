@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Created on Sun Oct 11 11:14:32 2020
 
-@author: Martín Carlos Araya <martinaraya@gmail.com>
+@author: MartÃ­n Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.25'
-__release__ = 20251104
+__version__ = '0.84.0'
+__release__ = 20260303
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -21,25 +21,35 @@ from unyts import is_Unit
 from unyts.converter import convertible as _convertible
 from unyts.operations import unit_inverse as _unit_inverse
 from unyts.dictionaries import unitless_names as _unitless_names
-from unyts import Unit
 
 from .indexer import _SimLocIndexer, _iSimLocIndexer
+from .common.compat import concat_compat
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
-from .common.helpers import clean_axis as _clean_axis, hashable, make_units_dict
+from .common.helpers import clean_axis as _clean_axis, hashable
 
 logging.basicConfig(level=logging.INFO)
 
 
 class SimType(type):
     def __repr__(self):
+        """Return class name for pretty printing.
+
+        Used by the metaclass to make the representation of the type readable.
+        """
         return self.__name__
 
 
 class SimBasics(object, metaclass=SimType):
 
     def __contains__(self, item):
+        """Membership test against columns or index name.
+
+        ``item in obj`` returns ``True`` if ``item`` matches a column label, an
+        index value or the index name itself.  This mirrors pandas behaviour
+        but also allows checking the index name string.
+        """
         if item in self.columns:
             return True
         elif item in self.index:
@@ -51,45 +61,160 @@ class SimBasics(object, metaclass=SimType):
 
     @property
     def labels(self):
+        """Axis labels taking ``_transposed_`` into account.
+
+        The property returns ``self.columns`` normally or ``self.index`` when the
+        object has been transposed via the custom ``.T`` implementation.
         """
-        returns columns or index depending on the SimDataFrame being transposed or not
-        Returns
-        -------
-            index
-        """
+        # Defensive initialization for _transposed_ in case pandas operations created this without it
+        if not hasattr(self, '_transposed_'):
+            object.__setattr__(self, '_transposed_', False)
         return self.index if self._transposed_ else self.columns
 
+    def _ensure_transposed_exists(self):
+        """Ensure _transposed_ attribute exists (defensive for pandas operations).
+        
+        Some pandas operations may create new instances without calling __init__,
+        which can leave _transposed_ uninitialized. This helper ensures it exists.
+        """
+        if not hasattr(self, '_transposed_'):
+            object.__setattr__(self, '_transposed_', False)
+        return self._transposed_
+
+    def _rewrap(self, result):
+        """Wrap a pandas result back into the appropriate Sim type with metadata.
+
+        Handles DataFrame -> SimDataFrame, Series -> SimSeries, and passes
+        through scalars and other types unchanged.
+        """
+        import pandas as pd
+        from .frame import SimDataFrame
+        from .series import SimSeries
+        if isinstance(result, pd.DataFrame):
+            wrapped = SimDataFrame(data=result, **self.params_)
+            try:
+                parent_units = self.get_units()
+                if isinstance(parent_units, dict):
+                    wrapped.set_units({c: parent_units.get(c, None)
+                                       for c in wrapped.columns if c in parent_units})
+            except Exception:
+                pass
+            return wrapped
+        if isinstance(result, pd.Series):
+            params = self.params_.copy()
+            try:
+                unit_str = self.get_units_string(result.name)
+                if isinstance(unit_str, str) and unit_str != 'unitless':
+                    params['units'] = unit_str
+                else:
+                    params['units'] = None
+            except Exception:
+                params['units'] = None
+            if 'name' in params:
+                del params['name']
+            return SimSeries(data=result, **params)
+        return result
+
     def _reverse(self):
+        """Toggle the ``_reverse_`` flag and return self.
+
+        This is used internally by certain operations that invert the sense of
+        names or units.  It mutates in-place and returns the object for
+        convenience.
+        """
         self._reverse_ = not self._reverse_
         return self
 
     @property
     def _SimParameters(self) -> dict:
+        """Alias for :pyattr:`params_`.
+
+        Some internal routines expect ``_SimParameters``; this property simply
+        forwards to the canonical ``params_`` dictionary used for metadata
+        propagation.
+        """
         return self.params_
 
     @property
     def loc(self) -> _SimLocIndexer:
+        """Custom ``.loc`` indexer handling unit conversion and metadata.
+
+        Returns a fresh ``_SimLocIndexer`` instance bound to this object.
         """
-        wrapper for .loc indexing
-        """
-        return self.spdLocator
+        return _SimLocIndexer("loc", self)
 
     @property
     def iloc(self) -> _iSimLocIndexer:
+        """Position-based indexer analogous to pandas ``.iloc``.
+
+        The returned ``_iSimLocIndexer`` converts results back to Sim objects
+        and performs unit-aware assignment.
         """
-        wrapper for .iloc indexing
-        """
-        return self.spdiLocator
+        return _iSimLocIndexer("iloc", self)
 
     @property
-    def units(self) -> dict:
-        return dict(zip(self.labels, self._units_))
+    def units(self):
+        """Return units as dict (no duplicates) or list (has duplicates).
+
+        The internal ``_units_`` attribute is stored as a list parallel to columns.
+        This property returns:
+        - dict {column: unit} when all column names are unique (backward compatible)
+        - list [unit, unit, ...] when duplicate column names exist (position-based)
+        - For Series with string units, returns the string directly
+        """
+        # Some pandas internals may materialize subclass instances without
+        # calling our __init__. Ensure _units_ always exists.
+        if not hasattr(self, '_units_'):
+            labels = list(self.labels) if hasattr(self, 'labels') else []
+            object.__setattr__(self, '_units_', [None] * len(labels))
+
+        # Handle string units (for Series)
+        if isinstance(self._units_, str):
+            return self._units_
+        
+        # Handle list units (standard storage)
+        if isinstance(self._units_, list):
+            labels = list(self.labels)
+            # Keep positional units aligned with current axis labels.
+            if len(self._units_) < len(labels):
+                self._units_.extend([None] * (len(labels) - len(self._units_)))
+            elif len(self._units_) > len(labels):
+                object.__setattr__(self, '_units_', self._units_[:len(labels)])
+            # Check for duplicate column names
+            if len(labels) == len(set(labels)):
+                # No duplicates: return dict for backward compatibility
+                return dict(zip(labels, self._units_))
+            else:
+                # Has duplicates: return list for position-based access
+                return self._units_.copy()
+        
+        # Handle legacy dict storage (convert to list internally)
+        if isinstance(self._units_, dict):
+            # If _units_ is empty dict, return it directly
+            if not self._units_:
+                return {}
+            
+            labels = list(self.labels)
+            units_list = [self._units_.get(label, None) for label in labels]
+            object.__setattr__(self, '_units_', units_list)
+            # Return dict if no duplicates, list if duplicates
+            if len(labels) == len(set(labels)):
+                return dict(zip(labels, units_list))
+            else:
+                return units_list.copy()
+        
+        # Fallback: empty list
+        return []
 
     @units.setter
     def units(self, units) -> None:
-        self.set_units(units, inplace=True)
+        # `set_units` implementations in subclasses no longer accept `inplace`
+        # (the parameter was removed).  Call without keyword to avoid errors.
+        self.set_units(units)
 
     def isna(self):
+        """Return boolean mask of missing values using underlying pandas object.
+        """
         return self.as_pandas().isna()
 
     def concat(self, objs, axis=0, join='outer', ignore_index=False,
@@ -114,9 +239,9 @@ class SimBasics(object, metaclass=SimType):
         else:
             objs = [objs]
 
-        if len(objs) == 1:
-            warn("WARNING: only 1 DataFrame received, nothing to concatenate!")
-            return [objs][0]
+        if len(objs) == 0:
+            warn("WARNING: no DataFrames received, nothing to concatenate!")
+            return self
 
         return _concat([self] + objs, axis=axis, join=join,
                        ignore_index=ignore_index, keys=keys, levels=levels,
@@ -124,6 +249,11 @@ class SimBasics(object, metaclass=SimType):
                        sort=sort, copy=copy, squeeze=squeeze)
 
     def auto_append(self, switch: bool = None) -> None:
+        """Enable/disable automatic appending behaviour.
+
+        If ``switch`` is provided the internal flag is set.  The method logs
+        the current state at INFO level.
+        """
         if switch is not None:
             self._auto_append_ = bool(switch)
         logging.info("`auto_append` is", self._auto_append_)
@@ -138,8 +268,8 @@ class SimBasics(object, metaclass=SimType):
         Returns a SimDataFrame or SimSeries of the same size containing the cumulative sum.
 
         Parameters:
-            axis : {0 or ‘index’, 1 or ‘columns’}, default 0
-                The index or the name of the axis. 0 is equivalent to None or ‘index’.
+            axis : {0 or 'index', 1 or 'columns'}, default 0
+                The index or the name of the axis. 0 is equivalent to None or 'index'.
 
         skipna: bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result will be NA.
@@ -156,6 +286,137 @@ class SimBasics(object, metaclass=SimType):
     def describe(self, *args, **kwargs):
         return self._class(data=self.to_Pandas().describe(*args, **kwargs),
                            **self.params_)
+
+    def apply(self, func, axis=0, raw=False, result_type=None, args=(), **kwargs):
+        """Apply a function along an axis of the DataFrame/Series, preserving units."""
+        return self._rewrap(self.as_pandas().apply(func, axis=axis, raw=raw,
+                                                   result_type=result_type, args=args, **kwargs))
+
+    def transform(self, func, axis=0, *args, **kwargs):
+        """Call func on self producing a same-shaped object, preserving units."""
+        return self._rewrap(self.as_pandas().transform(func, axis=axis, *args, **kwargs))
+
+    def pipe(self, func, *args, **kwargs):
+        """Apply chainable functions that expect DataFrames/Series, preserving units."""
+        return self._rewrap(self.as_pandas().pipe(func, *args, **kwargs))
+
+    def map(self, func, na_action=None, **kwargs):
+        """Apply a function element-wise, preserving units."""
+        return self._rewrap(self.as_pandas().map(func, na_action=na_action, **kwargs))
+
+    def where(self, cond, other=None, *args, **kwargs):
+        """Replace values where the condition is False, preserving units."""
+        return self._rewrap(self.as_pandas().where(cond, other, *args, **kwargs))
+
+    def mask(self, cond, other=None, *args, **kwargs):
+        """Replace values where the condition is True, preserving units."""
+        return self._rewrap(self.as_pandas().mask(cond, other, *args, **kwargs))
+
+    def sample(self, *args, **kwargs):
+        """Return a random sample of items, preserving units."""
+        return self._rewrap(self.as_pandas().sample(*args, **kwargs))
+
+    def cummax(self, axis=0, skipna=True, *args, **kwargs):
+        """Return cumulative maximum, preserving units."""
+        return self._rewrap(self.as_pandas().cummax(axis=axis, skipna=skipna, *args, **kwargs))
+
+    def cummin(self, axis=0, skipna=True, *args, **kwargs):
+        """Return cumulative minimum, preserving units."""
+        return self._rewrap(self.as_pandas().cummin(axis=axis, skipna=skipna, *args, **kwargs))
+
+    def cumprod(self, axis=0, skipna=True, *args, **kwargs):
+        """Return cumulative product, preserving units."""
+        return self._rewrap(self.as_pandas().cumprod(axis=axis, skipna=skipna, *args, **kwargs))
+
+    def skew(self, axis=0, skipna=True, numeric_only=False, **kwargs):
+        """Return unbiased skew, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().skew(axis=axis, skipna=skipna,
+                                                  numeric_only=numeric_only, **kwargs))
+
+    def kurtosis(self, axis=0, skipna=True, numeric_only=False, **kwargs):
+        """Return unbiased kurtosis, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().kurtosis(axis=axis, skipna=skipna,
+                                                      numeric_only=numeric_only, **kwargs))
+
+    kurt = kurtosis
+
+    def sem(self, axis=0, skipna=True, ddof=1, numeric_only=False, **kwargs):
+        """Return unbiased standard error of the mean, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().sem(axis=axis, skipna=skipna, ddof=ddof,
+                                                 numeric_only=numeric_only, **kwargs))
+
+    def idxmin(self, axis=0, skipna=True, numeric_only=False):
+        """Return index of first occurrence of minimum, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().idxmin(axis=axis, skipna=skipna,
+                                                    numeric_only=numeric_only))
+
+    def idxmax(self, axis=0, skipna=True, numeric_only=False):
+        """Return index of first occurrence of maximum, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().idxmax(axis=axis, skipna=skipna,
+                                                    numeric_only=numeric_only))
+
+    def explode(self, column=None, ignore_index=False):
+        """Transform each element of a list-like to a row, preserving units."""
+        if column is not None:
+            return self._rewrap(self.as_pandas().explode(column, ignore_index=ignore_index))
+        return self._rewrap(self.as_pandas().explode(ignore_index=ignore_index))
+
+    def rank(self, axis=0, method='average', numeric_only=False, na_option='keep',
+             ascending=True, pct=False):
+        """Compute numerical data ranks, preserving wrapper type."""
+        return self._rewrap(self.as_pandas().rank(axis=axis, method=method,
+                                                  numeric_only=numeric_only,
+                                                  na_option=na_option,
+                                                  ascending=ascending, pct=pct))
+
+    def clip(self, lower=None, upper=None, axis=None, *args, **kwargs):
+        """Trim values at input thresholds, preserving units."""
+        return self._rewrap(self.as_pandas().clip(lower=lower, upper=upper, axis=axis,
+                                                  *args, **kwargs))
+
+    def abs(self):
+        """Return element-wise absolute value, preserving units."""
+        return self._rewrap(self.as_pandas().abs())
+
+    def round(self, decimals=0, *args, **kwargs):
+        """Round values, preserving units."""
+        return self._rewrap(self.as_pandas().round(decimals=decimals, *args, **kwargs))
+
+    def drop_duplicates(self, *args, **kwargs):
+        """Return with duplicate rows removed, preserving units."""
+        return self._rewrap(self.as_pandas().drop_duplicates(*args, **kwargs))
+
+    def sort_values(self, *args, **kwargs):
+        """Sort by the values, preserving units."""
+        return self._rewrap(self.as_pandas().sort_values(*args, **kwargs))
+
+    def sort_index(self, *args, **kwargs):
+        """Sort by the index, preserving units."""
+        return self._rewrap(self.as_pandas().sort_index(*args, **kwargs))
+
+    def nlargest(self, n=5, columns=None, keep='first'):
+        """Return the first n rows ordered by columns in descending order, preserving units."""
+        if columns is not None:
+            return self._rewrap(self.as_pandas().nlargest(n, columns, keep=keep))
+        return self._rewrap(self.as_pandas().nlargest(n, keep=keep))
+
+    def nsmallest(self, n=5, columns=None, keep='first'):
+        """Return the first n rows ordered by columns in ascending order, preserving units."""
+        if columns is not None:
+            return self._rewrap(self.as_pandas().nsmallest(n, columns, keep=keep))
+        return self._rewrap(self.as_pandas().nsmallest(n, keep=keep))
+
+    def value_counts(self, *args, **kwargs):
+        """Return a Series containing counts of unique values."""
+        return self._rewrap(self.as_pandas().value_counts(*args, **kwargs))
+
+    def nunique(self, axis=0, dropna=True):
+        """Count number of distinct elements."""
+        return self._rewrap(self.as_pandas().nunique(axis=axis, dropna=dropna))
+
+    def astype(self, dtype, copy=True, errors='raise'):
+        """Cast to a specified dtype, preserving units."""
+        return self._rewrap(self.as_pandas().astype(dtype, copy=copy, errors=errors))
 
     def head(self, n=5):
         """
@@ -178,15 +439,26 @@ class SimBasics(object, metaclass=SimType):
         return self._class(data=self.to_pandas().head(n), **self.params_)
 
     def operate_per_name(self, switch: bool = None) -> None:
+        """Toggle the ``operate_per_name`` mode.
+
+        When True operations are applied separately to each name/group.  The
+        flag is logged at INFO level.
+        """
         if switch is not None:
             self._operate_per_name_ = bool(switch)
         logging.info("`operate_per_name` is", self._operate_per_name_)
 
     @property
     def params_(self):
-        return {'name': self.name,
+        """Gather all metadata parameters associated with this object.
+
+        The returned dictionary is used when constructing new objects after
+        operations so that properties such as units, index units, verbosity,
+        etc. are preserved.
+        """
+        return {'name': self.name if hasattr(self, 'name') else None,
                 'units': self.get_units() if type(self.units) is dict else self.units,
-                'index_name': self.index.name,
+                'index_name': self.index.name if hasattr(self.index, 'name') else None,
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
                 'intersection_character': self.intersection_character if hasattr(self,
@@ -241,194 +513,466 @@ class SimBasics(object, metaclass=SimType):
         return self._class(data=1 / self.as_pandas(), **params_)
 
     def neg(self):
+        """Return the negation of this object.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Negated values with units and metadata preserved.
+        """
         return self.__neg__()
 
     def add(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Add `other` to this object with unit conversion support.
+
+        Parameters
+        ----------
+        other : scalar, Series, DataFrame, or Unit
+            Value(s) to add; may be a single value or index-aligned object.
+        level : int or str, optional
+            Level name or position for broadcasting on MultiIndex.
+        fill_value : scalar, optional
+            Fill missing values with this before addition.
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to add.
+        intersection_character : str, optional
+            Character used when combining column names.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Result with units combined appropriately.
+        """
         return self._arithmethic_operation(other, operation='+', level=level, fill_value=fill_value, axis=axis,
                                            intersection_character=intersection_character)
 
     def sub(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Subtract `other` from this object with unit conversion support.
+
+        Parameters
+        ----------
+        other : scalar, Series, DataFrame, or Unit
+            Value(s) to subtract; may be a single value or index-aligned object.
+        level : int or str, optional
+            Level name or position for broadcasting on MultiIndex.
+        fill_value : scalar, optional
+            Fill missing values with this before subtraction.
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to subtract.
+        intersection_character : str, optional
+            Character used when combining column names.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Result with units combined appropriately.
+        """
         return self._arithmethic_operation(other, operation='-', level=level, fill_value=fill_value, axis=axis,
                                            intersection_character=intersection_character)
 
     def mul(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Multiply this object by `other` with unit multiplication.
+
+        Parameters
+        ----------
+        other : scalar, Series, DataFrame, or Unit
+            Value(s) to multiply; may be a single value or index-aligned object.
+        level : int or str, optional
+            Level name or position for broadcasting on MultiIndex.
+        fill_value : scalar, optional
+            Fill missing values with this (typically 1 for multiplication).
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to multiply.
+        intersection_character : str, optional
+            Character used when combining column names.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Result with units multiplied appropriately.
+        """
         return self._arithmethic_operation(other, operation='*', level=level, fill_value=fill_value, axis=axis,
                                            intersection_character=intersection_character)
 
     def truediv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Divide this object by `other` with unit division.
+
+        Parameters
+        ----------
+        other : scalar, Series, DataFrame, or Unit
+            Value(s) to divide by; may be a single value or index-aligned object.
+        level : int or str, optional
+            Level name or position for broadcasting on MultiIndex.
+        fill_value : scalar, optional
+            Fill missing values with this before division.
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to divide.
+        intersection_character : str, optional
+            Character used when combining column names.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Result with units divided appropriately.
+        """
         return self._arithmethic_operation(other, operation='/', level=level, fill_value=fill_value, axis=axis,
                                            intersection_character=intersection_character)
 
     def div(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Alias for :py:meth:`truediv`; divide by `other`.
+
+        This method is provided for compatibility with older code.
+        """
         return self.truediv(other, level=level, fill_value=fill_value, axis=axis,
                             intersection_character=intersection_character)
 
     def eq0(self, other):
+        """Test equality with `other` at 0 decimal places precision.
+
+        Parameters
+        ----------
+        other : scalar or array-like
+            Value(s) to compare against.
+
+        Returns
+        -------
+        bool or array-like
+            Boolean result(s) of equality test.
+        """
         return self.eq(other, precision=0)
 
     def eq1(self, other):
+        """Test equality with `other` at 1 decimal place precision.
+
+        Parameters
+        ----------
+        other : scalar or array-like
+            Value(s) to compare against.
+
+        Returns
+        -------
+        bool or array-like
+            Boolean result(s) of equality test.
+        """
         return self.eq(other, precision=1)
 
     def eq2(self, other):
+        """Test equality with `other` at 2 decimal places precision.
+
+        Parameters
+        ----------
+        other : scalar or array-like
+            Value(s) to compare against.
+
+        Returns
+        -------
+        bool or array-like
+            Boolean result(s) of equality test.
+        """
         return self.eq(other, precision=2)
 
     def eq3(self, other):
+        """Test equality with `other` at 3 decimal places precision.
+
+        Parameters
+        ----------
+        other : scalar or array-like
+            Value(s) to compare against.
+
+        Returns
+        -------
+        bool or array-like
+            Boolean result(s) of equality test.
+        """
         return self.eq(other, precision=3)
 
     def eq4(self, other):
+        """Test equality with `other` at 4 decimal places precision.
+
+        Parameters
+        ----------
+        other : scalar or array-like
+            Value(s) to compare against.
+
+        Returns
+        -------
+        bool or array-like
+            Boolean result(s) of equality test.
+        """
         return self.eq(other, precision=4)
 
     def eq6(self, other):
+        """Test equality with `other` at 6 decimal places precision.
+
+        Parameters
+        ----------
+        other : scalar or array-like
+            Value(s) to compare against.
+
+        Returns
+        -------
+        bool or array-like
+            Boolean result(s) of equality test.
+        """
         return self.eq(other, precision=6)
 
     def ge0(self, other):
+        """Test >= against `other` at 0 decimal places precision."""
         return self.ge(other, precision=0)
 
     def ge1(self, other):
+        """Test >= against `other` at 1 decimal place precision."""
         return self.ge(other, precision=1)
 
     def ge2(self, other):
+        """Test >= against `other` at 2 decimal places precision."""
         return self.ge(other, precision=2)
 
     def ge3(self, other):
+        """Test >= against `other` at 3 decimal places precision."""
         return self.ge(other, precision=3)
 
     def ge4(self, other):
+        """Test >= against `other` at 4 decimal places precision."""
         return self.ge(other, precision=4)
 
     def ge6(self, other):
+        """Test >= against `other` at 6 decimal places precision."""
         return self.ge(other, precision=6)
 
     def gt0(self, other):
+        """Test > against `other` at 0 decimal places precision."""
         return self.gt(other, precision=0)
 
     def gt1(self, other):
+        """Test > against `other` at 1 decimal place precision."""
         return self.gt(other, precision=1)
 
     def gt2(self, other):
+        """Test > against `other` at 2 decimal places precision."""
         return self.gt(other, precision=2)
 
     def gt3(self, other):
+        """Test > against `other` at 3 decimal places precision."""
         return self.gt(other, precision=3)
 
     def gt4(self, other):
+        """Test > against `other` at 4 decimal places precision."""
         return self.gt(other, precision=4)
 
     def gt6(self, other):
+        """Test > against `other` at 6 decimal places precision."""
         return self.gt(other, precision=6)
 
     def le0(self, other):
+        """Test <= against `other` at 0 decimal places precision."""
         return self.le(other, precision=0)
 
     def le1(self, other):
+        """Test <= against `other` at 1 decimal place precision."""
         return self.le(other, precision=1)
 
     def le2(self, other):
+        """Test <= against `other` at 2 decimal places precision."""
         return self.le(other, precision=2)
 
     def le3(self, other):
+        """Test <= against `other` at 3 decimal places precision."""
         return self.le(other, precision=3)
 
     def le4(self, other):
+        """Test <= against `other` at 4 decimal places precision."""
         return self.le(other, precision=4)
 
     def le6(self, other):
+        """Test <= against `other` at 6 decimal places precision."""
         return self.le(other, precision=6)
 
     def lt0(self, other):
+        """Test < against `other` at 0 decimal places precision."""
         return self.lt(other, precision=0)
 
     def lt1(self, other):
+        """Test < against `other` at 1 decimal place precision."""
         return self.lt(other, precision=1)
 
     def lt2(self, other):
+        """Test < against `other` at 2 decimal places precision."""
         return self.lt(other, precision=2)
 
     def lt3(self, other):
+        """Test < against `other` at 3 decimal places precision."""
         return self.lt(other, precision=3)
 
     def lt4(self, other):
+        """Test < against `other` at 4 decimal places precision."""
         return self.lt(other, precision=4)
 
     def lt6(self, other):
+        """Test < against `other` at 6 decimal places precision."""
         return self.lt(other, precision=6)
 
     def ne0(self, other):
+        """Test != against `other` at 0 decimal places precision."""
         return self.ne(other, precision=0)
 
     def ne1(self, other):
+        """Test != against `other` at 1 decimal place precision."""
         return self.ne(other, precision=1)
 
     def ne2(self, other):
+        """Test != against `other` at 2 decimal places precision."""
         return self.ne(other, precision=2)
 
     def ne3(self, other):
+        """Test != against `other` at 3 decimal places precision."""
         return self.ne(other, precision=3)
 
     def ne4(self, other):
+        """Test != against `other` at 4 decimal places precision."""
         return self.ne(other, precision=4)
 
     def ne6(self, other):
+        """Test != against `other` at 6 decimal places precision."""
         return self.ne(other, precision=6)
 
     def floordiv(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Floor division of this object by `other`.
+
+        Parameters
+        ----------
+        other : scalar, Series, DataFrame, or Unit
+            Value(s) to divide by; may be a single value or index-aligned object.
+        level : int or str, optional
+            Level name or position for broadcasting on MultiIndex.
+        fill_value : scalar, optional
+            Fill missing values with this before division.
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to divide.
+        intersection_character : str, optional
+            Character used when combining column names.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Result with units divided appropriately.
+        """
         return self._arithmethic_operation(other, operation='//', level=level, fill_value=fill_value, axis=axis,
                                            intersection_character=intersection_character)
 
     def mod(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Modulo operation: this object mod `other`.
+
+        Parameters
+        ----------
+        other : scalar, Series, DataFrame, or Unit
+            Value(s) for modulo; may be a single value or index-aligned object.
+        level : int or str, optional
+            Level name or position for broadcasting on MultiIndex.
+        fill_value : scalar, optional
+            Fill missing values with this before modulo.
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to apply modulo.
+        intersection_character : str, optional
+            Character used when combining column names.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Modulo result with units adjusted appropriately.
+        """
         return self._arithmethic_operation(other, operation='%', level=level, fill_value=fill_value, axis=axis,
                                            intersection_character=intersection_character)
 
     def pow(self, other, level=None, fill_value=None, axis=0, intersection_character=None):
+        """Raise this object to the power of `other`.
+
+        Parameters
+        ----------
+        other : scalar, Series, DataFrame, or Unit
+            Exponent value(s); may be a single value or index-aligned object.
+        level : int or str, optional
+            Level name or position for broadcasting on MultiIndex.
+        fill_value : scalar, optional
+            Fill missing values with this before exponentiation.
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to apply exponentiation.
+        intersection_character : str, optional
+            Character used when combining column names.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Result with units raised to the power appropriately.
+        """
         return self._arithmethic_operation(other, operation='**', level=level, fill_value=fill_value, axis=axis,
                                            intersection_character=intersection_character)
 
     def __add__(self, other):
+        """Implement self + other."""
         return self._arithmethic_operation(other, operation='+', fill_value=0)
 
     def __sub__(self, other):
+        """Implement self - other."""
         return self._arithmethic_operation(other, operation='-', fill_value=0)
 
     def __mul__(self, other):
+        """Implement self * other."""
         return self._arithmethic_operation(other, operation='*', fill_value=1)
 
     def __truediv__(self, other):
+        """Implement self / other (true division)."""
         return self._arithmethic_operation(other, operation='/', fill_value=None)
 
     def __floordiv__(self, other):
+        """Implement self // other (floor division)."""
         return self._arithmethic_operation(other, operation='//', fill_value=None, intersection_character='/')
 
     def __mod__(self, other):
+        """Implement self % other (modulo)."""
         return self._arithmethic_operation(other, operation='%', fill_value=None)
 
     def __pow__(self, other):
+        """Implement self ** other (exponentiation)."""
         return self._arithmethic_operation(other, operation='**', fill_value=None)
 
     def __eq__(self, other):
+        """Implement self == other."""
         return self._arithmethic_operation(other, operation='==', fill_value=None)
 
     def __ne__(self, other):
+        """Implement self != other."""
         return self._arithmethic_operation(other, operation='!=', fill_value=None)
 
     def __ge__(self, other):
+        """Implement self >= other."""
         return self._arithmethic_operation(other, operation='>=', fill_value=None)
 
     def __le__(self, other):
+        """Implement self <= other."""
         return self._arithmethic_operation(other, operation='<=', fill_value=None)
 
     def __gt__(self, other):
+        """Implement self > other."""
         return self._arithmethic_operation(other, operation='>', fill_value=None)
 
     def __lt__(self, other):
+        """Implement self < other."""
         return self._arithmethic_operation(other, operation='<', fill_value=None)
 
     def __neg__(self):
+        """Implement -self (unary negation)."""
         return self._class(data=self.as_pandas().__neg__(), **self.params_)
 
     def __abs__(self):
+        """Implement abs(self) (absolute value)."""
         return self._class(data=abs(self.as_pandas()), **self.params_)
 
     def __radd__(self, other):
+        """Implement other + self (reflected addition).
+
+        When other is a unyts.Unit, attempt unit conversion and addition.
+        """
         if is_Unit(other):
             if _convertible(self.units, other.units):
                 return self.to(other.units)._reverse().__add__(other)
@@ -437,6 +981,10 @@ class SimBasics(object, metaclass=SimType):
         return self._reverse().__add__(other)
 
     def __rsub__(self, other):
+        """Implement other - self (reflected subtraction).
+
+        When other is a unyts.Unit, attempt unit conversion and subtraction.
+        """
         if is_Unit(other):
             if _convertible(self.units, other.units):
                 return self.to(other.units).__neg__()._reverse().add(other, intersection_character='-')
@@ -445,24 +993,40 @@ class SimBasics(object, metaclass=SimType):
         return self.__neg__()._reverse().add(other, intersection_character='-')
 
     def __rmul__(self, other):
+        """Implement other * self (reflected multiplication).
+
+        When other is a unyts.Unit, attempt unit conversion and multiplication.
+        """
         if is_Unit(other):
             return self.to(other.units)._reverse().__mul__(other)
         else:
             return self._reverse().__mul__(other)
 
     def __rtruediv__(self, other):
+        """Implement other / self (reflected division).
+
+        When other is a unyts.Unit, attempt unit conversion and division.
+        """
         if is_Unit(other):
             return self.to(other.units).inv()._reverse().mul(other, intersection_character='/')
         else:
             return self.inv()._reverse().mul(other, intersection_character='/')
 
     def __rfloordiv__(self, other):
+        """Implement other // self (reflected floor division).
+
+        When other is a unyts.Unit, attempt unit conversion and floor division.
+        """
         if is_Unit(other):
             return self.to(other.units).inv()._reverse().mul(other, intersection_character='/').astype(int)
         else:
             return self.inv()._reverse().mul(other, intersection_character='/').astype(int)
 
     def __rmod__(self, other):
+        """Implement other % self (reflected modulo).
+
+        When other is a unyts.Unit, perform modulo with unit assignment.
+        """
         params_ = self.params_
         if hasattr(other, 'name') and type(other.name) is str:
             params_['name'] = other.name
@@ -475,6 +1039,10 @@ class SimBasics(object, metaclass=SimType):
             return self._class(data=self.as_pandas().__rmod__(other), **params_)
 
     def __matmul__(self, other):
+        """Implement self @ other (matrix multiplication for units).
+
+        Used to express unit ratios like `length @ speed` for length/speed.
+        """
         if is_Unit(other):
             result = self.__truediv__(other.value)
             if other.units not in _unitless_names:
@@ -487,6 +1055,10 @@ class SimBasics(object, metaclass=SimType):
             return super().__matmul__(other)
 
     def __rmatmul__(self, other):
+        """Implement other @ self (reflected matrix multiplication for units).
+
+        Used to express unit ratios like `speed @ length` for speed/length.
+        """
         if is_Unit(other):
             result = self.inv().__mul__(other.value)
             if other.units not in _unitless_names:
@@ -499,27 +1071,99 @@ class SimBasics(object, metaclass=SimType):
             return super().__rmatmul__(other)
 
     def avg(self, axis=0, **kwargs):
+        """Compute the mean (average) along the specified axis.
+
+        Alias for :py:meth:`mean`.
+        """
         return self.mean(axis=axis, **kwargs)
 
     def avg0(self, axis=0, **kwargs):
+        """Compute the mean excluding zero values.
+
+        Zeros are replaced with NaN before computing the mean.
+        """
         return self.mean0(axis=axis, **kwargs)
 
     def average(self, axis=0, **kwargs):
+        """Compute the average along the specified axis.
+
+        Alias for :py:meth:`mean`.
+        """
         return self.mean(axis=axis, **kwargs)
 
     def average0(self, axis=0, **kwargs):
+        """Compute the average excluding zero values.
+
+        Zeros are replaced with NaN before computing the average.
+        """
         return self.mean0(axis=axis, **kwargs)
 
     def mean0(self, axis=0, **kwargs):
+        """Compute the mean excluding zero values.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute the mean.
+        **kwargs : optional
+            Additional arguments passed to :py:meth:`pandas.DataFrame.mean` or :py:meth:`pandas.Series.mean`.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Mean value(s) with units preserved.
+        """
         return self.replace(0, nan).mean(axis=axis, **kwargs)
 
     def median0(self, axis=0, **kwargs):
+        """Compute the median excluding zero values.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute the median.
+        **kwargs : optional
+            Additional arguments passed to :py:meth:`pandas.DataFrame.median` or :py:meth:`pandas.Series.median`.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Median value(s) with units preserved.
+        """
         return self.replace(0, nan).median(axis=axis, **kwargs)
 
     def mode0(self, axis=0, **kwargs):
+        """Compute the mode (most frequent value) excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute the mode.
+        **kwargs : optional
+            Additional arguments passed to :py:meth:`pandas.DataFrame.mode` or :py:meth:`pandas.Series.mode`.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            Mode value(s) with units preserved.
+        """
         return self.replace(0, nan).mode(axis=axis, **kwargs)
 
     def count0(self, axis=0, **kwargs):
+        """Count non-null values excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to count.
+        **kwargs : optional
+            Additional arguments passed to :py:meth:`pandas.DataFrame.count` or :py:meth:`pandas.Series.count`.
+
+        Returns
+        -------
+        int or Series
+            Count of non-null, non-zero values.
+        """
         return self.replace(0, nan).count(axis=axis, **kwargs)
 
     def log(self, base=10):
@@ -592,36 +1236,158 @@ class SimBasics(object, metaclass=SimType):
         return self.log(base=2)
 
     def min0(self, axis=0, **kwargs):
+        """Return the minimum value excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to find the minimum.
+        **kwargs : optional
+            Additional arguments passed to pandas minimum method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            Minimum non-zero value.
+        """
         return self.replace(0, nan).min(axis=axis, **kwargs)
 
-    def mad(self, axis=None, skipna=True, level=None):
-        """
-        Return the mean absolute deviation of the values over the requested axis.
-        """
-        return (self - self.mean()).abs().mean()
-
     def max0(self, axis=0, **kwargs):
+        """Return the maximum value excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to find the maximum.
+        **kwargs : optional
+            Additional arguments passed to pandas maximum method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            Maximum non-zero value.
+        """
         return self.replace(0, nan).max(axis=axis, **kwargs)
 
     def prod0(self, axis=0, **kwargs):
+        """Return the product of values excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute the product.
+        **kwargs : optional
+            Additional arguments passed to pandas product method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            Product of non-zero values.
+        """
         return self.replace(0, nan).prod(axis=axis, **kwargs)
 
     def quantile0(self, axis=0, **kwargs):
+        """Return the quantile excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute quantiles.
+        **kwargs : optional
+            Additional arguments passed to pandas quantile method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            Quantile value(s) excluding zeros.
+        """
         return self.replace(0, nan).quantile(axis=axis, **kwargs)
 
     def rms0(self, axis=0, **kwargs):
+        """Return the root mean square excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute RMS.
+        **kwargs : optional
+            Additional arguments passed to pandas rms method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            RMS value(s) of non-zero values.
+        """
         return self.replace(0, nan).rms(axis=axis, **kwargs)
 
     def std0(self, axis=0, **kwargs):
+        """Return the standard deviation excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute standard deviation.
+        **kwargs : optional
+            Additional arguments passed to pandas std method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            Standard deviation of non-zero values.
+        """
         return self.replace(0, nan).std(axis=axis, **kwargs)
 
     def sum0(self, axis=0, **kwargs):
+        """Return the sum with zeros replaced by NaN (effectively excluding them).
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to sum.
+        **kwargs : optional
+            Additional arguments passed to pandas sum method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            Sum of values (zeros excluded via NaN replacement).
+        """
         return self.sum(axis=axis, **kwargs)
 
     def var0(self, axis=0, **kwargs):
+        """Return the variance excluding zeros.
+
+        Parameters
+        ----------
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to compute variance.
+        **kwargs : optional
+            Additional arguments passed to pandas var method.
+
+        Returns
+        -------
+        scalar, Series, or SimSeries
+            Variance of non-zero values.
+        """
         return self.replace(0, nan).var(axis=axis, **kwargs)
 
     def diff(self, periods=1, axis=0, forward=False):
+        """Calculate the first discrete difference of object over the requested axis.
+
+        Parameters
+        ----------
+        periods : int, default 1
+            Number of periods to shift for calculation (can be negative).
+        axis : {0, 1, 'index', 'columns'}, default 0
+            Axis along which to calculate difference.
+        forward : bool, default False
+            If True, calculate difference in the forward direction (negated).
+
+        Returns
+        -------
+        SimSeries or SimDataFrame
+            First differences with units and metadata preserved.
+        """
         axis = _clean_axis(axis)
         if type(periods) is bool:
             periods, forward = 1, periods
@@ -735,6 +1501,21 @@ class SimBasics(object, metaclass=SimType):
             return []
 
     def set_name_separator(self, separator):
+        """Set the string used to separate parts of column names.
+
+        The separator is used to extract left/right parts of hierarchical names.
+        Common choices include ':' or '_'. Operators like '=-+&*/!%' trigger warnings.
+
+        Parameters
+        ----------
+        separator : str
+            Non-empty string to use as name separator.
+
+        Raises
+        ------
+        TypeError
+            If separator is not a non-empty string.
+        """
         if type(separator) is str and len(separator) > 0:
             if separator in '=-+&*/!%':
                 logging.warning(
@@ -744,6 +1525,13 @@ class SimBasics(object, metaclass=SimType):
             raise TypeError("The `separator` must be a string.")
 
     def get_name_separator(self):
+        """Get the current name separator string.
+
+        Returns
+        -------
+        str
+            The current name separator, or empty string if not defined.
+        """
         if self.name_separator in [None, '', False]:
             warn("`name_separator` is not defined.")
             return ''
@@ -752,6 +1540,35 @@ class SimBasics(object, metaclass=SimType):
 
     def interpolate(self, method='slinear', axis='index', limit=None, inplace=False,
                     limit_direction=None, limit_area=None, downcast=None, **kwargs):
+        """Fill NaN values using interpolation.
+
+        This wraps :py:meth:`pandas.DataFrame.interpolate` or :py:meth:`pandas.Series.interpolate`
+        while preserving units and metadata.
+
+        Parameters
+        ----------
+        method : str, default 'slinear'
+            Interpolation method to use. See pandas documentation for options.
+        axis : {0, 1, 'index', 'columns'}, default 'index'
+            Axis along which to interpolate.
+        limit : int, optional
+            Maximum number of consecutive NaN values to fill.
+        inplace : bool, default False
+            Modify in place if True, return new object if False.
+        limit_direction : {'forward', 'backward', 'both'}, optional
+            Direction for limit parameter.
+        limit_area : {'inside', 'outside'}, optional
+            Whether to fill NaN values inside or outside known values.
+        downcast : str, optional
+            Downcast data type if possible.
+        **kwargs : optional
+            Additional arguments passed to pandas interpolate method.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame or None
+            Interpolated object (or None if inplace=True).
+        """
         axis = _clean_axis(axis)
         if inplace:
             super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace, limit_direction=limit_direction,
@@ -763,6 +1580,31 @@ class SimBasics(object, metaclass=SimType):
 
     def fillna(self, value=None, method=None, axis='index', inplace=False,
                limit=None, downcast=None):
+        """Fill NaN values with a value or method.
+
+        This wraps :py:meth:`pandas.DataFrame.fillna` or :py:meth:`pandas.Series.fillna`
+        while preserving units and metadata.
+
+        Parameters
+        ----------
+        value : scalar, dict, Series, or DataFrame, optional
+            If a scalar, fill all NaN values with this value.
+        method : {'backfill', 'bfill', 'pad', 'ffill', None}, optional
+            Method to use for filling holes in reindexed Series.
+        axis : {0, 1, 'index', 'columns'}, default 'index'
+            Axis along which to fill.
+        inplace : bool, default False
+            Modify in place if True, return new object if False.
+        limit : int, optional
+            Maximum number of consecutive NaN values to fill.
+        downcast : str, optional
+            Downcast data type if possible.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame or None
+            Filled object (or None if inplace=True).
+        """
         axis = _clean_axis(axis)
         if inplace:
             super().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast)
@@ -771,15 +1613,36 @@ class SimBasics(object, metaclass=SimType):
                 data=self.as_pandas().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit,
                                              downcast=downcast), **self.params_)
 
-    def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False, method='pad'):
+    def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False):
+        """Replace values in the object.
+
+        This wraps :py:meth:`pandas.DataFrame.replace` or :py:meth:`pandas.Series.replace`
+        while preserving units and metadata.
+
+        Parameters
+        ----------
+        to_replace : str, regex, list, dict, Series, int, float, or None
+            How to find the values that will be replaced.
+        value : scalar, dict, list, str, regex, or None
+            Value replacement (required if to_replace is not a dictionary, Series, or None).
+        inplace : bool, default False
+            Modify in place if True, return new object if False.
+        limit : int, optional
+            Maximum size gap to forward or backward fill.
+        regex : bool, default False
+            Whether to interpret to_replace and/or value as regular expressions.
+
+        Returns
+        -------
+        SimSeries or SimDataFrame or None
+            Object with replaced values (or None if inplace=True).
+        """
         if inplace:
-            super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex,
-                            method=method)
+            super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex)
         else:
             return self._class(
                 data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
-                                              regex=regex,
-                                              method=method), **self.params_)
+                                              regex=regex), **self.params_)
 
     @property
     def type(self):
@@ -943,7 +1806,7 @@ class SimBasics(object, metaclass=SimType):
 
         Parameters
         ----------
-        axis : {0 or ‘index’, 1 or ‘columns’, None}, default None
+        axis : {0 or 'index', 1 or 'columns', None}, default None
             A specific axis to squeeze. By default, all length-1 axes are squeezed., optional
 
         Returns
@@ -1092,16 +1955,16 @@ class SimBasics(object, metaclass=SimType):
 
         When freq is not passed, shift the index without realigning the data.
         If freq is passed (in this case, the index must be date or datetime,
-        or it will raise a NotImplementedError), the index will be increased using the periods and the freq. freq can be inferred when specified as “infer” as long as either freq or inferred_freq attribute is set in the index.
+        or it will raise a NotImplementedError), the index will be increased using the periods and the freq. freq can be inferred when specified as "infer" as long as either freq or inferred_freq attribute is set in the index.
 
         Parameters
 periodsint
 Number of periods to shift. Can be positive or negative.
 
 freqDateOffset, tseries.offsets, timedelta, or str, optional
-Offset to use from the tseries module or time rule (e.g. ‘EOM’). If freq is specified then the index values are shifted but the data is not realigned. That is, use freq if you would like to extend the index when shifting and preserve the original data. If freq is specified as “infer” then it will be inferred from the freq or inferred_freq attributes of the index. If neither of those attributes exist, a ValueError is thrown.
+Offset to use from the tseries module or time rule (e.g. 'EOM'). If freq is specified then the index values are shifted but the data is not realigned. That is, use freq if you would like to extend the index when shifting and preserve the original data. If freq is specified as "infer" then it will be inferred from the freq or inferred_freq attributes of the index. If neither of those attributes exist, a ValueError is thrown.
 
-axis{0 or ‘index’, 1 or ‘columns’, None}, default None
+axis{0 or 'index', 1 or 'columns', None}, default None
 Shift direction.
 
 fill_valueobject, optional
@@ -1524,7 +2387,7 @@ Copy of input object, shifted.
             delta_index = np_diff(index)
             if isinstance(self.index, DatetimeIndex):
                 delta_index = delta_index.astype('timedelta64[s]').astype('float64') / 60 / 60 / 24
-            values = result.first().append(result.last().iloc[-1])
+            values = concat_compat([result.first(), result.last().iloc[-1:]])
             delta_values = np_diff(values.transpose())
             result = DataFrame(data=(delta_values / delta_index).transpose(), index=result.first().index,
                                columns=self.columns)
@@ -1603,7 +2466,7 @@ Copy of input object, shifted.
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
-                    new_df = new_df.append(group_df)
+                    new_df = concat_compat([new_df, group_df])
         elif len(by) == 3:
             daily_index = date_range(min(result.index), max(result.index), freq='D')
             result = result.reindex(index=daily_index)
@@ -1675,7 +2538,7 @@ Copy of input object, shifted.
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
-                    new_df = new_df.append(group_df)
+                    new_df = concat_compat([new_df, group_df])
         elif len(by) == 3:
             new_index = date_range(min(result.index), max(result.index), freq=freq)
             result = result.reindex(index=new_index)
@@ -1765,9 +2628,9 @@ Copy of input object, shifted.
 
         by : label or list of labels, optional.
             Used to determine the groups for the groupby.
-            If by is a function, it’s called on each value of the object’s index.
+            If by is a function, it's called on each value of the object's index.
             If a dict or Series is passed, the Series or dict VALUES will be used
-            to determine the groups (the Series’ values are first aligned; see .align() method).
+            to determine the groups (the Series' values are first aligned; see .align() method).
             If an ndarray is passed, the values are used as-is to determine the groups.
             A label or list of labels may be passed to group by the columns in self.
             Notice that a tuple is interpreted as a (single) key.
@@ -1905,9 +2768,9 @@ Copy of input object, shifted.
 
         by :  label, or list of labels
             Used to determine the groups for the groupby.
-            If by is a function, it’s called on each value of the object’s index.
+            If by is a function, it's called on each value of the object's index.
             If a dict or Series is passed, the Series or dict VALUES will be used
-            to determine the groups (the Series’ values are first aligned; see .align() method).
+            to determine the groups (the Series' values are first aligned; see .align() method).
             If an ndarray is passed, the values are used as-is to determine the groups.
             A label or list of labels may be passed to group by the columns in self.
             Notice that a tuple is interpreted as a (single) key.
@@ -2067,9 +2930,9 @@ Copy of input object, shifted.
 
         by :  label, or list of labels, optional
             Used to determine the groups for the groupby.
-            If by is a function, it’s called on each value of the object’s index.
+            If by is a function, it's called on each value of the object's index.
             If a dict or Series is passed, the Series or dict VALUES will be used
-            to determine the groups (the Series’ values are first aligned; see .align() method).
+            to determine the groups (the Series' values are first aligned; see .align() method).
             If an ndarray is passed, the values are used as-is to determine the groups.
             A label or list of labels may be passed to group by the columns in self.
             Notice that a tuple is interpreted as a (single) key.
@@ -2299,14 +3162,14 @@ Copy of input object, shifted.
                                       index=['0']).set_index(DatetimeIndex([self.index[0]]))
             else:
                 first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
-            return self._class(data=np_cumsum(first_row.append(cumulative)), **params_)
+            return self._class(data=np_cumsum(concat_compat([first_row, cumulative])), **params_)
         elif method[0] in 'ac' and at == 'same':
             if str(dt.dtype).startswith('timedelta'):
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
                                      index=[str(len(self) - 1)]).set_index(DatetimeIndex([self.index[-1]]))
             else:
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
-            return self._class(data=np_cumsum(cumulative.append(last_row)), **params_)
+            return self._class(data=np_cumsum(concat_compat([cumulative, last_row])), **params_)
         else:
             return self._class(data=np_cumsum(cumulative), **params_)
 
@@ -2350,7 +3213,7 @@ Copy of input object, shifted.
             else:
                 nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[0]])
             diff = DataFrame(data=diff, index=self.index[1:], columns=self.columns)
-            diff = nan_row.append(diff)
+            diff = concat_compat([nan_row, diff])
         else:
             if str(dt.dtype).startswith('timedelta'):
                 nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=['0']).set_index(
@@ -2358,7 +3221,7 @@ Copy of input object, shifted.
             else:
                 nan_row = DataFrame(dict(zip(self.columns, [None] * len(self.columns))), index=[self.index[-1]])
             diff = DataFrame(data=diff, index=self.index[:-1], columns=self.columns)
-            diff = diff.append(nan_row)
+            diff = concat_compat([diff, nan_row])
 
         params_ = self.params_
         params_['units'] = new_units
@@ -2372,7 +3235,15 @@ Copy of input object, shifted.
         return self.get_units()
 
     def get_units_string(self, items=None):
+        """
+        Alias of .get_units method, but returns a string with the units instead of a dict.
+        """
         items_units_dict = self.get_units(items)
+        if items_units_dict is None:
+            return 'unitless'
+        if not isinstance(items_units_dict, dict):  # Already a string/unit object, return as-is
+            return str(items_units_dict)
+        # Now safe to proceed with dict operations
         if None in items_units_dict and items_units_dict[None] is None:
             del items_units_dict[None]
         if len(items_units_dict) == 0:
@@ -2395,6 +3266,9 @@ Copy of input object, shifted.
             return result
 
     def get_UnitsString(self, items=None):
+        """
+        Alias of .get_units_string method.
+        """
         return self.get_units_string(items)
 
     def set_Units(self, units, item=None):
@@ -2408,7 +3282,7 @@ Copy of input object, shifted.
             the units to be assigned
         item : str, optional
             The name of the column to apply the units.
-            The default is None. In this case the unit
+            The default is None. In this case the units are applied to all columns.
 
         Raises
         ------
@@ -2426,7 +3300,12 @@ Copy of input object, shifted.
 
     def reset_index(self, level=None, drop=False, inplace=False, col_level=0, col_fill='',
                     allow_duplicates=True, names=None):
+        """
+        Wrapper of .reset_index method from Pandas, but keeping the units of the index if they exist and are compatible with the new index after reseting.
+        If the new index is not compatible with the old one, the units of the index will be removed.
+        """
         from .frame import SimDataFrame
+        from .index import SimIndex
         if inplace:
             index_units, index_name = self.index_units, None if drop else self.index.name
             super().reset_index(level=level, drop=drop, inplace=inplace, col_level=col_level, col_fill='',
@@ -2537,25 +3416,27 @@ Copy of input object, shifted.
             if int == 0 will keep the current order of the columns.
 
         """
-        return self.to_SimDataFrame().to_excel(excel_writer,
-                                               split_by=split_by,
-                                               sheet_name=sheet_name,
-                                               na_rep=na_rep,
-                                               float_format=float_format,
-                                               columns=columns,
-                                               header=header,
-                                               units=units,
-                                               index=index,
-                                               index_label=index_label,
-                                               startrow=startrow,
-                                               startcol=startcol,
-                                               engine=engine,
-                                               merge_cells=merge_cells,
-                                               encoding=encoding,
-                                               inf_rep=inf_rep,
-                                               verbose=verbose,
-                                               freeze_panes=freeze_panes,
-                                               sort=sort)
+        from .writers.xlsx import write_excel
+        return write_excel(self.to_SimDataFrame(),
+                           excel_writer=excel_writer,
+                           split_by=split_by,
+                           sheet_name=sheet_name,
+                           na_rep=na_rep,
+                           float_format=float_format,
+                           columns=columns,
+                           header=header,
+                           units=units,
+                           index=index,
+                           index_label=index_label,
+                           startrow=startrow,
+                           startcol=startcol,
+                           engine=engine,
+                           merge_cells=merge_cells,
+                           encoding=encoding,
+                           inf_rep=inf_rep,
+                           verbose=verbose,
+                           freeze_panes=freeze_panes,
+                           sort=sort)
 
     def info(self, *args, **kwargs):
         """
@@ -2605,3 +3486,5 @@ Copy of input object, shifted.
         logging.warning('memory usage: ' + str(int(getsizeof(self) / 1024 / 1024 * 10) / 10) + '+ MB')
 
         return None
+
+

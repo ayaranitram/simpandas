@@ -189,6 +189,18 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
     return False
 
 def splitDMMMY(string) :
+    """Perform the `splitDMMMY` operation.
+
+    Parameters
+    ----------
+    string : object, optional
+        Input for `string`.
+
+    Returns
+    -------
+    object
+        Result of the operation.
+    """
     mi, mf = len(string)+1, len(string)+1
     for x in range(len(string)) :
         if not string[x].isdigit() and x < mi:

@@ -9,6 +9,8 @@ __version__ = '0.81.0'
 __release__ = 20230108
 __all__ = ['zeros']
 
+from .helpers import clean_axis as _clean_axis
+
 
 def zeros(series_or_frame, axis=None, value=0):
     """
@@ -29,10 +31,10 @@ def zeros(series_or_frame, axis=None, value=0):
         if hasattr(series_or_frame, 'columns'):
             axis = 1 if axis is None and len(series_or_frame.columns) == 1 else 0
         else:
-            axis = 1
+            axis = 0  # Series only has axis 0
     axis = _clean_axis(axis)
     if axis == 2:
-        return zeros(axis=0, value=value) + zero(axis=1, value=value)
+        return zeros(series_or_frame, axis=0, value=value) + zeros(series_or_frame, axis=1, value=value)
     if hasattr(series_or_frame, 'columns'):
         limit = len(series_or_frame) if axis == 0 else len(series_or_frame.columns)
     else:
@@ -41,6 +43,26 @@ def zeros(series_or_frame, axis=None, value=0):
 
 
 def key_to_string(filter_str, key, pandas_agg):
+    """Internal helper converting a filter key to a string expression.
+
+    This function is used by the filtering machinery in SimDataFrame to parse
+    key tokens and rewrite them into valid pandas/numpy operations.  It
+    handles special operators, aggregation suffixes, and column patterns.
+
+    Parameters
+    ----------
+    filter_str : str
+        Accumulating filter string under construction.
+    key : str
+        Next token to process.
+    pandas_agg : str
+        Current pandas aggregation expression (e.g. 'any', 'all').
+
+    Returns
+    -------
+    tuple
+        Updated (filter_str, key, pandas_agg).
+    """
     if len(key) > 0:
         # catch particular operations performed by Pandas
         found_so, found_no = '', ''

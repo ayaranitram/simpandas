@@ -105,7 +105,7 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
     """
     # if header is not requiered and sheet_name is str, directly pass it to Pandas
     if(not header and type(sheet_name) is str ) or(not units and type(sheet_name) is str ):
-        sdf.DF.to_excel(excel_writer, sheet_name=sheet_name, na_rep=na_rep, float_format=float_format, columns=columns, header=False, index=index, index_label=index_label, startrow=startrow, startcol=startcol, engine=engine, merge_cells=merge_cells, encoding=encoding, inf_rep=inf_rep, verbose=verbose, freeze_panes=freeze_panes)
+        sdf.DF.to_excel(excel_writer, sheet_name=sheet_name, na_rep=na_rep, float_format=float_format, columns=columns, header=False, index=index, index_label=index_label, startrow=startrow, startcol=startcol, engine=engine, merge_cells=merge_cells, inf_rep=inf_rep, freeze_panes=freeze_panes)
 
     # helper function
     firstChar = lambda s : str(s)[0]
@@ -262,7 +262,7 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
                 colselect = tuple(fnmatch.filter(cols, names[i][0]+'*' ))
 
         # write the sheet to the ExcelWriter
-        sdf.DF.to_excel(SDFwriter, sheet_name=names[i], na_rep=na_rep, float_format=float_format, columns=colselect, header=False, index=index, index_label=index_label, startrow=startrow+headerRows, startcol=startcol, engine=engine, merge_cells=merge_cells, encoding=encoding, inf_rep=inf_rep, verbose=verbose, freeze_panes=freeze_panes)
+        sdf.DF.to_excel(SDFwriter, sheet_name=names[i], na_rep=na_rep, float_format=float_format, columns=colselect, header=False, index=index, index_label=index_label, startrow=startrow+headerRows, startcol=startcol, engine=engine, merge_cells=merge_cells, inf_rep=inf_rep, freeze_panes=freeze_panes)
 
         # Get the xlsxwriter workbook and worksheet objects.
         SDFworkbook  = SDFwriter.book
@@ -287,4 +287,4 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
     if isinstance(excel_writer, ExcelWriter):
         return SDFwriter
     elif type(excel_writer) is str:
-        SDFwriter.save()
+        SDFwriter.close()
