@@ -198,6 +198,7 @@ written immediately after the header before the data rows.
 - **`_SimWindowProxy`** now also covers `ewm()`.
 - `src/simpandas/readers/csv.py` — new module.
 - `src/simpandas/readers/json.py` — new module.
+- Interop: improved documentation of `unyts.Unit + SimSeries` behavior and recommended fix path to ensure left-hand unyts arithmetic defers to SimPandas reflected methods when possible.
 - `src/simpandas/__init__.py` exports updated to include `read_csv`, `read_json`.
 
 ---
