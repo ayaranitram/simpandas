@@ -91,10 +91,8 @@ python -m pytest test/test_new_features.py::TestGroupBy::test_groupby_sum -v
 
 **All tests targeted by your change must pass before opening a PR.**
 
-> Note: several tests in `test/common/` (e.g. `test_slope.py`, `test_merger.py`)
-> reflect known upstream numpy / pandas API changes unrelated to SimPandas logic.
-> Failures in those files do not block a PR, but you should not introduce new
-> failures.
+At the current 0.84.x baseline, the repository test suite is expected to pass
+cleanly apart from explicitly skipped tests.
 
 ---
 

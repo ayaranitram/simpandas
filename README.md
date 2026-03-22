@@ -11,7 +11,7 @@ It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>
 ### Key Features
 - **Unit-aware DataFrames and Series:** Automatic unit tracking and conversion using unyts
 - **Pandas 2.x compatible:** Works with both pandas 1.x and 2.x
-- **Enhanced I/O:** Read/write Excel files with unit metadata preservation
+- **Enhanced I/O:** Read/write Excel, CSV, and JSON files with unit metadata preservation
 - **Time-series utilities:** Built-in methods for daily, monthly, yearly aggregations
 - **Eclipse simulator support:** Handle column naming conventions from reservoir simulators
 
@@ -40,7 +40,7 @@ pip install --upgrade simpandas
 ## Quick Start
 
 ```python
-from simpandas import SimDataFrame, SimSeries
+from simpandas import SimDataFrame, SimSeries, read_csv, read_json
 
 # Create a DataFrame with units
 df = SimDataFrame(
@@ -52,8 +52,9 @@ df = SimDataFrame(
 result = df * 2
 print(df.get_units())  # Access unit information
 
-# Read Excel with units
-df = SimDataFrame.read_excel('data.xlsx', units=0)  # units in row 0
+# Read CSV/JSON with units
+df = read_csv('data.csv', units=0)  # units in row 0 after the header
+df = read_json('data.json')         # restores units from SimPandas JSON
 ```
 
 ## Compatibility Notes
@@ -79,15 +80,19 @@ from simpandas.writers import write_excel
 ## Documentation
 
 For detailed documentation, examples, and API reference, see:
-- **docs/USER_GUIDE.md** - Comprehensive user manual for classes, functions, and modules
+- **USER_MANUAL.md** - Comprehensive user manual for classes, functions, and modules
+- **docs/USER_GUIDE.md** - Shorter quick-start guide
+- **DEVELOPER_MANUAL.md** - Internal architecture and contributor-focused technical notes
+- **CONTRIBUTING.md** - Contribution workflow and release checklist
 - **CHANGELOG.md** - Version history and migration guides
+- **WHATS_NEW.md** - Highlights for the current release
 - **simpandas_demo.ipynb** - Interactive examples and tutorials
 - **test/** - Comprehensive test suite with usage examples
 
 ### API At A Glance
 
 ```python
-from simpandas import SimDataFrame, SimSeries, read_excel, concat
+from simpandas import SimDataFrame, SimSeries, read_excel, read_csv, read_json, concat
 from simpandas.index import SimIndex
 
 from simpandas.writers.xlsx import write_excel

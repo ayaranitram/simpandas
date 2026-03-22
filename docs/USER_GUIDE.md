@@ -10,7 +10,7 @@ Core ideas:
 - Metadata (`units`, `index_units`, naming conventions, flags) is carried through most operations.
 
 Top-level API:
-- `from simpandas import SimDataFrame, SimSeries, read_excel, concat`
+- `from simpandas import SimDataFrame, SimSeries, read_excel, read_csv, read_json, concat`
 
 ## 2. Installation
 
@@ -101,7 +101,31 @@ from simpandas import read_excel
 sdf = read_excel("my_data.xlsx", units=0)  # row 0 contains units
 ```
 
-### 5.2 `concat`
+### 5.2 `read_csv`
+
+Read CSV files and build a `SimDataFrame` while parsing units.
+
+```python
+from simpandas import read_csv
+
+sdf = read_csv("my_data.csv", units=0)  # first data row contains units
+```
+
+### 5.3 `read_json`
+
+Read JSON files into a `SimDataFrame`.
+
+- SimPandas JSON payloads restore embedded units automatically.
+- Plain JSON inputs can receive units explicitly.
+
+```python
+from simpandas import read_json
+
+sdf = read_json("my_data.json")
+sdf = read_json("plain.json", units={"rate": "bbl/d"})
+```
+
+### 5.4 `concat`
 
 Concatenate `SimDataFrame`/`SimSeries` objects preserving metadata as much as possible.
 
@@ -115,6 +139,8 @@ joined = concat([sdf_a, sdf_b], axis=0)
 
 ### 6.1 `simpandas.readers`
 - `read_excel`: Excel reader with unit extraction support.
+- `read_csv`: CSV reader with explicit or embedded units support.
+- `read_json`: JSON reader with SimPandas payload detection.
 
 ### 6.2 `simpandas.writers`
 - `write_excel`: Write `SimDataFrame` data and units to Excel.
