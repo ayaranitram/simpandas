@@ -278,10 +278,10 @@ class SimBasics(object, metaclass=SimType):
             SimSeries or SimDataFrame
             Return cumulative sum of Series or DataFrame.
         """
-        return self._class(data=self.as_Pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
+        return self._class(data=self.as_pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
 
     def describe(self, *args, **kwargs):
-        return self._class(data=self.to_Pandas().describe(*args, **kwargs),
+        return self._class(data=self.to_pandas().describe(*args, **kwargs),
                            **self.params_)
 
     def apply(self, func, axis=0, raw=False, result_type=None, args=(), **kwargs):
@@ -1640,6 +1640,80 @@ class SimBasics(object, metaclass=SimType):
             return self._class(
                 data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
                                               regex=regex), **self.params_)
+
+    def ffill(self, axis=0, inplace=False, limit=None):
+        """Forward fill NaN values, preserving units and metadata."""
+        if inplace:
+            super().ffill(axis=axis, inplace=True, limit=limit)
+        else:
+            return self._class(data=self.as_pandas().ffill(axis=axis, limit=limit),
+                               **self.params_)
+
+    def bfill(self, axis=0, inplace=False, limit=None):
+        """Backward fill NaN values, preserving units and metadata."""
+        if inplace:
+            super().bfill(axis=axis, inplace=True, limit=limit)
+        else:
+            return self._class(data=self.as_pandas().bfill(axis=axis, limit=limit),
+                               **self.params_)
+
+    def pct_change(self, periods=1, fill_method=None, limit=None, freq=None, **kwargs):
+        """Fractional change between current and prior element, preserving metadata.
+
+        Units become dimensionless since the result is a fractional change.
+        """
+        result = self.as_pandas().pct_change(periods=periods, fill_method=fill_method,
+                                             limit=limit, freq=freq, **kwargs)
+        params = self.params_
+        params['units'] = 'dimensionless'
+        return self._class(data=result, **params)
+
+    def asfreq(self, freq, method=None, how=None, normalize=False, fill_value=None):
+        """Convert time series to specified frequency, preserving units and metadata."""
+        return self._class(data=self.as_pandas().asfreq(freq, method=method, how=how,
+                                                        normalize=normalize, fill_value=fill_value),
+                           **self.params_)
+
+    def combine_first(self, other):
+        """Update null elements with values from other, preserving units and metadata."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        return self._rewrap(self.as_pandas().combine_first(other_pd))
+
+    def isin(self, values):
+        """Element-wise check whether values are in the given set, preserving Sim type."""
+        return self._rewrap(self.as_pandas().isin(values))
+
+    def compare(self, other, align_axis=1, keep_shape=False, keep_equal=False, result_names=('self', 'other')):
+        """Compare with another object, preserving Sim type."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        result = self.as_pandas().compare(other_pd, align_axis=align_axis,
+                                          keep_shape=keep_shape, keep_equal=keep_equal,
+                                          result_names=result_names)
+        # compare() may change the column structure, so build with minimal metadata
+        from .frame import SimDataFrame
+        from .series import SimSeries
+        if isinstance(result, DataFrame):
+            return SimDataFrame(data=result)
+        return SimSeries(data=result)
+
+    def swaplevel(self, i=-2, j=-1, axis=0):
+        """Swap levels i and j in a MultiIndex, preserving units and metadata."""
+        return self._class(data=self.as_pandas().swaplevel(i, j, axis=axis), **self.params_)
+
+    def update(self, other, **kwargs):
+        """Modify in place using values from other, preserving units."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        super().update(other_pd, **kwargs)
+
+    def align(self, other, join='outer', axis=None, level=None, copy=None,
+              fill_value=None):
+        """Align two objects on their axes, returning two Sim objects."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        left, right = self.as_pandas().align(other_pd, join=join, axis=axis,
+                                             level=level, copy=copy, fill_value=fill_value)
+        left_wrapped = self._rewrap(left)
+        right_wrapped = other._rewrap(right) if hasattr(other, '_rewrap') else right
+        return left_wrapped, right_wrapped
 
     @property
     def type(self):

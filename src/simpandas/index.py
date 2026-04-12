@@ -86,7 +86,7 @@ class SimIndex(pd.MultiIndex, ABC):
             elif hasattr(units, 'units') and type(units.units) is str:
                 units = units.units
             if type(units) is str:
-                actual.units = units.split()
+                actual.units = units.strip()
             elif type(units) is dict:
                 actual.units = units.copy()
 
@@ -105,7 +105,7 @@ class SimIndex(pd.MultiIndex, ABC):
         elif hasattr(units, 'units') and type(units.units) is str:
             units = units.units
         if type(units) is str:
-            self.units = units.split()
+            self.units = units.strip()
         elif type(units) is dict:
             self.units = units.copy()
 

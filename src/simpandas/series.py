@@ -620,6 +620,15 @@ class SimSeries(SimBasics, Series):
         from .frame import _SimGroupBy
         return _SimGroupBy(super().groupby(*args, **kwargs), self)
 
+    def resample(self, *args, **kwargs):
+        """Return a Resample proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimResampleProxy
+        return _SimResampleProxy(super().resample(*args, **kwargs), self)
+
+    def between(self, left, right, inclusive='both'):
+        """Return boolean SimSeries indicating whether each element is between left and right."""
+        return self._rewrap(self.as_series().between(left, right, inclusive=inclusive))
+
     def unique(self):
         """Return unique values as a numpy array."""
         return self.as_pandas().unique()
@@ -690,10 +699,10 @@ class SimSeries(SimBasics, Series):
         axis = _clean_axis(axis)
         if inplace:
             super().drop(labels=labels, axis=axis, index=index, columns=columns,
-                         level=level, inplace=inplace, errors='errors')
+                         level=level, inplace=inplace, errors=errors)
         else:
             return SimSeries(data=self.as_pandas().drop(labels=labels, axis=axis, index=index, columns=columns,
-                                                        level=level, inplace=inplace, errors='errors'),
+                                                        level=level, inplace=inplace, errors=errors),
                              **self.params_)
 
     def dropna(self, axis=0, inplace=False, how=None):
@@ -814,7 +823,7 @@ class SimSeries(SimBasics, Series):
 
             # catch logital operators
             if conditions[i] in ['&', "|", '~']:
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' )' + pandas_agg + ' ' + conditions[i] + '('
                 pandas_agg = ''
@@ -835,13 +844,13 @@ class SimSeries(SimBasics, Series):
                         raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
-                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                     i = f + 1
                     continue
 
             # pass blank spaces
             if conditions[i] == ' ':
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 if len(filter_str) > 0 and filter_str[-1] != ' ':
                     filter_str += ' '
                 i += 1
@@ -849,7 +858,7 @@ class SimSeries(SimBasics, Series):
 
             # pass parenthesis
             if conditions[i] in ['(', ')']:
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str += conditions[i]
                 i += 1
                 continue
@@ -867,7 +876,9 @@ class SimSeries(SimBasics, Series):
                     cond = cond[::-1]
                 elif cond in ['><', '<>']:
                     cond = '!='
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                if key == '':
+                    key = 'self.as_series().index'
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' ' + cond
                 i += len(cond)
@@ -881,7 +892,7 @@ class SimSeries(SimBasics, Series):
                     f += 1
                 oper = conditions[i:f]
                 oper = oper.replace('^', '**')
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' ' + oper
                 i += len(oper)
@@ -897,9 +908,9 @@ class SimSeries(SimBasics, Series):
         filter_str = filter_str.strip()
         # check missing key, means .index by default
         if filter_str[0] in ['=', '>', '<', '!']:
-            filter_str = 'self.as_Series().index ' + filter_str
+            filter_str = 'self.as_series().index ' + filter_str
         elif filter_str[-1] in ['=', '>', '<', '!']:
-            filter_str = filter_str + ' self.as_Series().index'
+            filter_str = filter_str + ' self.as_series().index'
         # close last parethesis and aggregation
         filter_str += ' )' * bool(and_or_not + bool(pandas_agg)) + pandas_agg
         # open parenthesis for aggregation, if needed
@@ -914,7 +925,8 @@ class SimSeries(SimBasics, Series):
         if return_filter:
             ret_tuple += [filter_array]
         if return_frame:
-            ret_tuple += [self.as_pandas()[filter_array]]
+            filtered = self.as_pandas()[filter_array]
+            ret_tuple += [self._rewrap(filtered)]
 
         if len(ret_tuple) == 1:
             return ret_tuple[0]
@@ -1371,7 +1383,7 @@ class SimSeries(SimBasics, Series):
             return None
         else:
             return SimSeries(
-                data=self.as_Series().sort_values(axis=axis, ascending=ascending,
+                data=self.as_series().sort_values(axis=axis, ascending=ascending,
                                                   inplace=inplace, kind=kind,
                                                   na_position=na_position,
                                                   ignore_index=ignore_index,

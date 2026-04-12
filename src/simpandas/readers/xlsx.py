@@ -93,7 +93,7 @@ def read_excel(io,
 
         if type(units) is list:
             if len(units) == len(df.columns):
-                dataunits = {df.columns[i]:units[i] for i in len(units)}
+                dataunits = {df.columns[i]:units[i] for i in range(len(units))}
             else:
                 raise ValueError("if 'units' is a list, it must be same length as the columns of the dataframe")
         elif type(units) is str:

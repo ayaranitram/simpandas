@@ -5,6 +5,28 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-04-12
+
+### Added
+- Added wrappers in `src/simpandas/basics.py` for:
+  - `ffill`, `bfill`, `pct_change`, `asfreq`
+  - `combine_first`, `isin`, `compare`, `swaplevel`
+  - `update`, `align`
+- Added `_SimResampleProxy` in `src/simpandas/frame.py`.
+- Added `resample()` wrappers to `SimDataFrame` and `SimSeries`.
+- Added `between(...)` wrapper in `src/simpandas/series.py`.
+- Added wrapper regression tests in `test/test_missing_wrappers.py`.
+
+### Fixed
+- Fixed `common.filters.key_to_string(...)` integration so filter parsing no
+  longer fails with undefined operation variables.
+- Fixed SimDataFrame and SimSeries filter flows to consistently return wrapped
+  Sim objects and handle index-condition parsing more robustly.
+
+### Documentation
+- Updated user and developer documentation to include the expanded wrapper
+  coverage and resample proxy architecture.
+
 ## [0.84.0] - 2026-03-03
 
 ### Breaking Changes

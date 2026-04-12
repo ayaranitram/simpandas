@@ -482,6 +482,18 @@ df.dropna(axis=1)
 # Fill NaN
 df.fillna(0)
 df.fillna(method='ffill')
+df.ffill()
+df.bfill()
+
+# Element-wise membership (boolean SimDataFrame)
+df.isin([0, 1, 2])
+
+# Compare / merge-style helpers
+df.compare(other_df)
+df.combine_first(other_df)
+
+# Pairwise alignment
+left, right = df.align(other_df, join='outer')
 
 # Interpolate
 df.interpolate(method='linear')
@@ -507,6 +519,11 @@ When the index contains dates, SimPandas provides resampling / aggregation
 helpers:
 
 ```python
+# Native pandas wrappers with Sim metadata
+df.resample('D').mean()   # resample by day
+df.asfreq('H')            # reindex to hourly frequency
+
+# SimPandas convenience helpers
 df.daily(agg='mean')    # daily mean
 df.monthly(agg='sum')   # monthly sum
 df.yearly(agg='last')   # one value per year
@@ -648,6 +665,7 @@ s.le(other)   # <=
 s.rolling(5).mean()
 s.expanding(3).sum()
 s.ewm(span=10).mean()
+s.resample('D').mean()
 ```
 
 ### 5.5 Conversion Methods
@@ -675,6 +693,8 @@ Statistical methods are inherited from `SimBasics`:
 ```python
 s.mean()  s.std()  s.min()  s.max()  s.sum()  s.prod()
 s.quantile(0.5)  s.cumsum()  s.diff()  s.shift()
+s.pct_change()   s.between(100, 300)
+s.asfreq('D')
 
 s.unique()        # NumPy array of unique values
 s.value_counts()  # frequency count
@@ -943,7 +963,9 @@ ln()    log10()  log2()
 #### Transformation
 ```
 apply(func, axis, ...)    transform(func, axis, ...)
-pipe(func, ...)
+pipe(func, ...)           compare(other, ...)
+isin(values)              combine_first(other)
+align(other, ...)
 ```
 
 #### Sorting / ranking
@@ -955,7 +977,8 @@ rank(...)          nlargest(n)      nsmallest(n)
 #### Cleaning
 ```
 drop_duplicates(...)   dropna(...)    fillna(...)     replace(...)
-interpolate(...)       sample(...)
+ffill(...)             bfill(...)     interpolate(...)
+sample(...)            update(other, ...)
 ```
 
 #### Descriptive
@@ -977,7 +1000,8 @@ concat(objs, axis, ...)
 
 #### Time-series
 ```
-daily(agg)    monthly(agg)   yearly(agg)
+resample(rule, ...)   asfreq(freq, ...)   pct_change(...)
+daily(agg)            monthly(agg)        yearly(agg)
 ```
 
 #### Conversion (SimDataFrame)
@@ -1000,7 +1024,7 @@ to_dataframe()  to_frame()
 
 ```
 rolling(window, ...)    expanding(min_periods, ...)    ewm(span, ...)
-groupby(by, ...)
+resample(rule, ...)     groupby(by, ...)
 join(other, how, ...)   merge(right, on, ...)
 stack(...)              unstack(...)
 pivot(...)              pivot_table(...)    melt(...)
@@ -1014,8 +1038,9 @@ to_csv(path, ...)       to_json(path, ...)
 
 ```
 rolling(window, ...)    expanding(min_periods, ...)   ewm(span, ...)
-groupby(by, ...)
+resample(rule, ...)     groupby(by, ...)
 unique()
+between(left, right, inclusive)
 slope(x, y, window)
 to_csv(path, ...)       to_json(path, ...)
 corr(other)             reindex(index)
@@ -1029,7 +1054,12 @@ rename(...)             set_index(name)
 **Q: A method returned a plain `pandas.DataFrame` instead of a `SimDataFrame`.
 What happened?**
 
-A: This usually means you called a method that is not yet overridden by SimPandas.
+A: This usually means one of these happened:
+1. You called a pandas method that is still not wrapped in SimPandas.
+2. You used a direct pandas object (`.as_pandas()`) mid-pipeline.
+3. A new pandas release changed return behavior for a wrapped method.
+
+Check `WHATS_NEW.md` / `CHANGELOG.md` for current wrapper coverage.
 Call `.as_dataframe()` on the result and wrap it:
 
 ```python

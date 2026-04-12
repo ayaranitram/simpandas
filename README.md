@@ -12,6 +12,7 @@ It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>
 - **Unit-aware DataFrames and Series:** Automatic unit tracking and conversion using unyts
 - **Pandas 2.x compatible:** Works with both pandas 1.x and 2.x
 - **Enhanced I/O:** Read/write Excel, CSV, and JSON files with unit metadata preservation
+- **Expanded pandas wrapper coverage:** `ffill`, `bfill`, `pct_change`, `asfreq`, `combine_first`, `isin`, `compare`, `swaplevel`, `align`, `update`, `resample`, and `between` now return Sim types where applicable
 - **Time-series utilities:** Built-in methods for daily, monthly, yearly aggregations
 - **Eclipse simulator support:** Handle column naming conventions from reservoir simulators
 
@@ -77,6 +78,12 @@ from simpandas.writters import write_excel
 from simpandas.writers import write_excel
 ```
 
+### Maintenance Updates (April 2026)
+- Added wrappers for missing pandas methods in `SimBasics` to preserve metadata through more operations.
+- Added `_SimResampleProxy` and `resample()` support on both `SimDataFrame` and `SimSeries`.
+- Fixed filter parsing infrastructure by wiring `common.filters.key_to_string(...)` correctly from `SimSeries.filter()` and `SimDataFrame.filter()`.
+- Added regression coverage in `test/test_audit_bugs.py` and `test/test_missing_wrappers.py`.
+
 ## Documentation
 
 For detailed documentation, examples, and API reference, see:
@@ -88,6 +95,7 @@ For detailed documentation, examples, and API reference, see:
 - **WHATS_NEW.md** - Highlights for the current release
 - **simpandas_demo.ipynb** - Interactive examples and tutorials
 - **test/** - Comprehensive test suite with usage examples
+
 
 ### API At A Glance
 

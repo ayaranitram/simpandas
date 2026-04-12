@@ -259,7 +259,7 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
             elif int(sort) < 0:
                 colselect = tuple(sorted(fnmatch.filter(cols, '*'+names[i][-1] ))[::-1])
             else:
-                colselect = tuple(fnmatch.filter(cols, names[i][0]+'*' ))
+                colselect = tuple(fnmatch.filter(cols, '*'+names[i][-1] ))
 
         # write the sheet to the ExcelWriter
         sdf.DF.to_excel(SDFwriter, sheet_name=names[i], na_rep=na_rep, float_format=float_format, columns=colselect, header=False, index=index, index_label=index_label, startrow=startrow+headerRows, startcol=startcol, engine=engine, merge_cells=merge_cells, inf_rep=inf_rep, freeze_panes=freeze_panes)

@@ -107,9 +107,9 @@ class _SimBaseIndexer(object):
                 return SimDataFrame(data=result, **self.spd.params_)
             if type(self.spd) is SimSeries:
                 return SimSeries(data=result, **self.spd.params_)
-            elif type(*args) is not tuple and isinstance(result, pd.Series):  # type(self.spd) is SimDataFrame
+            elif type(args[0]) is not tuple and isinstance(result, pd.Series):  # type(self.spd) is SimDataFrame
                 return _series_to_frame(result, self.spd.params_)
-            elif type(*args) is tuple and len(*args) == 2:
+            elif type(args[0]) is tuple and len(args[0]) == 2:
                 return SimSeries(data=result, **self.spd.params_)
             else:
                 return self.spd._class(data=result, **self.spd.params_)

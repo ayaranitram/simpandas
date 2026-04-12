@@ -1,5 +1,40 @@
 # What's New in SimPandas
 
+## Maintenance Update — April 2026
+
+This maintenance update expands wrapper coverage and fixes filter parsing
+internals so metadata is preserved across more pandas workflows.
+
+### Added wrappers in `SimBasics`
+
+- `ffill()` and `bfill()`
+- `pct_change()` (returns dimensionless units)
+- `asfreq()`
+- `combine_first()`
+- `isin()`
+- `compare()`
+- `swaplevel()`
+- `update()`
+- `align()`
+
+### Added proxies and series helpers
+
+- Added `_SimResampleProxy` in `frame.py`
+- Added `resample()` wrappers for both `SimDataFrame` and `SimSeries`
+- Added `SimSeries.between(...)`
+
+### Fixed
+
+- Fixed `common.filters.key_to_string(...)` integration from both
+  `SimSeries.filter()` and `SimDataFrame.filter()`.
+- Improved filter behavior so index-based conditions and wrapped return types
+  work consistently.
+
+### Tests
+
+- Added `test/test_missing_wrappers.py` (wrapper regression suite)
+- Expanded `test/test_audit_bugs.py` (includes filter-path regressions)
+
 ## Version 0.84.0 — March 2026
 
 This release is the largest feature update since the library's initial release.

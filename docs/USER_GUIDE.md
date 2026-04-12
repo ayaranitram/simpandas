@@ -59,6 +59,7 @@ Key capabilities:
 - Units and index units: `get_units`, `set_units`, `get_index_units`, `set_index_units`, `convert`.
 - Aggregations: `sum`, `mean`, `median`, `min`, `max`, `std`, `var`, `prod`, `quantile`, `mode`, `count`, `rms`.
 - Data wrangling: `drop`, `dropna`, `drop_duplicates`, `sort_values`, `melt`, `rename`, `reindex`, `transpose`.
+- Additional wrappers: `ffill`, `bfill`, `pct_change`, `asfreq`, `combine_first`, `compare`, `isin`, `swaplevel`, `align`, `update`, `resample`.
 - Binary operations and comparisons follow pandas semantics while preserving units when possible.
 
 ### 4.2 `SimSeries`
@@ -76,7 +77,7 @@ Key capabilities:
 - Convert/export: `to_pandas`, `as_pandas`, `to_dataframe`, `to_simdataframe`.
 - Units: `get_units`, `set_units`, `convert`, `get_index_units`, `set_index_units`.
 - Statistics and math: `sum`, `mean`, `min`, `max`, `std`, `var`, `prod`, `quantile`, `mode`, `rms`.
-- Data ops: `drop`, `dropna`, `astype`, `copy`, `sort_values`, `filter`.
+- Data ops: `drop`, `dropna`, `astype`, `copy`, `sort_values`, `filter`, `between`, `resample`.
 
 ### 4.3 `SimIndex`
 
@@ -295,11 +296,13 @@ z = znorm([1.0, 2.0, 3.0, 4.0])
 
 Top-level package (`simpandas`):
 - Classes: `SimDataFrame`, `SimSeries`
-- Functions: `read_excel`, `concat`
+- Functions: `read_excel`, `read_csv`, `read_json`, `concat`
 - Additional class available from package import path: `SimIndex`
 
 User-facing modules:
 - `simpandas.readers.xlsx`: `read_excel`
+- `simpandas.readers.csv`: `read_csv`
+- `simpandas.readers.json`: `read_json`
 - `simpandas.writers.xlsx`: `write_excel`
 - `simpandas.writers.schedule`: `write_schedule`
 - `simpandas.common.merger`: `concat`, `merge`, `merge_index`, `merge_units`, `merge_SimParameters`
@@ -318,6 +321,7 @@ User-facing modules:
   - Ensure both operands use convertible units (`unyts` support required).
 - Missing metadata after external pandas operations:
   - Prefer simpandas wrappers (`to_simdataframe`, `to_simseries`) after raw pandas ops.
+  - Use built-in wrappers directly for `resample`, `pct_change`, `align`, `compare`, and `combine_first`.
 - Excel units not detected:
   - Pass correct `units` row index and verify sheet layout.
 

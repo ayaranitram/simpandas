@@ -205,6 +205,52 @@ class _SimGroupBy:
         return target
 
 
+class _SimResampleProxy:
+    """Proxy pandas Resample objects and wrap results back to Sim types."""
+
+    def __init__(self, resample_obj, parent):
+        self._resample_obj = resample_obj
+        self._parent = parent
+
+    def _wrap_result(self, result):
+        if isinstance(result, DataFrame):
+            wrapped = SimDataFrame(result, **self._parent.params_)
+            try:
+                parent_units = self._parent.get_units()
+                if isinstance(parent_units, dict):
+                    wrapped.set_units({c: parent_units.get(c, None)
+                                       for c in wrapped.columns if c in parent_units})
+            except Exception:
+                pass
+            return wrapped
+        if isinstance(result, Series):
+            params = self._parent.params_.copy()
+            try:
+                unit_str = self._parent.get_units_string(result.name)
+                if isinstance(unit_str, str) and unit_str != 'unitless':
+                    params['units'] = unit_str
+                else:
+                    params['units'] = None
+            except Exception:
+                params['units'] = None
+            if 'name' in params:
+                del params['name']
+            return SimSeries(result, **params)
+        return result
+
+    def __getattr__(self, name):
+        target = getattr(self._resample_obj, name)
+        if callable(target):
+            def _wrapped(*args, **kwargs):
+                return self._wrap_result(target(*args, **kwargs))
+            return _wrapped
+        return target
+
+    def __iter__(self):
+        for key, group in self._resample_obj:
+            yield key, self._wrap_result(group)
+
+
 class SimDataFrame(SimBasics, DataFrame):
     """
     A SimDataFrame object is a pandas.DataFrame that units associated with to
@@ -389,6 +435,10 @@ class SimDataFrame(SimBasics, DataFrame):
     def groupby(self, *args, **kwargs):
         """Return a GroupBy proxy that preserves SimPandas metadata on outputs."""
         return _SimGroupBy(super().groupby(*args, **kwargs), self)
+
+    def resample(self, *args, **kwargs):
+        """Return a Resample proxy that preserves SimPandas metadata on outputs."""
+        return _SimResampleProxy(super().resample(*args, **kwargs), self)
 
     def join(self, other, on=None, how='left', lsuffix='', rsuffix='', sort=False, validate=None):
         """Join columns with other DataFrame, preserving units."""
@@ -840,7 +890,7 @@ class SimDataFrame(SimBasics, DataFrame):
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
         op_label = valid_operations[operation][1]
-        fill_value = valid_operations[operation][1] if fill_value is True else fill_value
+        fill_value = valid_operations[operation][2] if fill_value is True else fill_value
 
         # ensure self.index is SimIndex
         if not hasattr(self.index, 'units'):
@@ -1095,7 +1145,7 @@ class SimDataFrame(SimBasics, DataFrame):
             return result
 
     def corr(self, method='pearson', min_periods=1, numeric_only=True):
-        return self.as_pandas().corr(method=method, min_periods=min_periods, numeric_only=numeric_only)
+        return self._rewrap(self.as_pandas().corr(method=method, min_periods=min_periods, numeric_only=numeric_only))
 
     def reindex(self, labels=None, index=None, columns=None, axis=None, **kwargs):
         """
@@ -1180,7 +1230,7 @@ class SimDataFrame(SimBasics, DataFrame):
             return SimDataFrame(data=data, **params_)
         else:
             # append and return SimDataFrame
-            data = _pd_concat([self.as_pandas(), otherC], axis=0)
+            data = _pd_concat([self.as_pandas(), other], axis=0)
             return SimDataFrame(data=data, **self.params_)
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
@@ -1201,7 +1251,7 @@ class SimDataFrame(SimBasics, DataFrame):
         if inplace:
             # For column drops, track which indices to keep for units synchronization
             # Check if we're dropping columns (axis=1 or columns parameter specified)
-            dropping_columns = (axis == 1) or (labels is not None and axis == 1) or (columns is not None)
+            dropping_columns = (axis == 1) or (columns is not None)
             
             if dropping_columns and isinstance(self._units_, list):
                 old_columns = list(self.columns)
@@ -1261,9 +1311,9 @@ class SimDataFrame(SimBasics, DataFrame):
                 subset = list(self.find_keys(subset))
         if inplace:
             if thresh is None:
-                super().dropna(axis=axis, thresh=thresh, subset=subset, inplace=inplace)
-            else:
                 super().dropna(axis=axis, how=how, subset=subset, inplace=inplace)
+            else:
+                super().dropna(axis=axis, thresh=thresh, subset=subset, inplace=inplace)
         else:
             if thresh is None:
                 data = self.as_pandas().dropna(axis=axis, how=how, subset=subset, inplace=inplace)
@@ -1434,7 +1484,7 @@ class SimDataFrame(SimBasics, DataFrame):
             DataFrame with the renamed axis labels or None if inplace=True.
 
         """
-        return self.rename_item(self, mapper=mapper, index=index, columns=columns,
+        return self.rename_item(mapper=mapper, index=index, columns=columns,
                                axis=axis, copy=copy, inplace=inplace, level=level,
                                errors=errors)
 
@@ -1490,7 +1540,7 @@ class SimDataFrame(SimBasics, DataFrame):
             if axis is None:
                 axis = 1
             elif type(axis) is str:
-                axis = {'index': 0, 'columns': 1}
+                axis = {'index': 0, 'columns': 1}.get(axis, axis)
             mapper = _item_columns(self, mapper, axis)
         elif index is not None:
             index = _item_columns(self, index, 0)
@@ -2500,7 +2550,7 @@ class SimDataFrame(SimBasics, DataFrame):
 
             # catch logital operators
             if conditions[i] in ['&', "|", '~']:
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 auto = ' self.as_pandas().index' if last[-1] in ['(', 'cond', 'oper'] else ''
                 filter_str += auto + ' )' + pandas_agg + ' ' + conditions[i] + '('
@@ -2523,13 +2573,16 @@ class SimDataFrame(SimBasics, DataFrame):
                         raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
-                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                     i = f + 1
                     continue
 
             # pass blank spaces
             if conditions[i] == ' ':
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                had_key = len(key) > 0
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
+                if had_key:
+                    last.append('key')
                 if len(filter_str) > 0 and filter_str[-1] != ' ':
                     filter_str += ' '
                 i += 1
@@ -2543,7 +2596,7 @@ class SimDataFrame(SimBasics, DataFrame):
                 else:
                     if last[-1] in ['cond', 'oper']:
                         key = 'self.as_pandas().index'
-                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                     filter_str += conditions[i]
                     last.append(conditions[i])
                 i += 1
@@ -2562,9 +2615,9 @@ class SimDataFrame(SimBasics, DataFrame):
                     cond = cond[::-1]
                 elif cond in ['><', '<>']:
                     cond = '!='
-                if key == '':
+                if key == '' and last[-1] not in ['key']:
                     key = 'self.as_pandas().index'
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' ' + cond
                 last.append('cond')
@@ -2581,7 +2634,7 @@ class SimDataFrame(SimBasics, DataFrame):
                 oper = oper.replace('^', '**')
                 if last[-1] not in ['key']:
                     key = 'self.as_pandas().index'
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' ' + oper
                 last.append('oper')
@@ -2618,7 +2671,8 @@ class SimDataFrame(SimBasics, DataFrame):
         if return_filter:
             ret_tuple += [filter_array]
         if return_frame:
-            ret_tuple += [self.as_pandas()[filter_array]]
+            filtered = self.as_pandas()[filter_array]
+            ret_tuple += [self._rewrap(filtered)]
 
         if len(ret_tuple) == 1:
             return ret_tuple[0]

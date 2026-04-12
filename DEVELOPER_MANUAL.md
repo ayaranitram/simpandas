@@ -44,7 +44,7 @@ d:\git\simpandas\
 │   └── simpandas/
 │       ├── __init__.py           # Public API exports
 │       ├── basics.py             # SimBasics mixin (shared by both types)
-│       ├── frame.py              # SimDataFrame + _SimWindowProxy + _SimGroupBy
+│       ├── frame.py              # SimDataFrame + _SimWindowProxy + _SimGroupBy + _SimResampleProxy
 │       ├── series.py             # SimSeries
 │       ├── indexer.py            # _SimLocIndexer, _iSimLocIndexer
 │       ├── index.py              # SimIndex
@@ -122,6 +122,7 @@ pandas.DataFrame          pandas.Series
    SimDataFrame        SimSeries        ← frame.py / series.py
         │
    _SimWindowProxy                      ← wraps rolling/expanding/ewm
+   _SimResampleProxy                    ← wraps resample
    _SimGroupBy                          ← wraps groupby
    _SimLocIndexer / _iSimLocIndexer     ← wraps .loc / .iloc
 ```
@@ -317,6 +318,10 @@ class _SimWindowProxy:
 `rolling()`, `expanding()`, and `ewm()` on `SimDataFrame` and `SimSeries` all
 return `_SimWindowProxy(super().<method>(...), self)`.
 
+`resample()` on `SimDataFrame` and `SimSeries` returns `_SimResampleProxy`.
+The proxy follows the same interception strategy as `_SimWindowProxy` and wraps
+aggregation outputs back into Sim types.
+
 ### 5.3 GroupBy Proxy
 
 `_SimGroupBy` in `frame.py` mirrors `_SimWindowProxy` but is more explicit
@@ -342,6 +347,9 @@ class _SimGroupBy:
 ```python
 def groupby(self, *args, **kwargs):
     return _SimGroupBy(super().groupby(*args, **kwargs), self)
+
+def resample(self, *args, **kwargs):
+    return _SimResampleProxy(super().resample(*args, **kwargs), self)
 ```
 
 ---
@@ -486,7 +494,7 @@ general-purpose I/O layer.
 | `math.py` | `znorm`, `minmaxnorm`, `jitter` | Numeric helpers |
 | `slope.py` | `slope` | Linear regression / rolling slope |
 | `helpers.py` | `clean_axis`, `hashable`, `string_new_name` | Generic utilties |
-| `filters.py` | filter helpers | DataFrame / Series filter utilities |
+| `filters.py` | `zeros`, `key_to_string` | DataFrame / Series filter parsing helpers |
 | `shape.py` | `melt`, `pivot` wrappers | Shape helpers |
 | `_internal_processes.py` | `get_units`, `get_index_atts` | Internal unit-extraction logic |
 
