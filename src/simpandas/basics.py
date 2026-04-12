@@ -17,10 +17,7 @@ from numpy import array, nan, log as np_log, log2 as np_log2, log10 as np_log10,
 from sys import getsizeof
 from warnings import warn
 
-from unyts import is_Unit
-from unyts.converter import convertible as _convertible
-from unyts.operations import unit_inverse as _unit_inverse
-from unyts.dictionaries import unitless_names as _unitless_names
+from .common.lazy_unyts import is_Unit, convertible as _convertible, unit_inverse as _unit_inverse, unitless_names as _unitless_names
 
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.compat import concat_compat

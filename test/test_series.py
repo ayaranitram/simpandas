@@ -10,6 +10,8 @@ from pandas import Series
 import pandas as pd
 import numpy as np
 import pytest
+from io import StringIO
+from contextlib import redirect_stdout
 
 
 def test_basic_creation():
@@ -52,6 +54,15 @@ def test_loc_access():
 def test_iloc_access():
     s = SimSeries([10,20,30], units='s', name='t')
     assert s.iloc[1]==20
+
+
+def test_simseries_getitem_no_debug_prints():
+    s = SimSeries([1, 2, 3], index=['a', 'b', 'c'], units='m', name='x')
+    out = StringIO()
+    with redirect_stdout(out):
+        _ = s['a']
+        _ = s[['a', 'b']]
+    assert out.getvalue() == ''
 
 from unyts import convert, units
 

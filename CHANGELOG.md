@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed typo: "extentions" → "extensions" in `pyproject.toml`
   - Fixed missing import `clean_axis` in `common/filters.py`
   - Fixed `zeros()` function call with missing `axis` argument in `common/filters.py`
+  - Fixed eager `unyts` import on top-level module import in `simpandas`; now lazy-loaded via `src/simpandas/common/lazy_unyts.py` and only imports `unyts` on conversion usage
 - **Deprecated pandas methods:**
   - Replaced 8 instances of deprecated `.append()` with `concat_compat()`:
     - 5 replacements in `src/simpandas/basics.py`

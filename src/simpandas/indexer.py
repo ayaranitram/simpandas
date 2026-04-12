@@ -12,8 +12,8 @@ __all__ = ['_SimLocIndexer']
 import logging
 from pandas.core.indexing import _LocIndexer, _iLocIndexer
 import pandas as pd
-from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
-from unyts import units, Unit
+from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter, units, Unit
+from .common.daterelated import is_date_string, to_datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,12 +41,64 @@ class _SimBaseIndexer(object):
         # if the result is a scalar number, wrap it with units
         from numbers import Number
         if isinstance(result, Number):
+
             key = args[0]
-            if isinstance(key, tuple) and len(key) >= 2:
-                unit_key = key[1]  # column part of (row, col) tuple
+
+            def _get_series_value_unit(ser):
+                try:
+                    units_map = ser.get_units()
+                except Exception:
+                    return None
+
+                if ser.name is not None:
+                    if isinstance(units_map, dict) and ser.name in units_map:
+                        return units_map[ser.name]
+
+                # prefer a non-index unit if possible
+                if isinstance(units_map, dict):
+                    index_keys = {getattr(ser, 'index_name', None), '_index_'}
+                    for ukey, uval in units_map.items():
+                        if ukey in index_keys:
+                            continue
+                        return uval
+                return None
+
+            unit_str = None
+            if isinstance(self.spd, SimSeries):
+                unit_str = _get_series_value_unit(self.spd)
+
+                # If we have a date-like key lookup (index selection), we should not use index/date units for value conversion.
+                if isinstance(unit_str, str) and unit_str.lower() in ('date', 'datetime'):
+                    unit_str = None
+
+                if unit_str is None:
+                    if self.spd.name is not None:
+                        tmp = self.spd.get_units_string(self.spd.name)
+                    else:
+                        tmp = self.spd.get_units_string()
+
+                    if isinstance(tmp, str) and tmp.lower() not in ('date', 'datetime'):
+                        unit_str = tmp
+
+            elif isinstance(key, tuple) and len(key) >= 2:
+                unit_str = self.spd.get_units_string(key[1])
             else:
-                unit_key = key
-            unit_str = self.spd.get_units_string(unit_key)
+                unit_str = self.spd.get_units_string(key)
+
+            # if somehow unit_str is still index-related, avoid converting date-index string to Date
+            if isinstance(unit_str, str) and unit_str.lower() in ('date', 'datetime'):
+                # try value unit if available but not date/datetime
+                alt_unit = None
+                if isinstance(self.spd, SimSeries):
+                    alt_unit = _get_series_value_unit(self.spd)
+                    if isinstance(alt_unit, str) and alt_unit.lower() in ('date', 'datetime'):
+                        alt_unit = None
+
+                if alt_unit is not None:
+                    unit_str = alt_unit
+                else:
+                    unit_str = None
+
             if isinstance(unit_str, str):
                 return units(result, unit_str)
             return result  # no valid unit string, return raw scalar
@@ -93,7 +145,24 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
         elif type(args) is SimSeries:
             args = args.as_pandas()
         if type(args[0]) is not slice and type(args[0]) is tuple and len(args[0]) == 2:
+            row_key, col_key = args[0]
+            if isinstance(col_key, str) and col_key not in self.spd.columns:
+                try:
+                    maybe_col = self.spd[col_key]
+                    if isinstance(maybe_col, SimSeries):
+                        result = self.spd.as_pandas().loc[row_key, maybe_col.name]
+                    elif isinstance(maybe_col, SimDataFrame):
+                        result = self.spd.as_pandas().loc[row_key, list(maybe_col.columns)]
+                    else:
+                        result = self.spd.as_pandas().loc[args[0]]
+                except Exception:
+                    result = self.spd.as_pandas().loc[args[0]]
+            else:
+                result = self.spd.as_pandas().loc[args[0]]
+        elif 'date' in self.spd.index.dtype.name and ('date' in args[0].dtype.name if hasattr(args[0], 'dtype') else '') and args[0] in self.spd.index:
             result = self.spd.as_pandas().loc[args[0]]
+        elif 'date' in self.spd.index.dtype.name and isinstance(args[0], str) and is_date_string(args[0]) and to_datetime(args[0], errors='coerce') in self.spd.index:
+            result = self.spd.as_pandas().loc[to_datetime(args[0], errors='coerce')]
         else:
             result = super().__getitem__(*args)
         return self._postprocess(result, args)

@@ -18,12 +18,7 @@ from numpy import ndarray, datetime64
 import datetime as dt
 import matplotlib.pyplot as plt
 
-from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
-from unyts.operations import unit_power as _unit_power, unit_addition as _unit_addition, unit_product as _unit_product, \
-    unit_division as _unit_division
-from unyts.dictionaries import unitless_names as _unitless_names
-from unyts.helpers.common_classes import number
-from unyts import Unit, units, is_Unit
+from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter, unit_power as _unit_power, unit_addition as _unit_addition, unit_product as _unit_product, unit_division as _unit_division, unitless_names as _unitless_names, number, Unit, units, is_Unit
 
 from .basics import SimBasics
 from .common.slope import slope as _slope
@@ -974,16 +969,34 @@ class SimDataFrame(SimBasics, DataFrame):
                 raise ValueError("The key '" + ', '.join(k) + "' is not a column name of this SimDataFrame.")
         elif key not in self.columns:
             raise ValueError("The key '" + str(key) + "' is not a column name of this SimDataFrame.")
+
+        # Capture pre-operation units to preserve correct mapping after in-place column drops
+        pre_index_units = self.get_units(key)
+        if isinstance(pre_index_units, dict):
+            pre_index_units = pre_index_units.get(key)
+        elif isinstance(pre_index_units, list) and len(pre_index_units) == 1:
+            pre_index_units = pre_index_units[0]
+
         if inplace:
-            index_units = self.get_units(key)[key]
+            pre_units = self.get_units()
+            if isinstance(pre_units, list):
+                pre_units = dict(zip(list(self.columns), pre_units))
+
             super().set_index(key, drop=drop, append=append, inplace=inplace, verify_integrity=verify_integrity,
                               **kwargs)
-            self.set_index_units(index_units)
+
+            # Keep _units_ aligned with current columns then apply remaining units
+            self._sync_units()
+            remaining_units = {col: pre_units.get(col) for col in self.columns} if isinstance(pre_units, dict) else None
+            if remaining_units is not None:
+                self.set_units(remaining_units)
+
+            self.set_index_units(pre_index_units)
         else:
             params_ = self.params_
             params_['index'] = None
             params_['index_name'] = key
-            params_['index_units'] = self.get_units(key)[key]
+            params_['index_units'] = pre_index_units
             return SimDataFrame(data=self.as_pandas().set_index(key, drop=drop, append=append, inplace=inplace,
                                                        verify_integrity=verify_integrity, **kwargs), **params_)
 
@@ -1146,15 +1159,21 @@ class SimDataFrame(SimBasics, DataFrame):
             newUnits = self.get_units(self.columns).copy()
             for col, units in self.get_units(self.columns).items():
                 if col in otherC.columns:
-                    if units != otherC.get_units(col)[col]:
-                        if _convertible(otherC.get_units(col)[col], units):
+                    other_unit = otherC.get_units(col)
+                    if isinstance(other_unit, dict):
+                        other_unit = other_unit.get(col)
+                    if units != other_unit:
+                        if _convertible(other_unit, units):
                             otherC[col] = otherC[col].to(units)
                         else:
-                            newUnits[col + '_2nd'] = otherC.get_units(col)[col]
+                            newUnits[col + '_2nd'] = other_unit
                             otherC.rename(columns={col: col + '_2nd'}, inplace=True)
             for col in otherC.columns:
                 if col not in newUnits:
-                    newUnits[col] = otherC.get_units(col)[col]
+                    other_unit = otherC.get_units(col)
+                    if isinstance(other_unit, dict):
+                        other_unit = other_unit.get(col)
+                    newUnits[col] = other_unit
             params_ = self.params_
             params_['units'] = newUnits
             data = _pd_concat([self.as_pandas(), otherC], axis=0)
@@ -1635,8 +1654,7 @@ class SimDataFrame(SimBasics, DataFrame):
             return self._class(data=data, **params_)
 
     def prod(self, axis=0, **kwargs):
-        from unyts.operations import unit_base_power
-        from unyts.units.unitless import unitless_names
+        from .common.lazy_unyts import unit_base_power, unitless_names
         axis = _clean_axis(axis)
         if axis == 0:
             units_dict = self._units_as_dict()
@@ -2713,14 +2731,17 @@ class SimDataFrame(SimBasics, DataFrame):
         params_ = self.params_
         if x is not None and y is not None:
             if x in self.columns and y in self.columns:
-                x_units = str(self.get_units(x)[x])
+                x_units = str(self.get_units(x))
             elif x in self.columns and y not in self.columns:
                 x_units = str(self.index_units)
         else:
             x_units = str(self.index_units)
         for col in self.columns:
-            if col is not None and len(self.get_units(col)) == 1:
-                params_['units']['slope_of_' + str(col)] = str(self.get_units(col)[col]) + '/' + x_units
+            if col is not None and len(str(self.get_units(col))) > 0:
+                col_units = self.get_units(col)
+                if isinstance(col_units, dict):
+                    col_units = col_units.get(col)
+                params_['units']['slope_of_' + str(col)] = str(col_units) + '/' + x_units
         names = ['slope_of_' + str(col) for col in self.columns]
         slope_df = _slope(df=self, x=x, y=y, window=window, slope=slope, intercept=intercept)
         return SimDataFrame(data=slope_df, index=self.index, columns=names, **params_)
@@ -2812,9 +2833,13 @@ class SimDataFrame(SimBasics, DataFrame):
                     labels = kwargs['labels']
                 del kwargs['labels']
             if 'ylabel' not in kwargs:
-                kwargs['ylabel'] = ('\n').join(
-                    [str(yi) + (' [' + str(self.get_units(yi)[yi]) + ']') if self.get_units(yi)[yi] is not None else ''
-                     for yi in y])
+                ylabel_parts = []
+                for yi in y:
+                    unit = self.get_units(yi)
+                    if isinstance(unit, dict):
+                        unit = unit.get(yi)
+                    ylabel_parts.append(str(yi) + (' [' + str(unit) + ']' if unit is not None else ''))
+                kwargs['ylabel'] = ('\n').join(ylabel_parts)
             if x is not None:
                 if x in self.columns:
                     if labels is None:

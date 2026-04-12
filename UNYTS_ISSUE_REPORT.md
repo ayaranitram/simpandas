@@ -1,78 +1,71 @@
-# Bug Report: Unit + SimSeries Left-Operand Dispatch Bypasses Conversion
+# Unyts Bug Report: convertible('stb/day', 'sm3/day') transient False
 
 ## Summary
-When a unyts Unit is the left operand and a SimPandas SimSeries is the right operand, arithmetic does not follow unit-aware conversion behavior.
-
-- Works: SimSeries + Unit
-- Fails: Unit + SimSeries
-
-This creates asymmetric behavior and can silently produce wrong values.
+`unyts.convertible('stb/day', 'sm3/day')` sometimes returns `False` on initial call after import, then returns `True` after a warm-up conversion (`unyts.convert(1, 'stb/day', 'sm3/day')`).
 
 ## Environment
-- Python: 3.14
+- simpandas development repository
+- unyts version: 0.10.1
+- Python version: 3.14
 - OS: Windows
-- unyts: local/dev
-- simpandas: local/dev
+- Notebook: `simpandas_demo.ipynb`
 
-## Minimal Reproduction
+## Repro steps
+1. Fresh kernel/process.
+2. `import unyts`
+3. `print(unyts.convertible('stb/day', 'sm3/day'))`  # can be False
+4. `print(unyts.convert(1, 'stb/day', 'sm3/day'))`  # should convert
+5. `print(unyts.convertible('stb/day', 'sm3/day'))`  # then should be True
+
+Optional:
 ```python
-import simpandas as spd
-import unyts
-import pandas as pd
-
-s = pd.Series([1, 2, 3])
-
-f = unyts.units(1.0, 'ft')
-i = unyts.units(1.0, 'in')
-
-print(f"f+i={f+i}")
-print(f"i+f={i+f}")
-
-# Plain pandas Series (not unit-aware): raw math is expected
-print(f"{type(f+s)=} {f+s=}")
-print(f"{type(s+f)=} {s+f=}")
-
-# Unit-aware series
-ss = spd.SimSeries(s, units='yd')
-
-# Problem path: Unit on LEFT
-print(f"{type(f+ss)=} {f+ss=}")
-
-# Working path: SimSeries on LEFT
-print(f"{type(ss+f)=} {ss+f=}")
+from simpandas.common import lazy_unyts
+print(lazy_unyts.convertible('stb/day', 'sm3/day'))
 ```
 
-## Observed Behavior
-- `ss + f` converts correctly and returns a unit-aware result.
-- `f + ss` does not convert as expected; values behave like raw numeric math.
-- Similar issue appears with `-`, `*`, and `/` when Unit is on the left.
+## Observed behavior
+- First call may be `False`.
+- Then `convert` works and returns `0.158987...`.
+- Subsequent `convertible` is `True`.
 
-## Expected Behavior
-For `Unit <op> SimSeries`, behavior should be equivalent to `SimSeries <op> Unit` semantics (including conversion), or Unyts should return `NotImplemented` so Python dispatches to SimSeries reflected operators (`__radd__`, etc.).
+## Analysis
+In `unyts/converter.py`:
+- `convertible` calls `_converter(1, from_unit, to_unit)`.
+- If conversion path not found immediately, it returns `False` for `None` or `Empty`.
+- `_get_conversion` may return `Empty` due to graph path exploration timeout or partial cache state.
+- Ratio units such as `stb/day`, `sm3/day` require recursive child search; first call can fail if cache not warmed.
 
-## Why This Appears To Be Unyts-Side Dispatch
-SimPandas already implements reflected operators for unit-aware behavior when Unit is on the left:
-- `__radd__`
-- `__rsub__`
-- `__rmul__`
-- `__rtruediv__`
+`database.py` has async cache logic (`_cache_all_units`, `_wait_for_all_units_cache`) that may leave network in warmup state.
 
-Those reflected methods only run if the left operand returns `NotImplemented`.
+## Suggested fix for Unyts
+1. In `convertible`:
+   - run normal path first.
+   - if false, call warmup conversion (either `convert_for_SimPandas(1, ...)` or `_converter(1, ..., use_cache=False)`).
+   - retry `convertible` once and return final value.
+2. Make `convertible` robust to transient `Empty` on first install/load.
+3. Add regression test for warmup scenario:
+   - first call might be false
+   - after convert it is true
 
-Current behavior suggests Unyts consumes `Unit + SimSeries` directly instead of deferring.
+## Suggested tests
+- `test_convertible_stb_sm3_warmup`.
+- Confirm `convertible('stb/day','sm3/day')` stable true after warmup path.
+- Add checks for mirrored operator in simpandas side if needed.
 
-## Impact
-- Asymmetric arithmetic semantics:
-  - `ss + unit` correct
-  - `unit + ss` incorrect
-- Risk of silent numerical errors in unit-aware workflows.
+## Simpandas workaround (already implemented)
+- `src/simpandas/common/lazy_unyts.py` has wrapper `convertible`:
+  - attempts unyts `convertible`
+  - if False, calls `convert_for_SimPandas(1, ...)` and retries.
 
-## Suggested Fix Direction
-In Unyts Unit binary operator methods (`__add__`, `__sub__`, `__mul__`, `__truediv__`):
-1. Detect unsupported foreign unit-aware operands and return `NotImplemented`.
-2. Optionally add explicit interop handling for SimPandas types.
+## Diagnostics commands
+```python
+from unyts.database import units_network
+print(units_network.has_node('stb/day'), units_network.has_node('sm3/day'))
+from unyts.converter import _search_network
+print(_search_network('stb/day', 'sm3/day'))
+print(_search_network('stb', 'sm3'))
+print('params', unyts_parameters_.cache_, unyts_parameters_.timeout_, unyts_parameters_.algorithm_)
+```
 
-## Suggested Regression Tests
-- Verify `unit + simseries` matches converted semantics of `simseries + unit` for values and units.
-- Add same checks for `-`, `*`, `/`.
-- Verify fallback to reflected operator when foreign type is not natively handled.
+## Root-cause summary
+`convertible` currently conflates transient graph warm-up failure with permanent unconvertibility. fix in Unyts core so first warmup path does not produce false-negative result.

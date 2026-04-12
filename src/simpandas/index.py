@@ -12,7 +12,7 @@ __all__ = ['SimIndex']
 from abc import ABC
 import weakref
 import pandas as pd
-from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
+from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter
 
 
 def convert(values, from_units, to_units):

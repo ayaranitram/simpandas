@@ -19,17 +19,12 @@ from pandas._config import get_option
 import fnmatch
 import warnings
 
-from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
-from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
-    unit_power as _unit_power, unit_addition as _unit_addition, unit_base_power as _unit_base_power
-from unyts.units.unitless import unitless_names as _unitless_names
-from unyts.dictionaries import unitless_names as _unitless_names
-from unyts.helpers.common_classes import number
-from unyts import units, is_Unit, Unit
+from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter, unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, unit_power as _unit_power, unit_addition as _unit_addition, unit_base_power as _unit_base_power, unitless_names as _unitless_names, number, units, is_Unit, Unit
 
 from .basics import SimBasics
 from .common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
 from .common.slope import slope as _slope
+from .common.daterelated import is_date_string, to_datetime
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
 
@@ -319,6 +314,8 @@ class SimSeries(SimBasics, Series):
             return SimDataFrame(data={index_name: self.index.to_numpy()},
                                 index=range(len(self.index)),
                                 **params_)
+        elif isinstance(key, str) and 'date' in self.index.dtype.name and is_date_string(key) and to_datetime(key, errors='coerce') in self.index:
+            result = self.loc[to_datetime(key)]
         else:
             try:
                 result = self.loc[key]
@@ -1028,9 +1025,9 @@ class SimSeries(SimBasics, Series):
                 self.index_name = '_index_'
             elif '_index_' not in units_dict:
                 self.index_name = '_index_'
-                units_dict['_index_'] == self.index_units
+                units_dict['_index_'] = self.index_units
             else:
-                logging.warn("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
+                logging.warning("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
         elif self.index_name not in units_dict:
             units_dict[self.index_name] = self.index_units
         elif self.index_units != units_dict[self.index_name]:
@@ -1354,11 +1351,14 @@ class SimSeries(SimBasics, Series):
         if window is None and x is not None and y is None:
             window, x = x, None
         params_ = self.params_
-        if self.name is not None and len(self.get_units(self.name)) == 1 and self.index_units is not None:
+        if self.name is not None and len(str(self.get_units(self.name))) == 1 and self.index_units is not None:
+            unit_val = self.get_units(self.name)
+            if isinstance(unit_val, dict):
+                unit_val = unit_val.get(self.name)
             if type(params_['units']) is dict:
-                params_['units'][self.name] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)
+                params_['units'][self.name] = str(unit_val) + '/' + str(self.index_units)
             else:
-                params_['units'] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)
+                params_['units'] = str(unit_val) + '/' + str(self.index_units)
         params_['name'] = 'slope_of_' + (self.name)
         slope_series= _slope(df=self, x=x, y=y, window=window, slope=slope, intercept=intercept)
         return SimSeries(data=slope_series, index=self.index, **params_)
