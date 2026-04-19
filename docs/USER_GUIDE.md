@@ -136,22 +136,58 @@ from simpandas import concat
 joined = concat([sdf_a, sdf_b], axis=0)
 ```
 
+### 5.5 `read_hdf5`
+
+Read an HDF5 file into a `SimDataFrame`.  Auto-detects units stored by `to_hdf5()`.
+
+```python
+from simpandas import read_hdf5
+
+sdf = read_hdf5("my_data.h5")
+```
+
+### 5.6 `read_summary`
+
+Read Eclipse binary summary files (.SMSPEC + .UNSMRY) into a `SimDataFrame`.
+Column names follow the `KEYWORD:WGNAME` convention; units come from the
+SMSPEC header.
+
+```python
+from simpandas import read_summary
+
+sdf = read_summary("CASE.SMSPEC")
+```
+
 ## 6. Readers and Writers Modules
 
 ### 6.1 `simpandas.readers`
 - `read_excel`: Excel reader with unit extraction support.
 - `read_csv`: CSV reader with explicit or embedded units support.
 - `read_json`: JSON reader with SimPandas payload detection.
+- `read_hdf5`: HDF5 reader with SimPandas layout detection (requires `h5py`).
+- `read_summary`: Eclipse binary summary reader (.SMSPEC + .UNSMRY).
 
 ### 6.2 `simpandas.writers`
+- `write_csv`: Write `SimDataFrame`/`SimSeries` to CSV with a units row.
+- `write_json`: Write `SimDataFrame`/`SimSeries` to JSON with a `{data, units, index_units}` envelope.
+- `write_hdf5`: Write `SimDataFrame`/`SimSeries` to HDF5 with units metadata (requires `h5py`).
+- `write_summary`: Write `SimDataFrame` to Eclipse binary summary format.
 - `write_excel`: Write `SimDataFrame` data and units to Excel.
 - `write_schedule`: Write schedule-style outputs.
 
 Example:
 
 ```python
+from simpandas.writers.csv import write_csv
+from simpandas.writers.json import write_json
+from simpandas.writers.h5 import write_hdf5
+from simpandas.writers.summary import write_summary
 from simpandas.writers.xlsx import write_excel
 
+write_csv(sdf, "out.csv")
+write_json(sdf, "out.json")
+write_hdf5(sdf, "out.h5")
+write_summary(sdf, "CASE.SMSPEC")
 write_excel(sdf, "out.xlsx")
 ```
 
@@ -257,11 +293,33 @@ series_std = ss.std()
 
 ```python
 sdf = read_excel("history.xlsx", units=0)
+sdf = read_csv("history.csv", units=0)
 ```
 
 ### Write preserving unit metadata
 
 ```python
+# CSV round-trip
+sdf.to_csv("history_out.csv")           # units in row 0
+sdf2 = read_csv("history_out.csv", units=0)
+
+# CSV with index
+sdf.to_csv("history_out.csv", index=True)
+sdf2 = read_csv("history_out.csv", units=0, index_col=0)
+
+# JSON round-trip (auto-detects units envelope)
+sdf.to_json("history_out.json")
+sdf2 = read_json("history_out.json")
+
+# HDF5 round-trip
+sdf.to_hdf5("history_out.h5")
+sdf2 = read_hdf5("history_out.h5")
+
+# Eclipse binary round-trip
+sdf.to_summary("CASE.SMSPEC")
+sdf2 = read_summary("CASE.SMSPEC")
+
+# Excel
 from simpandas.writers.xlsx import write_excel
 write_excel(sdf, "history_out.xlsx")
 ```

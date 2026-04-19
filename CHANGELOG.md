@@ -5,6 +5,70 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-06-14
+
+### Added
+- Added `readers/parquet.py` with `read_parquet()` and `writers/parquet.py`
+  with `write_parquet()` — Parquet I/O with units stored as custom schema
+  metadata (requires `pyarrow`).
+- Added `SimDataFrame.to_parquet()` method.
+- Added `readers/prodml.py` with `read_prodml()` — reads PRODML v1/v2 XML
+  (production volumes, time series, well tests) with namespace auto-detection.
+- Added `writers/prodml.py` with `write_prodml()` — writes PRODML v2 XML in
+  timeseries or volumes style.
+- Added `SimDataFrame.to_prodml()` method.
+- Added `readers/witsml.py` with `read_witsml()` — reads WITSML v1.4.1.1/v2
+  XML (log curves, trajectories, mudlogs).
+- Added `writers/witsml.py` with `write_witsml()` — writes WITSML v1.4.1.1
+  log XML.
+- Added `SimDataFrame.to_witsml()` method.
+- Added `readers/resqml.py` with `read_resqml()` — reads RESQML v2 EPC
+  packages (ZIP + HDF5) for continuous/discrete property time series.
+- Added `writers/resqml.py` with `write_resqml()` — writes RESQML EPC
+  packages with HDF5 data and XML metadata.
+- Added `SimDataFrame.to_resqml()` method.
+- `read_parquet`, `read_prodml`, `read_witsml`, `read_resqml` exported from
+  top-level package.
+- Added tests: `test/readers/test_parquet.py`, `test/readers/test_prodml.py`,
+  `test/readers/test_witsml.py`, `test/readers/test_resqml.py`.
+
+## [Unreleased] - 2026-04-18
+
+### Added
+- Added `writers/csv.py` with `write_csv()` — writes CSV with an embedded
+  units row compatible with `read_csv(path, units=0)`.
+- Added `writers/json.py` with `write_json()` — writes JSON with a
+  `{data, units, index_units}` envelope compatible with `read_json()`.
+- `write_csv` and `write_json` are now exported from the top-level package.
+- `SimDataFrame.to_csv()` and `SimSeries.to_csv()` now delegate to
+  `write_csv` and produce units-aware output by default.
+- `SimDataFrame.to_json()` and `SimSeries.to_json()` now delegate to
+  `write_json` and include `index_units` in the JSON envelope.
+- Added `readers/h5.py` with `read_hdf5()` and `writers/h5.py` with
+  `write_hdf5()` for HDF5 I/O with units metadata (requires `h5py`).
+- Added `SimDataFrame.to_hdf5()` and `SimSeries.to_hdf5()` methods.
+- Added `readers/summary.py` with `read_summary()` for reading Eclipse summary files
+  binary summary (.SMSPEC + .UNSMRY) files.
+- Added `writers/summary.py` with `write_summary()` for writing Eclipse summary files
+  binary summary files.
+- Added `SimDataFrame.to_summary()` method.
+- `read_hdf5` and `read_summary` exported from top-level package.
+- Added `readers/vdb.py` with `read_vdb()` for reading VIP / Nexus `.vdb`
+  plot data (NT32 binary format). Supports well and region tables, auto-
+  detects case hierarchy, extracts units from VARDESC blocks.
+- `read_vdb` exported from top-level package.
+- Added VDB reader tests in `test/readers/test_vdb.py` (21 tests: 13
+  synthetic + 8 with real sample data).
+- Added round-trip tests in `test/writers/test_csv_json.py`,
+  `test/readers/test_h5.py`, and `test/readers/test_summary.py`.
+
+### Fixed
+- `read_csv`: when `units` is an integer and `index_col` is also given,
+  the reader now correctly extracts the index column's units as
+  `index_units` instead of losing them.
+- `read_json`: the reader now extracts `index_units` from the SimPandas
+  JSON envelope.
+
 ## [Unreleased] - 2026-04-12
 
 ### Added

@@ -14,7 +14,7 @@ It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>
 - **Enhanced I/O:** Read/write Excel, CSV, and JSON files with unit metadata preservation
 - **Expanded pandas wrapper coverage:** `ffill`, `bfill`, `pct_change`, `asfreq`, `combine_first`, `isin`, `compare`, `swaplevel`, `align`, `update`, `resample`, and `between` now return Sim types where applicable
 - **Time-series utilities:** Built-in methods for daily, monthly, yearly aggregations
-- **Eclipse simulator support:** Handle column naming conventions from reservoir simulators
+- **Eclipse-style simulator support:** Handle column naming conventions from reservoir simulators
 
 ## Installation
 

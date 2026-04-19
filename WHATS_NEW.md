@@ -1,9 +1,110 @@
 # What's New in SimPandas
 
+## Industry Formats Update — June 2026
+
+### Parquet reader & writer (pyarrow)
+
+- Added `readers/parquet.py` with `read_parquet()` and `writers/parquet.py`
+  with `write_parquet()`.  Units are stored as custom Parquet schema metadata
+  under `simpandas:units` and `simpandas:index_units` keys.
+- `SimDataFrame.to_parquet()` writes Parquet files that are readable by any
+  Parquet-compatible tool; units are preserved on round-trip via
+  `read_parquet()`.
+- Requires `pyarrow` (optional dependency).
+
+### PRODML reader & writer (Energistics)
+
+- Added `readers/prodml.py` with `read_prodml()` — reads PRODML v1/v2 XML
+  files and extracts production volume reports, time series, and well test
+  results into `SimDataFrame` objects.
+- Supports `<ProductVolume>`, `<Facility>`, `<TimeSeries>`, and `<WellTest>`
+  element structures with automatic namespace detection.
+- Added `writers/prodml.py` with `write_prodml()` — writes PRODML v2 XML in
+  `timeseries` or `volumes` style.
+- `SimDataFrame.to_prodml()` method added.
+- No external dependencies (stdlib XML only).
+
+### WITSML reader & writer (Energistics)
+
+- Added `readers/witsml.py` with `read_witsml()` — reads WITSML v1.4.1.1/v2
+  XML files and extracts log curves, trajectory stations, and mudlog intervals.
+- Log data is parsed from `<logCurveInfo>` + `<logData>` structures with
+  `mnemonicList`/`unitList` headers; the first curve becomes the index.
+- Added `writers/witsml.py` with `write_witsml()` — writes WITSML v1.4.1.1
+  log XML with curve info and comma-separated data rows.
+- `SimDataFrame.to_witsml()` method added.
+- No external dependencies (stdlib XML only).
+
+### RESQML reader & writer (Energistics)
+
+- Added `readers/resqml.py` with `read_resqml()` — reads RESQML v2.0.1/v2.2
+  EPC packages (ZIP containers with XML metadata and HDF5 data).
+- Extracts `ContinuousProperty` and `DiscreteProperty` objects with associated
+  `TimeSeries` time axes.
+- Added `writers/resqml.py` with `write_resqml()` — writes EPC packages with
+  HDF5 data and XML property/time-series metadata.
+- `SimDataFrame.to_resqml()` method added.
+- Requires `h5py` (optional dependency).
+
+### New top-level exports
+
+- `read_parquet`, `read_prodml`, `read_witsml`, `read_resqml` are now
+  exported from the `simpandas` package.
+
 ## Maintenance Update — April 2026
 
 This maintenance update expands wrapper coverage and fixes filter parsing
 internals so metadata is preserved across more pandas workflows.
+
+### Units-aware CSV & JSON writers
+
+- Added `write_csv` and `write_json` writer modules under `writers/`.
+- `SimDataFrame.to_csv()` and `SimSeries.to_csv()` now embed a units row
+  (row 0 after the header) that is compatible with `read_csv(path, units=0)`.
+- `SimDataFrame.to_json()` and `SimSeries.to_json()` write a
+  `{data, units, index_units}` envelope that `read_json()` auto-detects.
+- `read_csv` now correctly extracts index units when `units` and `index_col`
+  are used together.
+- `read_json` now extracts `index_units` from the SimPandas JSON envelope.
+- Both `write_csv` and `write_json` are exported from the top-level package.
+
+### HDF5 reader & writer (h5py)
+
+- Added `readers/h5.py` with `read_hdf5()` and `writers/h5.py` with
+  `write_hdf5()`.  Stores data, columns, index, units, and index_units
+  inside an HDF5 group with gzip compression.
+- `SimDataFrame.to_hdf5()` and `SimSeries.to_hdf5()` write files that
+  are read back with `read_hdf5(path)`.  Round-trips preserve all units.
+- Requires `h5py` (optional dependency).
+
+### Eclipse binary summary reader & writer (.SMSPEC / .UNSMRY)
+
+- Added `readers/summary.py` with `read_summary()` — reads the SMSPEC
+  header and UNSMRY data files from reservoir simulators.  Column names
+  follow the `KEYWORD:WGNAME` convention; units come from the SMSPEC
+  UNITS keyword; TIME/YEARS is promoted to the index.
+- Added `writers/summary.py` with `write_summary()` — writes a valid
+  SMSPEC + UNSMRY pair that can be read back by `read_summary()` (and
+  by other tools that support the Eclipse binary format).
+- `SimDataFrame.to_summary(smspec_path)` writes both files.
+- Supports field, well, group, region, and completion vectors.
+- No external dependencies (pure Python + NumPy).
+
+### VDB (VIP / Nexus) reader
+
+- Added `readers/vdb.py` with `read_vdb()` — reads time-series plot data
+  from `.vdb` folders produced by the VIP and Nexus reservoir simulators.
+- Automatically locates the case directory and `plot.bin` inside `.vdb`
+  folders (respects `main.xml` hierarchy).
+- Extracts well names from `welist.bin` and variable definitions with units
+  from VARDESC blocks in the binary header.
+- Supports `tables='well'` (default), `'region'`, or `'all'`.
+- `key_style='eclipse'` converts VDB keys (QOP, COP, …) to Eclipse
+  equivalents (OPR, OPT, …) via the VDB2VIP mapping.
+- Returns a `SimDataFrame` with `KEY:WELLNAME` columns and units.
+- `read_vdb` is exported from the top-level package.
+- Best-effort approach: logs warnings for sections it cannot parse.
+- No external dependencies (pure Python + NumPy).
 
 ### Added wrappers in `SimBasics`
 

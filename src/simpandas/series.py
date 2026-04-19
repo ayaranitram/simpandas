@@ -633,25 +633,20 @@ class SimSeries(SimBasics, Series):
         """Return unique values as a numpy array."""
         return self.as_pandas().unique()
 
-    def to_csv(self, path_or_buf=None, *args, **kwargs):
-        """Write Series to CSV."""
-        return self.as_pandas().to_csv(path_or_buf, *args, **kwargs)
+    def to_csv(self, path_or_buf=None, units=True, index=True, **kwargs):
+        """Write Series to CSV with a units row.  See ``writers.csv.write_csv``."""
+        from simpandas.writers.csv import write_csv
+        return write_csv(self, path_or_buf, units=units, index=index, **kwargs)
 
-    def to_json(self, path_or_buf=None, *args, **kwargs):
-        """Write Series to JSON with units metadata."""
-        import json
-        data_json = self.as_pandas().to_json(*args, **kwargs)
-        try:
-            units = self.get_units()
-        except Exception:
-            units = None
-        payload = {'data': json.loads(data_json) if isinstance(data_json, str) else data_json,
-                   'units': units}
-        if path_or_buf is not None:
-            with open(path_or_buf, 'w') as f:
-                json.dump(payload, f)
-            return None
-        return json.dumps(payload)
+    def to_json(self, path_or_buf=None, **kwargs):
+        """Write Series to JSON with units metadata.  See ``writers.json.write_json``."""
+        from simpandas.writers.json import write_json
+        return write_json(self, path_or_buf, **kwargs)
+
+    def to_hdf5(self, filepath, group='simpandas', compression='gzip'):
+        """Write Series to HDF5 with units metadata.  See ``writers.h5.write_hdf5``."""
+        from simpandas.writers.h5 import write_hdf5
+        return write_hdf5(self, filepath, group=group, compression=compression)
 
     def astype(self, dtype, copy=True, errors='raise'):
         params_ = self.params_

@@ -493,37 +493,45 @@ class SimDataFrame(SimBasics, DataFrame):
         """Iterate over DataFrame rows as namedtuples."""
         yield from self.as_dataframe().itertuples(index=index, name=name)
 
-    def to_csv(self, path_or_buf=None, *args, **kwargs):
-        """Write to CSV, embedding units as the second row when units are present."""
-        import pandas as pd
-        if path_or_buf is not None:
-            try:
-                units = self.get_units()
-                if isinstance(units, dict) and any(v is not None for v in units.values()):
-                    unit_vals = [units.get(c, '') or '' for c in self.columns]
-                    unit_row = pd.DataFrame([unit_vals], columns=self.columns)
-                    combined = pd.concat([unit_row, self.as_dataframe()], ignore_index=True)
-                    combined.to_csv(path_or_buf, *args, **kwargs)
-                    return None
-            except Exception:
-                pass
-        return self.as_dataframe().to_csv(path_or_buf, *args, **kwargs)
+    def to_csv(self, path_or_buf=None, units=True, index=True, **kwargs):
+        """Write to CSV with a units row.  See ``writers.csv.write_csv``."""
+        from simpandas.writers.csv import write_csv
+        return write_csv(self, path_or_buf, units=units, index=index, **kwargs)
 
-    def to_json(self, path_or_buf=None, *args, **kwargs):
-        """Write to JSON with units metadata."""
-        import json
-        data_json = self.as_dataframe().to_json(*args, **kwargs)
-        try:
-            units = self.get_units()
-        except Exception:
-            units = {}
-        payload = {'data': json.loads(data_json) if isinstance(data_json, str) else data_json,
-                   'units': units if isinstance(units, dict) else {}}
-        if path_or_buf is not None:
-            with open(path_or_buf, 'w') as f:
-                json.dump(payload, f)
-            return None
-        return json.dumps(payload)
+    def to_json(self, path_or_buf=None, **kwargs):
+        """Write to JSON with units metadata.  See ``writers.json.write_json``."""
+        from simpandas.writers.json import write_json
+        return write_json(self, path_or_buf, **kwargs)
+
+    def to_hdf5(self, filepath, group='simpandas', compression='gzip'):
+        """Write to HDF5 with units metadata.  See ``writers.h5.write_hdf5``."""
+        from simpandas.writers.h5 import write_hdf5
+        return write_hdf5(self, filepath, group=group, compression=compression)
+
+    def to_summary(self, smspec_path, unsmry_path=None, startdat=None):
+        """Write to Eclipse binary summary format.  See ``writers.summary.write_summary``."""
+        from simpandas.writers.summary import write_summary
+        return write_summary(self, smspec_path, unsmry_path=unsmry_path, startdat=startdat)
+
+    def to_parquet(self, filepath, compression='snappy', **kwargs):
+        """Write to Parquet with units metadata.  See ``writers.parquet.write_parquet``."""
+        from simpandas.writers.parquet import write_parquet
+        return write_parquet(self, filepath, compression=compression, **kwargs)
+
+    def to_prodml(self, filepath, style='timeseries', facility='SimPandas'):
+        """Write to PRODML XML.  See ``writers.prodml.write_prodml``."""
+        from simpandas.writers.prodml import write_prodml
+        return write_prodml(self, filepath, style=style, facility=facility)
+
+    def to_witsml(self, filepath, well_name='', wellbore_name='', log_name='SimPandas Export'):
+        """Write to WITSML v1.4.1.1 log XML.  See ``writers.witsml.write_witsml``."""
+        from simpandas.writers.witsml import write_witsml
+        return write_witsml(self, filepath, well_name=well_name, wellbore_name=wellbore_name, log_name=log_name)
+
+    def to_resqml(self, filepath):
+        """Write to RESQML EPC package.  See ``writers.resqml.write_resqml``."""
+        from simpandas.writers.resqml import write_resqml
+        return write_resqml(self, filepath)
 
     def to_pandas(self):
         return self.to_dataframe()

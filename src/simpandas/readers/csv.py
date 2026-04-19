@@ -58,6 +58,11 @@ def read_csv(filepath_or_buffer,
     import pandas as pd
 
     if isinstance(units, int):
+        # When units is an int we need all columns visible to extract the
+        # units row, so we temporarily remove ``index_col`` from the kwargs
+        # and re-apply it after extraction.
+        index_col = kwargs.pop('index_col', None)
+
         # Read the file; the units row is at position `units` after the header
         df = pd.read_csv(filepath_or_buffer, *args, **kwargs)
         if units < len(df):
@@ -76,9 +81,29 @@ def read_csv(filepath_or_buffer,
                     df[col] = pd.to_numeric(df[col])
                 except (ValueError, TypeError):
                     pass
+
+            # Re-apply index_col now that units have been extracted
+            if index_col is not None:
+                if isinstance(index_col, int):
+                    idx_col_name = df.columns[index_col]
+                else:
+                    idx_col_name = index_col
+                # Promote the column's unit to indexUnits when not set
+                if indexUnits is None and idx_col_name in units_dict:
+                    indexUnits = units_dict.pop(idx_col_name)
+                elif idx_col_name in units_dict:
+                    units_dict.pop(idx_col_name)
+                df = df.set_index(idx_col_name)
+
             units = units_dict
         else:
             units = None
+            # Still honour index_col even when no units row was found
+            if index_col is not None:
+                if isinstance(index_col, int):
+                    df = df.set_index(df.columns[index_col])
+                else:
+                    df = df.set_index(index_col)
     else:
         df = pd.read_csv(filepath_or_buffer, *args, **kwargs)
 
