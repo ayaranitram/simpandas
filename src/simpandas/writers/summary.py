@@ -8,12 +8,13 @@ simulators (Eclipse, OPM Flow, etc.) consume.
 No external dependencies beyond NumPy and pandas.
 """
 
-__version__ = '0.1.0'
-__release__ = 20260418
+__version__ = '0.1.1'
+__release__ = 20260420
 
 __all__ = ['write_summary']
 
 import struct
+import re
 import numpy as np
 
 
@@ -82,16 +83,25 @@ def _write_keyword(fh, keyword: str, dtype_tag: bytes, data):
 # Column-name decomposition
 # ---------------------------------------------------------------------------
 
-def _decompose_column(col_name, sep=':'):
+def _decompose_column(col_name, sep=':', nx=1, ny=1):
     """Split a SimPandas column name into (KEYWORD, WGNAME, NUM).
 
-    Convention examples::
+    The decomposition mirrors the naming conventions used by the reader:
 
-        FOPR:FIELD   → ('FOPR',    'FIELD', 0)
-        WBHP:PROD1   → ('WBHP',    'PROD1', 0)
-        COPR:PROD1:3 → ('COPR',    'PROD1', 3)
-        RPR:5        → ('RPR',     '',       5)
-        TIME         → ('TIME',    '',       0)
+    * ``FOPR``             → ``('FOPR', '', 0)``   (F-prefix, bare keyword)
+    * ``WBHP:PROD1``      → ``('WBHP', 'PROD1', 0)``
+    * ``COPR:PROD1:3``    → ``('COPR', 'PROD1', 3)``
+    * ``RPR:5``           → ``('RPR',  '', 5)``
+    * ``BPR:3,4,5``       → ``('BPR',  '', linearised_num)``
+    * ``TIME``            → ``('TIME', '', 0)``
+
+    Parameters
+    ----------
+    col_name : str
+    sep : str
+    nx, ny : int
+        Grid dimensions needed to re-encode B-vector ``i,j,k`` back to
+        a linearised block number.
 
     Returns
     -------
@@ -101,15 +111,31 @@ def _decompose_column(col_name, sep=':'):
     keyword = parts[0]
     wgname = ''
     num = 0
+    kw_prefix = keyword[0].upper() if keyword else 'X'
 
     if len(parts) == 1:
+        # Bare keyword (TIME, FOPR, …)
         pass
     elif len(parts) == 2:
-        # Could be KEYWORD:WGNAME or KEYWORD:NUM
-        try:
-            num = int(parts[1])
-        except ValueError:
-            wgname = parts[1]
+        tail = parts[1]
+        if kw_prefix == 'B' and ',' in tail:
+            # B-vector: i,j,k → linearised NUMS
+            ijk = [int(x) for x in tail.split(',')]
+            if len(ijk) == 3:
+                i, j, k = ijk
+                num = (i - 1) + (j - 1) * nx + (k - 1) * nx * ny + 1
+        elif kw_prefix in ('R', 'A'):
+            # Region / Aquifer: always KEYWORD:NUM
+            try:
+                num = int(tail)
+            except ValueError:
+                wgname = tail
+        else:
+            # Could be KEYWORD:WGNAME or KEYWORD:NUM
+            try:
+                num = int(tail)
+            except ValueError:
+                wgname = tail
     elif len(parts) >= 3:
         wgname = parts[1]
         try:
@@ -124,7 +150,8 @@ def _decompose_column(col_name, sep=':'):
 # Public API
 # ---------------------------------------------------------------------------
 
-def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None):
+def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
+                  dimens=None):
     """
     Write a SimDataFrame to Eclipse binary summary format.
 
@@ -150,8 +177,15 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None):
         is derived by replacing ``.SMSPEC`` with ``.UNSMRY``.
     startdat : list or tuple of ints, optional
         ``[day, month, year]`` (optionally ``[day, month, year, hour,
-        minute, microsecond]``).  When ``None``, ``[1, 1, 2000]`` is
-        used as a default.
+        minute, microsecond]``).  When ``None`` and the index is a
+        DatetimeIndex the start date is derived from the first entry;
+        otherwise ``[1, 1, 2000]`` is used.
+    dimens : list or tuple of ints, optional
+        ``[nx, ny, nz]`` grid dimensions.  Required for correct
+        round-trip of B-prefix (block) vectors.  When ``None`` the
+        dimensions are inferred from the maximum ``i,j,k`` found in
+        column names (which is only exact when at least the corner
+        block is present).
 
     Returns
     -------
@@ -184,34 +218,89 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None):
 
     sep = getattr(sdf, 'name_separator', ':') or ':'
 
-    # Gather units
+    # ---- Gather units (handle dict or positional list) ------------------
     try:
         raw_units = sdf.units
         if isinstance(raw_units, dict):
             col_units = dict(raw_units)
+        elif isinstance(raw_units, (list, tuple)):
+            col_units = dict(zip(df.columns, raw_units))
         else:
             col_units = {}
     except Exception:
         col_units = {}
 
+    # ---- Drop time/date columns that must not be written as data vectors --
+    # DATE is always derivative (STARTDAT + TIME); its Timestamp values cannot
+    # be stored as REAL PARAMS values.  A TIME/YEARS column is redundant with
+    # the leading PARAMS entry that comes from the index.
+    _drop_cols = [c for c in df.columns if c.upper() in ('DATE', 'TIME', 'YEARS')]
+    if _drop_cols:
+        df = df.drop(columns=_drop_cols)
+        col_units = {k: v for k, v in col_units.items() if k not in _drop_cols}
+
     index_units_val = getattr(sdf, 'index_units', None) or 'DAYS'
 
-    # ----- build SMSPEC vectors ------------------------------------------
-    # The TIME vector is always the first entry (comes from the index).
+    # Retrieve meta dict from the source SimDataFrame (set by read_summary)
+    _meta = getattr(sdf, 'meta', None) or {}
+
+    # ---- Handle DATE (datetime) index → convert to TIME (float days) ----
     time_kw = 'TIME'
-    index_name = df.index.name
-    if index_name and index_name.upper() in ('YEARS', 'YEAR'):
+    time_values = None          # filled below when index is datetime
+    derived_startdat = None
+
+    index_name = df.index.name or ''
+
+    if isinstance(df.index, pd.DatetimeIndex) or index_name.upper() == 'DATE':
+        # Convert DatetimeIndex → float TIME in days since start_date
+        dt_index = pd.DatetimeIndex(df.index)
+        start_date = dt_index[0]
+        time_values = (dt_index - start_date).total_seconds() / 86400.0
+        derived_startdat = [start_date.day, start_date.month, start_date.year]
+        if start_date.hour or start_date.minute or start_date.second:
+            derived_startdat += [start_date.hour, start_date.minute,
+                                 start_date.second * 1_000_000]
+        index_units_val = 'DAYS'
+        time_kw = 'TIME'
+    elif index_name.upper() in ('YEARS', 'YEAR'):
         time_kw = 'YEARS'
-    elif index_name and index_name.upper() == 'TIME':
+    elif index_name.upper() == 'TIME':
         time_kw = 'TIME'
 
+    if startdat is None:
+        if derived_startdat:
+            startdat = derived_startdat
+        elif isinstance(_meta, dict) and _meta.get('startdat'):
+            startdat = _meta['startdat']
+        else:
+            startdat = [1, 1, 1900]  # Eclipse default start date
+
+    # ---- Determine grid dimensions for B-vector encoding ----------------
+    if dimens is not None:
+        nx, ny, nz = int(dimens[0]), int(dimens[1]), int(dimens[2])
+    elif isinstance(_meta, dict) and _meta.get('dimens'):
+        nx, ny, nz = [int(v) for v in _meta['dimens']]
+    else:
+        # Infer from max i,j,k in B-vector column names
+        max_i, max_j, max_k = 1, 1, 1
+        _ijk_re = re.compile(r'^B\w*' + re.escape(sep) + r'(\d+),(\d+),(\d+)$')
+        for col in df.columns:
+            m = _ijk_re.match(col)
+            if m:
+                max_i = max(max_i, int(m.group(1)))
+                max_j = max(max_j, int(m.group(2)))
+                max_k = max(max_k, int(m.group(3)))
+        nx, ny, nz = max_i, max_j, max_k
+
+    # ---- Build SMSPEC vectors -------------------------------------------
+    # The TIME vector is always the first entry (comes from the index).
     keywords = [time_kw]
     wgnames = ['']
     nums_list = [0]
     units_out = [index_units_val]
 
     for col in df.columns:
-        kw, wg, num = _decompose_column(col, sep)
+        kw, wg, num = _decompose_column(col, sep, nx=nx, ny=ny)
         keywords.append(kw)
         wgnames.append(wg)
         nums_list.append(num)
@@ -219,7 +308,7 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None):
 
     nlist = len(keywords)
 
-    # Encode wgnames: field-level → ':+:+:+:+'
+    # Encode wgnames: empty / 'FIELD' → ':+:+:+:+'
     wgnames_enc = []
     for wg in wgnames:
         if wg.upper() in ('FIELD', '') or not wg:
@@ -227,16 +316,13 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None):
         else:
             wgnames_enc.append(wg)
 
-    if startdat is None:
-        startdat = [1, 1, 2000]
-
-    # ----- write SMSPEC --------------------------------------------------
+    # ---- Write SMSPEC ---------------------------------------------------
     with open(smspec_path, 'wb') as fh:
         # RESTART (empty, 9 items for compatibility)
         _write_keyword(fh, 'RESTART', b'CHAR', [''] * 9)
 
-        # DIMENS: nlist, nx, ny, nz, ?, ?   (only nlist matters for summary)
-        _write_keyword(fh, 'DIMENS', b'INTE', [nlist, 1, 1, 1, 0, -1])
+        # DIMENS: nlist, nx, ny, nz, ?, ?
+        _write_keyword(fh, 'DIMENS', b'INTE', [nlist, nx, ny, nz, 0, -1])
 
         # KEYWORDS
         _write_keyword(fh, 'KEYWORDS', b'CHAR', keywords)
@@ -253,7 +339,7 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None):
         # STARTDAT
         _write_keyword(fh, 'STARTDAT', b'INTE', [int(x) for x in startdat])
 
-    # ----- write UNSMRY --------------------------------------------------
+    # ---- Write UNSMRY ---------------------------------------------------
     with open(unsmry_path, 'wb') as fh:
         # SEQHDR – unified-file marker
         _write_keyword(fh, 'SEQHDR', b'INTE', [0])
@@ -263,6 +349,9 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None):
             _write_keyword(fh, 'MINISTEP', b'INTE', [step_idx])
 
             # PARAMS – float array: [time_value, col0, col1, ...]
-            time_val = float(df.index[step_idx])
+            if time_values is not None:
+                time_val = float(time_values[step_idx])
+            else:
+                time_val = float(df.index[step_idx])
             row_vals = [time_val] + [float(v) for v in df.iloc[step_idx].values]
             _write_keyword(fh, 'PARAMS', b'REAL', row_vals)

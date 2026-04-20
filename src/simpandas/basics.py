@@ -3396,6 +3396,48 @@ Copy of input object, shifted.
                 result.set_units(self.index_units, item=self.index.name)
             return result
 
+    def to_csv(self, path_or_buf=None, units=True, index=True, **kwargs):
+        """Write to CSV with a units row.  See ``writers.csv.write_csv``."""
+        from simpandas.writers.csv import write_csv
+        return write_csv(self, path_or_buf, units=units, index=index, **kwargs)
+
+    def to_json(self, path_or_buf=None, **kwargs):
+        """Write to JSON with units metadata.  See ``writers.json.write_json``."""
+        from simpandas.writers.json import write_json
+        return write_json(self, path_or_buf, **kwargs)
+
+    def to_hdf5(self, filepath, group='simpandas', compression='gzip'):
+        """Write to HDF5 with units metadata.  See ``writers.h5.write_hdf5``."""
+        from simpandas.writers.h5 import write_hdf5
+        return write_hdf5(self, filepath, group=group, compression=compression)
+
+    def to_summary(self, smspec_path, unsmry_path=None, startdat=None, dimens=None):
+        """Write to Eclipse binary summary format.  See ``writers.summary.write_summary``."""
+        from simpandas.writers.summary import write_summary
+        return write_summary(self, smspec_path, unsmry_path=unsmry_path,
+                             startdat=startdat, dimens=dimens)
+
+    def to_parquet(self, filepath, compression='snappy', **kwargs):
+        """Write to Parquet with units metadata.  See ``writers.parquet.write_parquet``."""
+        from simpandas.writers.parquet import write_parquet
+        return write_parquet(self, filepath, compression=compression, **kwargs)
+
+    def to_prodml(self, filepath, style='timeseries', facility='SimPandas'):
+        """Write to PRODML XML.  See ``writers.prodml.write_prodml``."""
+        from simpandas.writers.prodml import write_prodml
+        return write_prodml(self, filepath, style=style, facility=facility)
+
+    def to_witsml(self, filepath, well_name='', wellbore_name='', log_name='SimPandas Export'):
+        """Write to WITSML v1.4.1.1 log XML.  See ``writers.witsml.write_witsml``."""
+        from simpandas.writers.witsml import write_witsml
+        return write_witsml(self, filepath, well_name=well_name,
+                            wellbore_name=wellbore_name, log_name=log_name)
+
+    def to_resqml(self, filepath):
+        """Write to RESQML EPC package.  See ``writers.resqml.write_resqml``."""
+        from simpandas.writers.resqml import write_resqml
+        return write_resqml(self, filepath)
+
     def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
                  float_format=None, columns=None, header=True, units=True, index=True,
                  index_label=None, startrow=0, startcol=0, engine=None,

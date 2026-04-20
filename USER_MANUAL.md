@@ -1,6 +1,6 @@
 # SimPandas — User Manual
 
-**Version 0.84.0 | Python ≥ 3.7 | pandas 1.3 – 2.x**
+**Version 0.90.0 | Python ≥ 3.7 | pandas 1.3 – 2.x**
 
 ---
 
@@ -38,6 +38,8 @@
    - 7.1 [Excel](#71-excel)
    - 7.2 [CSV](#72-csv)
    - 7.3 [JSON](#73-json)
+   - 7.4 [HDF5](#74-hdf5)
+   - 7.5 [Eclipse Binary Summary (.SMSPEC / .UNSMRY)](#75-eclipse-binary-summary-smspec--unsmry)
 8. [Column-Name Conventions](#8-column-name-conventions)
    - 8.1 [Name Separator](#81-name-separator)
    - 8.2 [Intersection Character](#82-intersection-character)
@@ -808,6 +810,80 @@ json_str = df.to_json()        # returns JSON string when no path given
 df2 = read_json(json_str)
 ```
 
+### 7.4 HDF5
+
+```python
+from simpandas import read_hdf5
+from simpandas.writers.h5 import write_hdf5
+
+# Write (stores data, units, and index_units with gzip compression)
+df.to_hdf5('output.h5')
+
+# Read (units restored automatically)
+df2 = read_hdf5('output.h5')
+```
+
+Requires `h5py` (`pip install h5py`).
+
+### 7.5 Eclipse Binary Summary (.SMSPEC / .UNSMRY)
+
+`read_summary` reads the pair of binary files produced by Eclipse, OPM Flow,
+and other reservoir simulators.  Column names follow the
+`KEYWORD:WGNAME` convention used across the simulator output files:
+
+| Vector type | Example column name | Description |
+|---|---|---|
+| Field | `FOPR` | Field Oil Production Rate |
+| Well | `WBHP:PROD1` | Well Bottom-Hole Pressure |
+| Group | `GOPR:PLATFORM-A` | Group Oil Production Rate |
+| Region | `RPR:3` | Region Pressure (region 3) |
+| Completion | `COPR:PROD1:2` | Completion Oil Prod Rate |
+| Block | `BPR:5,6,7` | Block Pressure at i=5,j=6,k=7 |
+
+The reader computes a `DATE` column from `STARTDAT + TIME` and promotes it
+to the index, yielding a `DatetimeIndex`.
+
+Grid dimensions (`nx`, `ny`, `nz`) and the simulation start date are
+automatically stored in `sdf.meta` for transparent write-back.
+
+```python
+from simpandas import read_summary
+from simpandas.writers.summary import write_summary
+
+# Read
+sdf = read_summary('CASE.SMSPEC')
+print(sdf.index.name)   # 'DATE'
+print(sdf.meta)         # {'dimens': [50, 60, 20], 'startdat': [1, 1, 2020]}
+
+# Access vectors
+print(sdf[['FOPR', 'WBHP:PROD1']].head())
+
+# Write back — dimens and startdat are taken from sdf.meta automatically
+sdf.to_summary('OUTPUT.SMSPEC')
+
+# Equivalent explicit call (needed if sdf was not produced by read_summary)
+write_summary(sdf, 'OUTPUT.SMSPEC',
+              startdat=[1, 1, 2020],
+              dimens=[50, 60, 20])
+```
+
+`read_summary` parameter highlights:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `smspec_path` | required | Path to `.SMSPEC` file |
+| `unsmry_path` | `None` | Explicit path to `.UNSMRY` (auto-discovered when `None`) |
+| `nameSeparator` | `':'` | Separator for `KEYWORD:WGNAME` column names |
+
+`write_summary` / `to_summary` parameter highlights:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `smspec_path` | required | Destination `.SMSPEC` path |
+| `unsmry_path` | `None` | Derived from `smspec_path` when `None` |
+| `startdat` | from `meta` or `[1,1,1900]` | Simulation start date `[day, month, year]` (Eclipse default: 1 JAN 1900) |
+| `dimens` | from `meta` or inferred | Grid dimensions `[nx, ny, nz]` |
+
 ---
 
 ## 8. Column-Name Conventions
@@ -1004,6 +1080,15 @@ resample(rule, ...)   asfreq(freq, ...)   pct_change(...)
 daily(agg)            monthly(agg)        yearly(agg)
 ```
 
+#### I/O writers (SimBasics — available on both SimDataFrame and SimSeries)
+```
+to_csv(path, units=True, ...)     to_json(path, ...)
+to_hdf5(path, ...)                to_summary(smspec_path, ...)
+to_parquet(path, ...)             to_prodml(path, ...)
+to_witsml(path, ...)              to_resqml(path)
+to_excel(path, ...)               # requires xlsxwriter / openpyxl
+```
+
 #### Conversion (SimDataFrame)
 ```
 to_pandas()     as_pandas()
@@ -1031,7 +1116,6 @@ pivot(...)              pivot_table(...)    melt(...)
 explode(column, ...)
 query(expr, ...)        eval(expr, ...)
 iterrows()              itertuples()
-to_csv(path, ...)       to_json(path, ...)
 ```
 
 ### SimSeries-specific
@@ -1042,7 +1126,6 @@ resample(rule, ...)     groupby(by, ...)
 unique()
 between(left, right, inclusive)
 slope(x, y, window)
-to_csv(path, ...)       to_json(path, ...)
 corr(other)             reindex(index)
 rename(...)             set_index(name)
 ```

@@ -102,10 +102,9 @@ class TestSummaryRoundTrip:
 
         result = read_summary(smspec)
         assert isinstance(result, SimDataFrame)
-        # Should have TIME as index
-        assert result.index.name == 'TIME'
-        assert result.index_units == 'DAYS'
-        # All data columns present
+        # Reader computes DATE from STARTDAT + TIME → DATE becomes the index
+        assert result.index.name == 'DATE'
+        # All data columns present (TIME is also kept as a column)
         rdf = result.as_dataframe()
         for col in ('FOPR', 'FWPR', 'WBHP:PROD1', 'WBHP:PROD2'):
             assert col in rdf.columns, f'{col} missing'
@@ -123,9 +122,12 @@ class TestSummaryRoundTrip:
         smspec = str(tmp_path / 'IDX.SMSPEC')
         sdf.to_summary(smspec)
         result = read_summary(smspec)
-        expected_times = [0.0, 30.0, 60.0, 90.0]
-        for i, t in enumerate(expected_times):
-            assert float(result.index[i]) == pytest.approx(t, rel=1e-5)
+        # Reader computes DATE from default STARTDAT [1,1,1900] + TIME (Eclipse default)
+        # 1900 is not a leap year: Jan=31d, Feb=28d, so +60d lands on Mar 2
+        expected_dates = pd.to_datetime(['1900-01-01', '1900-01-31',
+                                         '1900-03-02', '1900-04-01'])
+        for i, d in enumerate(expected_dates):
+            assert result.index[i] == d
 
     def test_region_vectors(self, tmp_path):
         sdf = _make_region_sdf()
@@ -178,3 +180,83 @@ class TestSummaryRoundTrip:
                 assert rdf_res[col].iloc[i] == pytest.approx(
                     rdf_src[col].iloc[i], rel=1e-5
                 ), f'{col}[{i}] mismatch'
+
+    def test_block_vectors(self, tmp_path):
+        """B-prefix vectors with i,j,k survive the round-trip."""
+        idx = pd.Index([0.0, 30.0], name='TIME')
+        data = {
+            'BPR:1,1,1': [5000.0, 4900.0],
+            'BPR:2,1,1': [5100.0, 4950.0],
+        }
+        units = {'BPR:1,1,1': 'PSIA', 'BPR:2,1,1': 'PSIA'}
+        sdf = SimDataFrame(data=data, index=idx,
+                           units=units, index_units='DAYS',
+                           name_separator=':')
+        smspec = str(tmp_path / 'BLK.SMSPEC')
+        sdf.to_summary(smspec, dimens=[2, 1, 1])
+        result = read_summary(smspec)
+        rdf = result.as_dataframe()
+        assert 'BPR:1,1,1' in rdf.columns
+        assert 'BPR:2,1,1' in rdf.columns
+        assert rdf['BPR:1,1,1'].iloc[0] == pytest.approx(5000.0, rel=1e-5)
+
+    def test_date_index_roundtrip(self, tmp_path):
+        """A SimDataFrame with DATE index survives read→write→read."""
+        dates = pd.to_datetime(['2020-06-01', '2020-07-01',
+                                '2020-08-01', '2020-09-01'])
+        idx = pd.DatetimeIndex(dates, name='DATE')
+        data = {'FOPR': [1000.0, 980.0, 960.0, 940.0]}
+        units = {'FOPR': 'STB/DAY'}
+        sdf = SimDataFrame(data=data, index=idx,
+                           units=units, index_units='datetime',
+                           name_separator=':')
+        smspec = str(tmp_path / 'DT.SMSPEC')
+        sdf.to_summary(smspec)
+        result = read_summary(smspec)
+        assert result.index.name == 'DATE'
+        assert len(result) == 4
+        rdf = result.as_dataframe()
+        assert 'FOPR' in rdf.columns
+        assert rdf['FOPR'].iloc[0] == pytest.approx(1000.0, rel=1e-5)
+        # Start date should match first original date
+        assert result.index[0] == pd.Timestamp('2020-06-01')
+
+    def test_meta_dimens_roundtrip(self, tmp_path):
+        """dimens stored in meta by read_summary is reused by write_summary."""
+        # Step 1: write with explicit dimens
+        idx = pd.Index([0.0, 30.0], name='TIME')
+        data = {'BPR:2,3,1': [5000.0, 4900.0]}
+        units = {'BPR:2,3,1': 'PSIA'}
+        sdf = SimDataFrame(data=data, index=idx,
+                           units=units, index_units='DAYS',
+                           name_separator=':')
+        smspec1 = str(tmp_path / 'META1.SMSPEC')
+        sdf.to_summary(smspec1, dimens=[3, 4, 2])
+
+        # Step 2: read back (meta now contains dimens=[3,4,2])
+        result = read_summary(smspec1)
+        assert result.meta['dimens'] == [3, 4, 2]
+
+        # Step 3: re-write WITHOUT explicit dimens; meta should carry them
+        smspec2 = str(tmp_path / 'META2.SMSPEC')
+        result.to_summary(smspec2)
+        result2 = read_summary(smspec2)
+        rdf = result2.as_dataframe()
+        assert 'BPR:2,3,1' in rdf.columns
+        assert rdf['BPR:2,3,1'].iloc[0] == pytest.approx(5000.0, rel=1e-5)
+
+    def test_meta_startdat_roundtrip(self, tmp_path):
+        """startdat stored in meta by read_summary is reused by write_summary."""
+        sdf = _make_reservoir_sdf()
+        smspec1 = str(tmp_path / 'SD1.SMSPEC')
+        sdf.to_summary(smspec1, startdat=[15, 6, 2020])
+
+        result = read_summary(smspec1)
+        assert result.meta['startdat'] == [15, 6, 2020]
+
+        # Re-write without explicit startdat
+        smspec2 = str(tmp_path / 'SD2.SMSPEC')
+        result.to_summary(smspec2)
+        result2 = read_summary(smspec2)
+        # The DATE index should start from 2020-06-15
+        assert result2.index[0] == pd.Timestamp('2020-06-15')

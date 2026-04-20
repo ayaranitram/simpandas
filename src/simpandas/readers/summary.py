@@ -9,8 +9,8 @@ with properly labelled columns and units.
 No external dependencies beyond NumPy and pandas.
 """
 
-__version__ = '0.1.0'
-__release__ = 20260418
+__version__ = '0.1.1'
+__release__ = 20260420
 
 from simpandas.frame import SimDataFrame
 
@@ -248,8 +248,25 @@ def read_summary(smspec_path,
         elif kw_prefix == 'F':
             # Field-level vector: bare keyword, no entity appended
             col_names.append(kw)
+        elif kw_prefix in ('R', 'A'):
+            # Region / Aquifer: KEYWORD:NUM  (sentinel WGNAME is normal)
+            if num > 0:
+                col_names.append(f'{kw}{sep}{num}')
+            else:
+                col_names.append(None)
+        elif kw_prefix == 'B':
+            # Block vector: sentinel WGNAME is normal
+            if num > 0:
+                # Grid block: decode linearised index → i,j,k (1-based)
+                n0 = num - 1
+                bi = (n0 % nx) + 1
+                bj = ((n0 // nx) % ny) + 1
+                bk = (n0 // (nx * ny)) + 1
+                col_names.append(f'{kw}{sep}{bi},{bj},{bk}')
+            else:
+                col_names.append(None)
         elif is_sentinel:
-            # Non-F keyword with sentinel WGNAME → no real entity, skip
+            # W/G/C/S with sentinel WGNAME → no real entity, skip
             col_names.append(None)
         elif kw_prefix in ('W', 'G'):
             if wg:
@@ -263,26 +280,6 @@ def read_summary(smspec_path,
                 # Completion / Segment: KEYWORD:WGNAME:NUM
                 col_names.append(f'{kw}{sep}{wg}{sep}{num}')
             else:
-                # NUMS=0 means no real entity, skip
-                col_names.append(None)
-        elif kw_prefix in ('R', 'A'):
-            if num > 0:
-                # Region / Aquifer: KEYWORD:NUM
-                col_names.append(f'{kw}{sep}{num}')
-            else:
-                # NUMS=0 means no real entity, skip
-                col_names.append(None)
-        elif kw_prefix == 'B':
-            if num > 0:
-                # Grid block: decode linearised index → i,j,k (1-based)
-                n0 = num - 1
-                bi = (n0 % nx) + 1
-                bj = ((n0 // nx) % ny) + 1
-                bk = (n0 // (nx * ny)) + 1
-                #print(f"DEBUG: Decoding block vector: num={num} → i={bi}, j={bj}, k={bk}")
-                col_names.append(f'{kw}{sep}{bi},{bj},{bk}')
-            else:
-                # NUMS=0 means no real entity, skip
                 col_names.append(None)
         elif num > 0 and wg:
             # Generic vector with entity name and qualifier
@@ -392,5 +389,11 @@ def read_summary(smspec_path,
     sim_kwargs['auto_append'] = autoAppend
     sim_kwargs['operate_per_name'] = operatePerName
     sim_kwargs['verbose'] = verbose
+
+    # Preserve grid dimensions and start date so the writer can re-use them.
+    sim_kwargs['meta'] = {
+        'dimens': [nx, ny, nz],
+        'startdat': [int(x) for x in startdat] if startdat else None,
+    }
 
     return SimDataFrame(data=df, **sim_kwargs)

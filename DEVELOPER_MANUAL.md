@@ -452,9 +452,10 @@ def read_csv(filepath, units=None, indexUnits=None, nameSeparator=None, ...):
     return SimDataFrame(df, units=units_dict or units, ...)
 ```
 
-**Writing**: `SimDataFrame.to_csv()` in `frame.py`.  When a path is given
-and units are present, a units row is injected after the header using
-`pandas.DataFrame.to_csv(..., header=False)` for the data portion.
+**Writing**: `SimBasics.to_csv()` in `basics.py` (shared by both `SimDataFrame`
+and `SimSeries`).  When a path is given and units are present, a units row is
+injected after the header using `pandas.DataFrame.to_csv(..., header=False)`
+for the data portion.
 
 ### 9.3 JSON
 
@@ -472,8 +473,8 @@ else:
     df = pd.read_json(filepath)
 ```
 
-**Writer**: `SimDataFrame.to_json()` / `SimSeries.to_json()` in `frame.py`
-and `series.py`.  Produces `{"data": {...}, "units": {...}}`.
+**Writer**: `SimBasics.to_json()` in `basics.py` (shared by both `SimDataFrame`
+and `SimSeries`).  Produces `{"data": {...}, "units": {...}}`.
 
 ### 9.4 Schedule Writer
 

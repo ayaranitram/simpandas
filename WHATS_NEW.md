@@ -1,5 +1,103 @@
 # What's New in SimPandas
 
+## Maintenance — writer consolidation & VDB fix — April 2026
+
+### Writer methods now available on `SimSeries` too
+
+All eight writer methods are now implemented once in `SimBasics` and are
+therefore available on **both** `SimDataFrame` and `SimSeries`:
+
+| Method | Writer module |
+|---|---|
+| `to_csv(path, units=True)` | `writers/csv.py` |
+| `to_json(path)` | `writers/json.py` |
+| `to_hdf5(path)` | `writers/h5.py` |
+| `to_summary(smspec_path)` | `writers/summary.py` |
+| `to_parquet(path)` | `writers/parquet.py` |
+| `to_prodml(path)` | `writers/prodml.py` |
+| `to_witsml(path)` | `writers/witsml.py` |
+| `to_resqml(path)` | `writers/resqml.py` |
+
+Previously `to_summary`, `to_parquet`, `to_prodml`, `to_witsml`, and
+`to_resqml` were only on `SimDataFrame`; `to_csv`, `to_json`, and `to_hdf5`
+were duplicated independently in `frame.py` and `series.py`.
+
+```python
+# All of these now work identically
+sdf.to_csv("out.csv")
+ss.to_csv("out.csv")   # SimSeries — worked before, now uses shared code
+```
+
+### VDB well-name parsing fix (`read_vdb`)
+
+- The VDB format-version string (e.g. `1.0.0`) is no longer returned as a
+  well name.  The old regex matched it because `.` was in the allowed character
+  set and `0` is a digit.
+- The new `_extract_8char_names` parser uses a byte-aligned sentinel scan that
+  correctly handles the 2-byte type-marker misalignment in NT32 binary records.
+  It filters header keywords, dot-containing version strings, and `#`-prefixed
+  ordinal IDs (`#000001W`, …).
+- Fallback names when a VDB contains no human-readable names (common for
+  academic / synthetic cases) changed from `ENTITY_0` / `ENTITY_1` to
+  `WELL_1` / `WELL_2` (well tables) or `REGION_1` / `REGION_2` (region
+  tables) — 1-indexed for consistency with common simulator conventions.
+
+```python
+# Before: spe.vdb columns started with  'QGP:1.0.0', 'QGP:ENTITY_1', ...
+# After:                                 'QGP:WELL_1', 'QGP:WELL_2', ...
+
+# Real-name VDBs (e.g. RKF) are unaffected:
+sdf = read_vdb("RKF.vdb")
+list(sdf.columns[:3])  # ['QGP:RKF-01P', 'QGP:RKF-02P', 'QGP:RKF-02I']
+```
+
+---
+
+## 0.90.0 — Eclipse summary reader/writer improvements — April 2026
+
+### Eclipse summary reader fixes (`read_summary`)
+
+- **Region and aquifer vectors** (`RPR`, `AQPRS`, …) are now correctly
+  included in the result.  Previously they were silently dropped because the
+  sentinel-WGNAME check ran before the R/A keyword branch.
+- **Block vectors** (`BPR:1,2,3`, …) are similarly fixed: the sentinel check
+  no longer discards them.
+- Grid dimensions `[nx, ny, nz]` and `startdat` read from the SMSPEC DIMENS
+  and STARTDAT keywords are now stored in `sdf.meta` so downstream
+  write-back does not require the caller to re-specify them.
+
+```python
+sdf = read_summary("CASE.SMSPEC")
+print(sdf.meta)
+# {'dimens': [50, 60, 20], 'startdat': [1, 1, 2020]}
+```
+
+### Eclipse summary writer improvements (`write_summary` / `to_summary`)
+
+- `dimens` parameter added to `write_summary()` and `to_summary()`
+  to specify `[nx, ny, nz]` for correct round-trip of B-prefix (block) vectors.
+- When `dimens=None` the writer now checks `sdf.meta['dimens']` before
+  falling back to inferring dimensions from column names.
+- When `startdat=None` the writer checks `sdf.meta['startdat']` before
+  defaulting to `[1, 1, 2000]`.
+- **DATE index support**: a `SimDataFrame` whose index is a `DatetimeIndex`
+  (named `DATE`) is now written correctly — the writer converts it back to
+  float TIME values and derives `startdat` from the first entry.
+- **List-type units** are now handled: if `sdf.units` is a positional list
+  instead of a dict it is transparently converted before building SMSPEC.
+
+#### Automatic round-trip without explicit parameters
+
+```python
+# Read from file — meta carries dimens and startdat
+sdf = read_summary("ORIGINAL.SMSPEC")
+
+# Process data ...
+
+# Write back — dimens and startdat come from sdf.meta automatically
+sdf.to_summary("OUTPUT.SMSPEC")
+```
+
 ## Industry Formats Update — June 2026
 
 ### Parquet reader & writer (pyarrow)
@@ -7,9 +105,9 @@
 - Added `readers/parquet.py` with `read_parquet()` and `writers/parquet.py`
   with `write_parquet()`.  Units are stored as custom Parquet schema metadata
   under `simpandas:units` and `simpandas:index_units` keys.
-- `SimDataFrame.to_parquet()` writes Parquet files that are readable by any
-  Parquet-compatible tool; units are preserved on round-trip via
-  `read_parquet()`.
+- `to_parquet()` (on both `SimDataFrame` and `SimSeries`) writes Parquet files
+  that are readable by any Parquet-compatible tool; units are preserved on
+  round-trip via `read_parquet()`.
 - Requires `pyarrow` (optional dependency).
 
 ### PRODML reader & writer (Energistics)
@@ -21,7 +119,7 @@
   element structures with automatic namespace detection.
 - Added `writers/prodml.py` with `write_prodml()` — writes PRODML v2 XML in
   `timeseries` or `volumes` style.
-- `SimDataFrame.to_prodml()` method added.
+- `to_prodml()` method available on both `SimDataFrame` and `SimSeries`.
 - No external dependencies (stdlib XML only).
 
 ### WITSML reader & writer (Energistics)
@@ -32,7 +130,7 @@
   `mnemonicList`/`unitList` headers; the first curve becomes the index.
 - Added `writers/witsml.py` with `write_witsml()` — writes WITSML v1.4.1.1
   log XML with curve info and comma-separated data rows.
-- `SimDataFrame.to_witsml()` method added.
+- `to_witsml()` method available on both `SimDataFrame` and `SimSeries`.
 - No external dependencies (stdlib XML only).
 
 ### RESQML reader & writer (Energistics)
@@ -43,7 +141,7 @@
   `TimeSeries` time axes.
 - Added `writers/resqml.py` with `write_resqml()` — writes EPC packages with
   HDF5 data and XML property/time-series metadata.
-- `SimDataFrame.to_resqml()` method added.
+- `to_resqml()` method available on both `SimDataFrame` and `SimSeries`.
 - Requires `h5py` (optional dependency).
 
 ### New top-level exports
@@ -59,9 +157,9 @@ internals so metadata is preserved across more pandas workflows.
 ### Units-aware CSV & JSON writers
 
 - Added `write_csv` and `write_json` writer modules under `writers/`.
-- `SimDataFrame.to_csv()` and `SimSeries.to_csv()` now embed a units row
+- `to_csv()` (shared via `SimBasics`) now embeds a units row
   (row 0 after the header) that is compatible with `read_csv(path, units=0)`.
-- `SimDataFrame.to_json()` and `SimSeries.to_json()` write a
+- `to_json()` (shared via `SimBasics`) writes a
   `{data, units, index_units}` envelope that `read_json()` auto-detects.
 - `read_csv` now correctly extracts index units when `units` and `index_col`
   are used together.
@@ -73,7 +171,7 @@ internals so metadata is preserved across more pandas workflows.
 - Added `readers/h5.py` with `read_hdf5()` and `writers/h5.py` with
   `write_hdf5()`.  Stores data, columns, index, units, and index_units
   inside an HDF5 group with gzip compression.
-- `SimDataFrame.to_hdf5()` and `SimSeries.to_hdf5()` write files that
+- `to_hdf5()` (shared via `SimBasics`) writes files that
   are read back with `read_hdf5(path)`.  Round-trips preserve all units.
 - Requires `h5py` (optional dependency).
 
@@ -86,7 +184,7 @@ internals so metadata is preserved across more pandas workflows.
 - Added `writers/summary.py` with `write_summary()` — writes a valid
   SMSPEC + UNSMRY pair that can be read back by `read_summary()` (and
   by other tools that support the Eclipse binary format).
-- `SimDataFrame.to_summary(smspec_path)` writes both files.
+- `to_summary(smspec_path)` (available on both `SimDataFrame` and `SimSeries`) writes both files.
 - Supports field, well, group, region, and completion vectors.
 - No external dependencies (pure Python + NumPy).
 
@@ -167,7 +265,7 @@ df = read_csv('measurements.csv', units={'pressure': 'psi', 'depth': 'm'})
 Read a JSON file into a `SimDataFrame`.
 
 - Detects SimPandas JSON format automatically (files that contain `"data"` and
-  `"units"` keys written by `SimDataFrame.to_json()`).
+  `"units"` keys written by `to_json()`).
 - Falls back to standard `pandas.read_json` for plain JSON files.
 
 ```python
@@ -309,17 +407,16 @@ series.expanding(3).sum()    # → SimSeries
 
 ### New Export Methods
 
-#### `SimDataFrame.to_json(path_or_buf=None, ...)`
+#### `to_json(path_or_buf=None, ...)` — `SimBasics`
 Writes a JSON file that embeds units as a top-level `"units"` key alongside
 the data.  When `path_or_buf` is `None` the JSON string is returned.
+Available on both `SimDataFrame` and `SimSeries`.
 
-#### `SimSeries.to_json(path_or_buf=None, ...)`
-Same behaviour for Series (units stored as a single string).
-
-#### `SimDataFrame.to_csv(path_or_buf=None, ...)`
+#### `to_csv(path_or_buf=None, ...)` — `SimBasics`
 Delegates to `pandas.DataFrame.to_csv` after stripping Sim-specific metadata.
 When a `path_or_buf` is provided **and** units are present, a units row is
 written immediately after the header before the data rows.
+Available on both `SimDataFrame` and `SimSeries`.
 
 ---
 

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.9.0'
-__release__ = 20260418
+__version__ = '0.90.0'
+__release__ = 20260420
 __all__ = ['SimSeries', 'SimDataFrame', 'read_excel', 'read_csv', 'read_json',
            'read_hdf5', 'read_summary', 'read_vdb', 'read_parquet',
            'read_prodml', 'read_witsml', 'read_resqml', 'concat']

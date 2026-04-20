@@ -5,28 +5,70 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-04-20
+
+### Changed
+- All writer methods (`to_csv`, `to_json`, `to_hdf5`, `to_summary`,
+  `to_parquet`, `to_prodml`, `to_witsml`, `to_resqml`) moved from
+  `SimDataFrame` / `SimSeries` into the shared `SimBasics` mixin.
+  They are now available on **both** `SimDataFrame` and `SimSeries`
+  without duplication.
+
+### Fixed
+- `read_vdb`: well names were incorrectly returned as `'1.0.0'` (the VDB
+  format-version string from the file header).  The `_parse_welist` function
+  now uses a proper byte-aligned sentinel scanner (`_extract_8char_names`)
+  that filters out header tokens, dot-containing version strings, and
+  `#`-prefixed ordinal IDs.
+- `read_vdb`: fallback entity names changed from `ENTITY_0` / `ENTITY_1`
+  (0-indexed) to `WELL_1` / `WELL_2` (1-indexed, prefix based on table type
+  — `WELL_N` for well tables, `REGION_N` for region tables).
+
+## [0.90.0] - 2026-04-20
+
+### Added
+- `write_summary()` and `to_summary()` now accept a `dimens`
+  parameter (`[nx, ny, nz]`) for correct round-trip of B-prefix block vectors.
+- `read_summary()` now stores `dimens` and `startdat` in `sdf.meta` so the
+  writer can recover them automatically without the caller re-specifying them.
+
+### Fixed
+- `read_summary`: region/aquifer (`R`/`A`-prefix) vectors were silently dropped
+  due to incorrect ordering of the sentinel-WGNAME guard — now fixed.
+- `read_summary`: block (`B`-prefix) vectors (`BPR:1,2,3`, …) were similarly
+  dropped — now fixed.
+- `write_summary`: writing a `SimDataFrame` with a `DatetimeIndex` (named
+  `DATE`) now works correctly; the writer converts it back to float TIME days
+  and derives `startdat` from the first timestamp.
+- `write_summary`: `sdf.units` stored as a positional list is now handled
+  (previously only dicts were supported).
+- `write_summary`: when `dimens=None`, the writer consults `sdf.meta['dimens']`
+  before falling back to column-name inference.
+- `write_summary`: when `startdat=None`, the writer consults
+  `sdf.meta['startdat']` before falling back to `[1, 1, 2000]`.
+
 ## [Unreleased] - 2026-06-14
 
 ### Added
 - Added `readers/parquet.py` with `read_parquet()` and `writers/parquet.py`
   with `write_parquet()` — Parquet I/O with units stored as custom schema
   metadata (requires `pyarrow`).
-- Added `SimDataFrame.to_parquet()` method.
+- Added `to_parquet()` method (available on both `SimDataFrame` and `SimSeries` via `SimBasics`).
 - Added `readers/prodml.py` with `read_prodml()` — reads PRODML v1/v2 XML
   (production volumes, time series, well tests) with namespace auto-detection.
 - Added `writers/prodml.py` with `write_prodml()` — writes PRODML v2 XML in
   timeseries or volumes style.
-- Added `SimDataFrame.to_prodml()` method.
+- Added `to_prodml()` method (available on both `SimDataFrame` and `SimSeries` via `SimBasics`).
 - Added `readers/witsml.py` with `read_witsml()` — reads WITSML v1.4.1.1/v2
   XML (log curves, trajectories, mudlogs).
 - Added `writers/witsml.py` with `write_witsml()` — writes WITSML v1.4.1.1
   log XML.
-- Added `SimDataFrame.to_witsml()` method.
+- Added `to_witsml()` method (available on both `SimDataFrame` and `SimSeries` via `SimBasics`).
 - Added `readers/resqml.py` with `read_resqml()` — reads RESQML v2 EPC
   packages (ZIP + HDF5) for continuous/discrete property time series.
 - Added `writers/resqml.py` with `write_resqml()` — writes RESQML EPC
   packages with HDF5 data and XML metadata.
-- Added `SimDataFrame.to_resqml()` method.
+- Added `to_resqml()` method (available on both `SimDataFrame` and `SimSeries` via `SimBasics`).
 - `read_parquet`, `read_prodml`, `read_witsml`, `read_resqml` exported from
   top-level package.
 - Added tests: `test/readers/test_parquet.py`, `test/readers/test_prodml.py`,
@@ -46,12 +88,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `write_json` and include `index_units` in the JSON envelope.
 - Added `readers/h5.py` with `read_hdf5()` and `writers/h5.py` with
   `write_hdf5()` for HDF5 I/O with units metadata (requires `h5py`).
-- Added `SimDataFrame.to_hdf5()` and `SimSeries.to_hdf5()` methods.
-- Added `readers/summary.py` with `read_summary()` for reading Eclipse summary files
-  binary summary (.SMSPEC + .UNSMRY) files.
-- Added `writers/summary.py` with `write_summary()` for writing Eclipse summary files
-  binary summary files.
-- Added `SimDataFrame.to_summary()` method.
+- Added `to_hdf5()` method (available on both `SimDataFrame` and `SimSeries` via `SimBasics`).
+- Added `readers/summary.py` with `read_summary()` for reading Eclipse binary
+  summary (.SMSPEC + .UNSMRY) files.
+- Added `writers/summary.py` with `write_summary()` for writing Eclipse binary
+  summary files.
+- Added `to_summary()` method (available on both `SimDataFrame` and `SimSeries` via `SimBasics`).
 - `read_hdf5` and `read_summary` exported from top-level package.
 - Added `readers/vdb.py` with `read_vdb()` for reading VIP / Nexus `.vdb`
   plot data (NT32 binary format). Supports well and region tables, auto-

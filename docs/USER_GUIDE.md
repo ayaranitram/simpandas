@@ -149,14 +149,37 @@ sdf = read_hdf5("my_data.h5")
 ### 5.6 `read_summary`
 
 Read Eclipse binary summary files (.SMSPEC + .UNSMRY) into a `SimDataFrame`.
-Column names follow the `KEYWORD:WGNAME` convention; units come from the
-SMSPEC header.
+Column names follow the `KEYWORD:WGNAME` (or `KEYWORD:NUM` for region/block
+vectors) convention; units come from the SMSPEC UNITS keyword.  The DATE
+column (computed from STARTDAT + TIME) becomes the index when STARTDAT is
+present.
+
+The reader automatically stores grid dimensions and start date in
+`sdf.meta` so they can be reused by the writer without the caller needing
+to supply them explicitly.
 
 ```python
 from simpandas import read_summary
 
 sdf = read_summary("CASE.SMSPEC")
+print(sdf.index.name)   # 'DATE'
+print(sdf.meta)         # {'dimens': [50, 60, 20], 'startdat': [1, 1, 2020]}
+
+# Writing back - dimens and startdat are inferred from sdf.meta automatically
+sdf.to_summary("OUTPUT.SMSPEC")
+
+# Explicitly override grid dimensions (needed for B-vector correctness
+# when the SimDataFrame was NOT produced by read_summary)
+sdf.to_summary("OUTPUT.SMSPEC", dimens=[50, 60, 20])
 ```
+
+`read_summary` parameter highlights:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `smspec_path` | required | Path to `.SMSPEC` file |
+| `unsmry_path` | `None` | Path to `.UNSMRY` (auto-discovered when `None`) |
+| `nameSeparator` | `':'` | Separator used to build `KEYWORD:WGNAME` column names |
 
 ## 6. Readers and Writers Modules
 
@@ -165,15 +188,28 @@ sdf = read_summary("CASE.SMSPEC")
 - `read_csv`: CSV reader with explicit or embedded units support.
 - `read_json`: JSON reader with SimPandas payload detection.
 - `read_hdf5`: HDF5 reader with SimPandas layout detection (requires `h5py`).
-- `read_summary`: Eclipse binary summary reader (.SMSPEC + .UNSMRY).
+- `read_summary`: Eclipse binary summary reader (.SMSPEC + .UNSMRY). Stores
+  `dimens` and `startdat` in `sdf.meta` for automatic write-back.
+- `read_vdb`: VIP/Nexus `.vdb` plot-data reader (NT32 binary format).
+- `read_parquet`: Apache Parquet reader with units metadata (requires `pyarrow`).
+- `read_prodml`: PRODML v1/v2 XML reader (production volumes, time series, well tests).
+- `read_witsml`: WITSML v1.4.1.1/v2 XML reader (log curves, trajectories, mudlogs).
+- `read_resqml`: RESQML v2 EPC reader (continuous/discrete property time series, requires `h5py`).
 
 ### 6.2 `simpandas.writers`
 - `write_csv`: Write `SimDataFrame`/`SimSeries` to CSV with a units row.
 - `write_json`: Write `SimDataFrame`/`SimSeries` to JSON with a `{data, units, index_units}` envelope.
 - `write_hdf5`: Write `SimDataFrame`/`SimSeries` to HDF5 with units metadata (requires `h5py`).
 - `write_summary`: Write `SimDataFrame` to Eclipse binary summary format.
+  Accepts `dimens=[nx, ny, nz]` and `startdat=[day, month, year]`; both are
+  auto-read from `sdf.meta` when omitted.  Default start date is `[1, 1, 1900]`
+  (the Eclipse simulator standard).
 - `write_excel`: Write `SimDataFrame` data and units to Excel.
 - `write_schedule`: Write schedule-style outputs.
+- `write_parquet`: Write `SimDataFrame` to Apache Parquet with units metadata (requires `pyarrow`).
+- `write_prodml`: Write `SimDataFrame` to PRODML v2 XML.
+- `write_witsml`: Write `SimDataFrame` to WITSML v1.4.1.1 log XML.
+- `write_resqml`: Write `SimDataFrame` to RESQML EPC package (requires `h5py`).
 
 Example:
 
@@ -318,6 +354,8 @@ sdf2 = read_hdf5("history_out.h5")
 # Eclipse binary round-trip
 sdf.to_summary("CASE.SMSPEC")
 sdf2 = read_summary("CASE.SMSPEC")
+# sdf2.index.name == 'DATE' (datetime index from STARTDAT + TIME)
+# sdf2.meta contains {'dimens': [...], 'startdat': [...]}
 
 # Excel
 from simpandas.writers.xlsx import write_excel

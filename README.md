@@ -33,7 +33,7 @@ pip install --upgrade simpandas
 - **numpy**
 - **matplotlib**
 - **seaborn**
-- **unyts** ≥0.5.25
+- **unyts** ≥1.0.0
 - **openpyxl** (for Excel support)
 - **xlsxwriter** (for Excel writing)
 - **packaging** (for version detection)

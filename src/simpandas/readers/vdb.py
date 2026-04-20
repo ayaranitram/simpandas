@@ -129,32 +129,77 @@ def _resolve_case_path(vdb_path, case=None):
         f"No non-empty plot.bin found under {vdb_path}")
 
 
+# Header keyword tokens that appear in welist.bin and are NOT well names.
+_WELIST_SKIP = frozenset({
+    'NT', 'NT32', 'RECUR', 'MASTER', 'DBF', 'VARDESC', 'VARLIST',
+    'ITEMS', 'INFO', 'MISC', 'GRIDSTAT', 'LASTMOD', 'MAPREC',
+    'PLOT', 'PLOTTS', 'WELIST', 'VARLONG',
+})
+
+
+def _extract_8char_names(data):
+    """Scan *data* byte-by-byte for VDB character records and return names.
+
+    VDB character records have the structure::
+
+        type_marker(2 B) | count(LE i32) | -1(LE i32) | count(LE i32) | count bytes
+
+    The 2-byte type marker preceding the count makes the record
+    mis-aligned with 4-byte boundaries, so a pure int32 scan misses
+    them.  Instead we scan for the ``ff ff ff ff`` sentinel at byte
+    level, verify the count fields on both sides match, and then
+    decode the data as 8-char space-padded ASCII name entries.
+    """
+    names = []
+    seen = set()
+    sentinel = b'\xff\xff\xff\xff'
+    pos = 0
+    n = len(data)
+    while pos < n - 12:
+        idx = data.find(sentinel, pos)
+        if idx < 4 or idx + 8 > n:
+            break
+        count_b = struct.unpack_from('<I', data, idx - 4)[0]
+        count_a = struct.unpack_from('<I', data, idx + 4)[0]
+        if count_b != count_a or count_b < 8 or count_b > 50000 or count_b % 8 != 0:
+            pos = idx + 4
+            continue
+        char_start = idx + 8
+        char_end = char_start + count_b
+        if char_end > n:
+            pos = idx + 4
+            continue
+        chunk = data[char_start:char_end]
+        # Accept only records whose payload is entirely printable ASCII.
+        if all(0x20 <= b <= 0x7E for b in chunk):
+            try:
+                text = chunk.decode('ascii')
+            except Exception:
+                pos = idx + 4
+                continue
+            for i in range(0, len(text), 8):
+                name = text[i:i + 8].rstrip()
+                # Skip blank, header keywords, encoded ordinal IDs (#000001W)
+                # and version strings (contain a dot, e.g. "1.0.0").
+                if (name
+                        and name.upper() not in _WELIST_SKIP
+                        and not name.startswith('#')
+                        and '.' not in name):
+                    if name not in seen:
+                        seen.add(name)
+                        names.append(name)
+        pos = idx + 4
+    return names
+
+
 def _parse_welist(case_dir):
     """Extract well names from ``WELIST/welist.bin``."""
     welist = os.path.join(case_dir, 'WELIST', 'welist.bin')
     if not os.path.isfile(welist):
         return []
-
     with open(welist, 'rb') as f:
         data = f.read()
-
-    # Well names are 8-byte space-padded ASCII blocks.
-    # Filter out structural keywords.
-    skip = {'NT32', 'RECUR', 'MASTER', 'DBF', 'VARDESC', 'VARLIST',
-            'ITEMS', 'INFO', 'MISC', 'GRIDSTAT', 'LASTMOD', 'MAPREC',
-            'PLOT', 'PLOTTS', 'WELIST', 'VARLONG', 'NT'}
-
-    names = []
-    seen = set()
-    # Find all runs of printable ASCII >= 3 chars that look like well names
-    for m in re.finditer(rb'([A-Za-z0-9][A-Za-z0-9\-_.]{1,7})', data):
-        name = m.group(1).decode('ascii').strip()
-        if name and name.upper() not in skip and name not in seen:
-            # Well names typically contain a digit or hyphen
-            if any(c.isdigit() or c == '-' for c in name):
-                seen.add(name)
-                names.append(name)
-    return names
+    return _extract_8char_names(data)
 
 
 # ---------------------------------------------------------------------------
@@ -481,10 +526,13 @@ def read_vdb(path,
         n_per_step = [len(time_groups[t]) for t in timesteps]
         max_entities = max(n_per_step) if n_per_step else 0
 
+        # Choose fallback name prefix based on entity type.
+        _pfx = {'well': 'WELL', 'region': 'REGION'}.get(label, 'ENTITY')
+
         if entity_names and len(entity_names) >= max_entities:
             enames = entity_names[:max_entities]
         else:
-            enames = [f'ENTITY_{i}' for i in range(max_entities)]
+            enames = [f'{_pfx}_{i + 1}' for i in range(max_entities)]
             if entity_names:
                 for i, en in enumerate(entity_names):
                     if i < len(enames):

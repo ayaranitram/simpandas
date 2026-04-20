@@ -184,7 +184,7 @@ All core functionality validated:
 | Python | ≥3.7 (≥3.8 recommended) |
 | pandas | ≥1.3.0, <3.0.0 |
 | numpy | (no constraint) |
-| unyts | ≥0.5.25 |
+| unyts | ≥1.0.0 |
 | matplotlib | (no constraint) |
 | seaborn | (no constraint) |
 | openpyxl | (no constraint) |
