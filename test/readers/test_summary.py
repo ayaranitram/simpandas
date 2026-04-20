@@ -24,14 +24,14 @@ def _make_reservoir_sdf():
     """Return a small SimDataFrame that mimics reservoir summary data."""
     idx = pd.Index([0.0, 30.0, 60.0, 90.0], name='TIME')
     data = {
-        'FOPR:FIELD':  [1000.0, 980.0, 960.0, 940.0],
-        'FWPR:FIELD':  [50.0,   55.0,  60.0,  65.0],
-        'WBHP:PROD1':  [3000.0, 2950.0, 2900.0, 2850.0],
-        'WBHP:PROD2':  [3100.0, 3050.0, 3000.0, 2950.0],
+        'FOPR':       [1000.0, 980.0, 960.0, 940.0],
+        'FWPR':       [50.0,   55.0,  60.0,  65.0],
+        'WBHP:PROD1': [3000.0, 2950.0, 2900.0, 2850.0],
+        'WBHP:PROD2': [3100.0, 3050.0, 3000.0, 2950.0],
     }
     units = {
-        'FOPR:FIELD': 'STB/DAY',
-        'FWPR:FIELD': 'STB/DAY',
+        'FOPR':       'STB/DAY',
+        'FWPR':       'STB/DAY',
         'WBHP:PROD1': 'PSIA',
         'WBHP:PROD2': 'PSIA',
     }
@@ -107,15 +107,15 @@ class TestSummaryRoundTrip:
         assert result.index_units == 'DAYS'
         # All data columns present
         rdf = result.as_dataframe()
-        for col in ('FOPR:FIELD', 'FWPR:FIELD', 'WBHP:PROD1', 'WBHP:PROD2'):
+        for col in ('FOPR', 'FWPR', 'WBHP:PROD1', 'WBHP:PROD2'):
             assert col in rdf.columns, f'{col} missing'
         # Units preserved
-        assert result.units['FOPR:FIELD'] == 'STB/DAY'
+        assert result.units['FOPR'] == 'STB/DAY'
         assert result.units['WBHP:PROD1'] == 'PSIA'
         # Row count
         assert len(result) == 4
         # Data values (float32 round-trip loses some precision)
-        assert rdf['FOPR:FIELD'].iloc[0] == pytest.approx(1000.0, rel=1e-5)
+        assert rdf['FOPR'].iloc[0] == pytest.approx(1000.0, rel=1e-5)
         assert rdf['WBHP:PROD2'].iloc[-1] == pytest.approx(2950.0, rel=1e-5)
 
     def test_index_values(self, tmp_path):

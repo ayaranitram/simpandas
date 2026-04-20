@@ -23,7 +23,7 @@ dependencies = [
     'matplotlib',
     'seaborn',
     'packaging',
-    'unyts >= 0.5.25',
+    'unyts >= 1.0.0',
     'openpyxl',
     'xlsxwriter',
 ]

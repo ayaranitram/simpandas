@@ -714,7 +714,28 @@ class SimDataFrame(SimBasics, DataFrame):
 
         # convert returned object to SimDataFrame or SimSeries accordingly
         if type(result) is DataFrame:
-            result = SimDataFrame(data=result, **self.params_)
+            params = self.params_
+            # When units are stored as a positional list (duplicate column names),
+            # the full list length won't match a column-subset result.  Extract
+            # only the units that correspond to the columns actually present in
+            # 'result', using a greedy left-to-right match so duplicates are
+            # handled correctly.
+            if isinstance(params.get('units'), list):
+                src_cols = list(self.columns)
+                available = list(range(len(src_cols)))
+                subset_units = []
+                units_list = params['units']
+                for col in result.columns:
+                    for pos in available:
+                        if src_cols[pos] == col:
+                            subset_units.append(
+                                units_list[pos] if pos < len(units_list) else None)
+                            available.remove(pos)
+                            break
+                    else:
+                        subset_units.append(None)
+                params['units'] = subset_units
+            result = SimDataFrame(data=result, **params)
         elif type(result) is Series:
             if len(self.get_units()) > 0:
                 if result.name is None or result.name not in self.get_units():
@@ -2018,11 +2039,16 @@ class SimDataFrame(SimBasics, DataFrame):
             return self.columns  # there are not units, return column names as they are
         if len(self.columns) == 0:
             return self.columns  # is an empty DataFrame
-        for col in self.columns:
-            if col in units:
-                out.append((col, units[col]))  # out[col] = units[col]
-            else:
-                out.append((col, None))  # out[col] = None
+        if isinstance(units, list):
+            # Duplicate column names → units stored positionally
+            for col, unit in zip(self.columns, units):
+                out.append((col, unit))
+        else:
+            for col in self.columns:
+                if col in units:
+                    out.append((col, units[col]))  # out[col] = units[col]
+                else:
+                    out.append((col, None))  # out[col] = None
         out = MultiIndex.from_tuples(out)  # out = MultiIndex.from_tuples(out.items())
         return out
 

@@ -179,6 +179,7 @@ def read_summary(smspec_path,
     nums = []
     units_list = []
     nlist = 0
+    nx, ny, nz = 1, 1, 1   # grid dimensions for block-vector decoding
     startdat = None
 
     with open(smspec_path, 'rb') as fh:
@@ -189,6 +190,11 @@ def read_summary(smspec_path,
             kw, count, dtype_tag, data = result
             if kw == 'DIMENS':
                 nlist = int(data[0])
+                # DIMENS = [nlist, NX, NY, NZ, ...]
+                if len(data) >= 4:
+                    nx = max(1, int(data[1]))
+                    ny = max(1, int(data[2]))
+                    nz = max(1, int(data[3]))
             elif kw == 'KEYWORDS':
                 keywords = data[:nlist] if nlist else data
             elif kw == 'WGNAMES':
@@ -213,34 +219,87 @@ def read_summary(smspec_path,
     while len(units_list) < nlist:
         units_list.append('')
 
-    # ----- build column names --------------------------------------------
+    # ----- build column names (None = skip this SMSPEC item) ------------
     sep = nameSeparator if nameSeparator else ':'
-    col_names = []
+    col_names = []   # one entry per SMSPEC item; None means skip
     for i in range(nlist):
         kw = keywords[i]
         wg = wgnames[i]
         num = nums[i]
 
-        # Sentinel value for field-level vectors
-        if wg in (':+:+:+:+', '') or wg.startswith(':+'):
-            wg = 'FIELD'
+        # Build composite name using keyword prefix to determine structure.
+        # In Eclipse SMSPEC the NUMS value means different things:
+        #   F      – field-level, no entity          → bare keyword
+        #   W / G  – well/group seq. number (ignore) → KEYWORD:WGNAME
+        #   C / S  – completion / segment number     → KEYWORD:WGNAME:NUM
+        #   R / A  – region / aquifer number         → KEYWORD:NUM
+        #   B      – linearised grid block index     → KEYWORD:i,j,k
+        kw_prefix = kw[0].upper() if kw else 'X'
+        
+        # Sentinel WGNAME (':+:+:+:+' or empty) on a non-F keyword means
+        # the entry has no real entity name → skip it entirely.
+        is_sentinel = wg.startswith(':+')  # or (not wg and kw_prefix in ('W', 'G'))  # discard empty wgnames only for W and G keywords
 
-        # Build composite name
+        #print(f"DEBUG: kw='{kw}', wg='{wg}', num={num}, kw_prefix={kw_prefix}, is_sentinel={is_sentinel}")
+        
         if kw in ('TIME', 'YEARS', 'DAY', 'MONTH', 'YEAR'):
-            # Time vectors keep bare keyword
+            # Time vectors: bare keyword, no entity
             col_names.append(kw)
-        elif num > 0 and wg == 'FIELD':
-            # Region/block vectors: KEYWORD:NUM
-            col_names.append(f'{kw}{sep}{num}')
-        elif num > 0:
-            # Completion vectors: KEYWORD:WGNAME:NUM
+        elif kw_prefix == 'F':
+            # Field-level vector: bare keyword, no entity appended
+            col_names.append(kw)
+        elif is_sentinel:
+            # Non-F keyword with sentinel WGNAME → no real entity, skip
+            col_names.append(None)
+        elif kw_prefix in ('W', 'G'):
+            if wg:
+                # Well / Group: KEYWORD:WGNAME  (NUMS is just a sequence index)
+                col_names.append(f'{kw}{sep}{wg}')
+            else:
+                # keyword with no WGNAME → no real entity, skip
+                col_names.append(None)
+        elif kw_prefix in ('C', 'S'):
+            if num > 0:
+                # Completion / Segment: KEYWORD:WGNAME:NUM
+                col_names.append(f'{kw}{sep}{wg}{sep}{num}')
+            else:
+                # NUMS=0 means no real entity, skip
+                col_names.append(None)
+        elif kw_prefix in ('R', 'A'):
+            if num > 0:
+                # Region / Aquifer: KEYWORD:NUM
+                col_names.append(f'{kw}{sep}{num}')
+            else:
+                # NUMS=0 means no real entity, skip
+                col_names.append(None)
+        elif kw_prefix == 'B':
+            if num > 0:
+                # Grid block: decode linearised index → i,j,k (1-based)
+                n0 = num - 1
+                bi = (n0 % nx) + 1
+                bj = ((n0 // nx) % ny) + 1
+                bk = (n0 // (nx * ny)) + 1
+                #print(f"DEBUG: Decoding block vector: num={num} → i={bi}, j={bj}, k={bk}")
+                col_names.append(f'{kw}{sep}{bi},{bj},{bk}')
+            else:
+                # NUMS=0 means no real entity, skip
+                col_names.append(None)
+        elif num > 0 and wg:
+            # Generic vector with entity name and qualifier
             col_names.append(f'{kw}{sep}{wg}{sep}{num}')
-        else:
-            # Well/group/field vectors: KEYWORD:WGNAME
+        elif num > 0:
+            col_names.append(f'{kw}{sep}{num}')
+        elif wg:
             col_names.append(f'{kw}{sep}{wg}')
+        else:
+            col_names.append(f'{kw}')
+
+    # Indices of items that should appear in the output DataFrame
+    keep_idx = [i for i, name in enumerate(col_names) if name is not None]
+    kept_names = [col_names[i] for i in keep_idx]
 
     units_dict = {}
-    for name, u in zip(col_names, units_list):
+    for name, u in zip(kept_names, [units_list[i] for i in keep_idx]):
         if u:
             units_dict[name] = u.strip()
 
@@ -262,11 +321,62 @@ def read_summary(smspec_path,
 
     # ----- assemble DataFrame --------------------------------------------
     arr = np.array(rows, dtype=np.float64)
-    df = pd.DataFrame(arr, columns=col_names)
+    # Select only the kept columns (skip sentinel / null entries)
+    arr = arr[:, keep_idx]
+    df = pd.DataFrame(arr, columns=kept_names)
 
-    # Promote TIME or YEARS to index if present
+    # ----- drop fully-duplicate columns (same name, same unit, same data) --
+    # Build a fingerprint per column position and keep only the first
+    # occurrence of each (name, unit, data) triple.
+    seen = {}        # fingerprint → first column position kept
+    drop_positions = set()
+    col_list = list(df.columns)
+    for pos, col in enumerate(col_list):
+        unit = units_dict.get(col, None)
+        # Use a tuple of rounded values as a fast data fingerprint;
+        # np.round avoids float noise from different REAL encodings.
+        data_key = tuple(np.round(df.iloc[:, pos].values, decimals=6))
+        fp = (col, unit, data_key)
+        if fp in seen:
+            drop_positions.add(pos)
+        else:
+            seen[fp] = pos
+
+    if drop_positions:
+        keep_positions = [p for p in range(len(col_list)) if p not in drop_positions]
+        df = df.iloc[:, keep_positions]
+        # Re-derive units_dict from the surviving columns
+        surviving_cols = list(df.columns)
+        units_dict = {c: units_dict[c] for c in surviving_cols if c in units_dict}
+
+    # ----- compute DATE column from STARTDAT + TIME (days) --------------
+    # STARTDAT layout: [day, month, year] or [day, month, year, hour, min, us]
+    if startdat and len(startdat) >= 3:
+        try:
+            day   = int(startdat[0])
+            month = int(startdat[1])
+            year  = int(startdat[2])
+            hour  = int(startdat[3]) if len(startdat) > 3 else 0
+            minute = int(startdat[4]) if len(startdat) > 4 else 0
+            # startdat[5] is microseconds in Eclipse; convert to seconds
+            second = int(startdat[5]) // 1_000_000 if len(startdat) > 5 else 0
+            start_date = pd.Timestamp(year=year, month=month, day=day,
+                                      hour=hour, minute=minute, second=second)
+            time_col_name = next((c for c in ('TIME', 'YEARS') if c in df.columns), None)
+            if time_col_name is not None:
+                if time_col_name == 'YEARS':
+                    delta_days = (df[time_col_name] * 365.25).round().astype('int64')
+                else:
+                    delta_days = df[time_col_name].round().astype('int64')
+                df.insert(0, 'DATE',
+                          start_date + pd.to_timedelta(delta_days, unit='D'))
+                units_dict['DATE'] = 'datetime'
+        except Exception:
+            pass  # malformed STARTDAT; silently skip DATE column
+
+    # Promote DATE, TIME or YEARS to index if present
     index_units = None
-    for time_col in ('TIME', 'YEARS'):
+    for time_col in ('DATE', 'TIME', 'YEARS'):
         if time_col in df.columns:
             df = df.set_index(time_col)
             index_units = units_dict.pop(time_col, None)
