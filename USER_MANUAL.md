@@ -1,6 +1,6 @@
 # SimPandas — User Manual
 
-**Version 0.90.0 | Python ≥ 3.7 | pandas 1.3 – 2.x**
+**Version 0.90.5 | Python ≥ 3.7 | pandas 1.3 – 2.x**
 
 ---
 
@@ -40,6 +40,11 @@
    - 7.3 [JSON](#73-json)
    - 7.4 [HDF5](#74-hdf5)
    - 7.5 [Eclipse Binary Summary (.SMSPEC / .UNSMRY)](#75-eclipse-binary-summary-smspec--unsmry)
+   - 7.6 [VDB Plot Data (.vdb)](#76-vdb-plot-data-vdb)
+   - 7.7 [Apache Parquet](#77-apache-parquet)
+   - 7.8 [PRODML XML](#78-prodml-xml)
+   - 7.9 [WITSML XML](#79-witsml-xml)
+   - 7.10 [RESQML EPC](#710-resqml-epc)
 8. [Column-Name Conventions](#8-column-name-conventions)
    - 8.1 [Name Separator](#81-name-separator)
    - 8.2 [Intersection Character](#82-intersection-character)
@@ -47,6 +52,9 @@
 9. [Unit Conversion Reference](#9-unit-conversion-reference)
 10. [Full Method Reference](#10-full-method-reference)
 11. [Frequently Asked Questions](#11-frequently-asked-questions)
+12. [Practical Recipes](#12-practical-recipes)
+13. [Troubleshooting](#13-troubleshooting)
+14. [Public API Catalog](#14-public-api-catalog)
 
 ---
 
@@ -894,6 +902,90 @@ write_summary(sdf, 'OUTPUT.SMSPEC',
 
 ---
 
+### 7.6 VDB Plot Data (.vdb)
+
+`read_vdb` reads the NT32 binary plot-data files produced by VIP and Nexus
+reservoir simulators.
+
+```python
+from simpandas import read_vdb
+
+sdf = read_vdb('RUN.vdb')
+# Column names follow VDB variable-description conventions
+# Units are extracted from the variable descriptors
+```
+
+Requires no additional dependencies beyond the standard library.
+
+### 7.7 Apache Parquet
+
+```python
+from simpandas import read_parquet
+from simpandas.writers.parquet import write_parquet
+
+# Write (units stored as Parquet metadata)
+df.to_parquet('output.parquet')
+
+# Read (units restored automatically)
+df2 = read_parquet('output.parquet')
+```
+
+Requires `pyarrow` (`pip install pyarrow`).
+
+### 7.8 PRODML XML
+
+`read_prodml` reads PRODML v1/v2 XML files containing production volumes,
+time series, and well-test data.
+
+```python
+from simpandas import read_prodml
+from simpandas.writers.prodml import write_prodml
+
+sdf = read_prodml('production.xml')
+
+# Write (automatically deduplicates column names before serialisation)
+write_prodml(sdf, 'output.xml')
+# or the instance method
+sdf.to_prodml('output.xml')
+```
+
+### 7.9 WITSML XML
+
+`read_witsml` reads WITSML v1.4.1.1/v2 XML files: log curves, trajectories,
+and mudlogs.
+
+```python
+from simpandas import read_witsml
+from simpandas.writers.witsml import write_witsml
+
+sdf = read_witsml('welllog.xml')
+
+# Write (automatically deduplicates column names before serialisation)
+write_witsml(sdf, 'output.xml')
+# or the instance method
+sdf.to_witsml('output.xml')
+```
+
+### 7.10 RESQML EPC
+
+`read_resqml` reads RESQML v2 EPC packages containing continuous/discrete
+property time series.
+
+```python
+from simpandas import read_resqml
+from simpandas.writers.resqml import write_resqml
+
+sdf = read_resqml('model.epc')
+
+write_resqml(sdf, 'output.epc')
+# or
+sdf.to_resqml('output.epc')
+```
+
+Requires `h5py` (`pip install h5py`).
+
+---
+
 ## 8. Column-Name Conventions
 
 SimPandas is designed to work with Eclipse-style reservoir-simulator column
@@ -950,6 +1042,21 @@ The character between the two mnemonics is the `intersection_character`
 df.rename_left(mapping)    # rename the left-hand part of each column
 df.rename_right(mapping)   # rename the right-hand part
 ```
+
+Deduplication helper (in `simpandas.common.renamer`):
+
+```python
+from simpandas.common.renamer import deduplicate_column_names
+
+# Returns a new list with duplicates suffixed _1, _2 …
+new_names = deduplicate_column_names(['BHP', 'GOR', 'BHP', 'BHP'])
+# ['BHP', 'GOR', 'BHP_1', 'BHP_2']
+```
+
+The instance method `SimDataFrame.deduplicate_columns(inplace=False)` calls
+this helper and logs a `WARNING` for each renamed column.  Writers that use
+dict-based serialisation (JSON, PRODML, WITSML) invoke it automatically before
+writing.
 
 ---
 
@@ -1124,6 +1231,7 @@ pivot(...)              pivot_table(...)    melt(...)
 explode(column, ...)
 query(expr, ...)        eval(expr, ...)
 iterrows()              itertuples()
+deduplicate_columns(inplace=False)
 ```
 
 ### SimSeries-specific
@@ -1206,3 +1314,157 @@ write_schedule(df, 'schedule.inc', ...)
 **Q: My `sort_values()` dropped units.**
 
 A: Upgrade to v0.84.0+ where `sort_values` is overridden to use `_rewrap`.
+
+---
+
+## 12. Practical Recipes
+
+### 12.1 Align Two Datasets and Merge
+
+```python
+from simpandas.common.merger import merge
+
+merged = merge(sdf_a, sdf_b, how='outer', left_index=True, right_index=True)
+```
+
+### 12.2 Reshape Wide to Long
+
+```python
+from simpandas.common.shape import melt
+
+long_df = melt(sdf)
+```
+
+### 12.3 Normalise a Numeric Vector
+
+```python
+from simpandas.common.math import znorm
+
+z = znorm([1.0, 2.0, 3.0, 4.0])
+```
+
+### 12.4 Handle Duplicate Column Names
+
+```python
+# Explicit deduplication before dict-based I/O
+clean = df.deduplicate_columns()       # returns a copy
+df.deduplicate_columns(inplace=True)   # modifies in-place
+
+# JSON, PRODML, and WITSML writers call this automatically
+df.to_json('output.json')   # duplicate columns renamed silently + logged
+```
+
+### 12.5 Working with ColumnUnits
+
+```python
+# ColumnUnits is the type returned by .units
+cu = sdf.units                  # ColumnUnits({'rate': 'bbl/d', 'pressure': 'psi'})
+cu.to_dict()                    # {'rate': 'bbl/d', 'pressure': 'psi'}
+cu.to_list()                    # ['bbl/d', 'psi']  — positionally safe
+
+# Pass units as ColumnUnits to constructor
+sdf2 = SimDataFrame(data, units=cu)
+```
+
+---
+
+## 13. Troubleshooting
+
+**Units mismatch in arithmetic**
+
+Ensure both operands use convertible units (`unyts` conversion support
+required).  Check with:
+
+```python
+from unyts.converter import convertible
+convertible('psi', 'bar')   # True
+convertible('m', 'kg')      # False — not convertible
+```
+
+**Missing metadata after external pandas operations**
+
+Prefer SimPandas wrappers (`to_simdataframe`, `to_simseries`) after raw
+pandas operations.  Built-in wrappers already exist for `resample`,
+`pct_change`, `align`, `compare`, and `combine_first`.  For uncovered methods:
+
+```python
+result = SimDataFrame(df.some_pandas_method(), **df.params_)
+```
+
+**Excel units not detected**
+
+Pass the correct `units` row index and verify the sheet layout:
+
+```python
+sdf = read_excel('data.xlsx', units=1)   # row 1 (0-based) contains units
+```
+
+**Duplicate column names lose unit fidelity in JSON / PRODML / WITSML**
+
+These writers serialise units as a `{column_name: unit}` dict, so duplicate
+keys overwrite each other.  Call `deduplicate_columns()` before writing, or
+rely on the automatic deduplication built into those writers (they log a
+`WARNING` for each renamed column).
+
+**`read_parquet` / `read_resqml` / `to_hdf5` fails with `ModuleNotFoundError`**
+
+Install the required backend:
+
+```
+pip install pyarrow   # for Parquet
+pip install h5py      # for HDF5 and RESQML
+```
+
+---
+
+## 14. Public API Catalog
+
+### Top-level package (`simpandas`)
+
+| Symbol | Kind | Description |
+|---|---|---|
+| `SimDataFrame` | class | Unit-aware pandas DataFrame subclass |
+| `SimSeries` | class | Unit-aware pandas Series subclass |
+| `SimIndex` | class | MultiIndex subclass with units (from `simpandas.index`) |
+| `ColumnUnits` | class | Ordered unit mapping (from `simpandas.common.units`) |
+| `read_excel` | function | Read Excel with unit extraction |
+| `read_csv` | function | Read CSV with unit extraction |
+| `read_json` | function | Read SimPandas JSON envelope |
+| `read_hdf5` | function | Read HDF5 with unit metadata |
+| `read_summary` | function | Read Eclipse binary summary |
+| `read_vdb` | function | Read VIP/Nexus VDB plot data |
+| `read_parquet` | function | Read Parquet with unit metadata |
+| `read_prodml` | function | Read PRODML XML |
+| `read_witsml` | function | Read WITSML XML |
+| `read_resqml` | function | Read RESQML EPC package |
+| `concat` | function | Concatenate Sim objects preserving unit metadata |
+
+### Writers (`simpandas.writers`)
+
+| Module | Function | Description |
+|---|---|---|
+| `xlsx` | `write_excel` | Write SimDataFrame to Excel |
+| `csv` | `write_csv` | Write to CSV with units row |
+| `json` | `write_json` | Write to JSON envelope |
+| `h5` | `write_hdf5` | Write to HDF5 with units |
+| `summary` | `write_summary` | Write Eclipse binary summary |
+| `parquet` | `write_parquet` | Write to Parquet with units metadata |
+| `prodml` | `write_prodml` | Write to PRODML XML |
+| `witsml` | `write_witsml` | Write to WITSML XML |
+| `resqml` | `write_resqml` | Write to RESQML EPC |
+| `schedule` | `write_schedule` | Write production-schedule files |
+
+### Common utilities (`simpandas.common`)
+
+| Module | Key functions |
+|---|---|
+| `merger` | `concat`, `merge`, `merge_index`, `merge_units`, `merge_SimParameters` |
+| `shape` | `melt`, `pivot` |
+| `renamer` | `right`, `left`, `rename_right`, `rename_left`, `common_rename`, `deduplicate_column_names` |
+| `stringformat` | `multisplit`, `is_numeric`, `get_number`, `is_date`, `splitDMMMY`, `date` |
+| `daterelated` | `check_day`, `check_month`, `days_in_year`, `days_in_month`, `real_year` |
+| `math` | `jitter`, `znorm`, `minmaxnorm` |
+| `filters` | `zeros`, `key_to_string` |
+| `helpers` | `clean_axis`, `string_new_name`, `type_of_frame`, `main_key`, `item_key`, `hashable`, `make_units_dict` |
+| `slope` | `slope` |
+| `units` | `ColumnUnits` |
