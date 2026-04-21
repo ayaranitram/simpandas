@@ -168,6 +168,10 @@ class ColumnUnits(collections.abc.Mapping):
         import pandas as pd
         return pd.Series(data=self._values, index=self._names, name='units')
 
+    def copy(self) -> 'ColumnUnits':
+        """Return a shallow copy of this :class:`ColumnUnits`."""
+        return ColumnUnits(list(self._names), list(self._values))
+
     # ------------------------------------------------------------------
     # Equality / repr
     # ------------------------------------------------------------------
