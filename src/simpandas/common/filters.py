@@ -9,6 +9,8 @@ __version__ = '0.81.0'
 __release__ = 20230108
 __all__ = ['zeros']
 
+from .helpers import clean_axis as _clean_axis
+
 
 def zeros(series_or_frame, axis=None, value=0):
     """
@@ -29,10 +31,10 @@ def zeros(series_or_frame, axis=None, value=0):
         if hasattr(series_or_frame, 'columns'):
             axis = 1 if axis is None and len(series_or_frame.columns) == 1 else 0
         else:
-            axis = 1
+            axis = 0  # Series only has axis 0
     axis = _clean_axis(axis)
     if axis == 2:
-        return zeros(axis=0, value=value) + zero(axis=1, value=value)
+        return zeros(series_or_frame, axis=0, value=value) + zeros(series_or_frame, axis=1, value=value)
     if hasattr(series_or_frame, 'columns'):
         limit = len(series_or_frame) if axis == 0 else len(series_or_frame.columns)
     else:
@@ -40,7 +42,37 @@ def zeros(series_or_frame, axis=None, value=0):
     return (series_or_frame == value).sum(axis=axis) == limit
 
 
-def key_to_string(filter_str, key, pandas_agg):
+def key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=None, conditions=''):
+    """Internal helper converting a filter key to a string expression.
+
+    This function is used by the filtering machinery in SimDataFrame to parse
+    key tokens and rewrite them into valid pandas/numpy operations.  It
+    handles special operators, aggregation suffixes, and column patterns.
+
+    Parameters
+    ----------
+    filter_str : str
+        Accumulating filter string under construction.
+    key : str
+        Next token to process.
+    pandas_agg : str
+        Current pandas aggregation expression (e.g. 'any', 'all').
+    special_operation : list
+        List of special pandas operations (e.g. '.notnull', '.isnull').
+    numpy_operation : list
+        List of numpy operations (e.g. '.sqrt', '.log10').
+    pandas_aggregation : list
+        List of pandas aggregation operations (e.g. '.any', '.all').
+    caller : SimDataFrame or SimSeries, optional
+        The calling instance, used for column lookup.
+    conditions : str, optional
+        The original conditions string, used in error messages.
+
+    Returns
+    -------
+    tuple
+        Updated (filter_str, key, pandas_agg).
+    """
     if len(key) > 0:
         # catch particular operations performed by Pandas
         found_so, found_no = '', ''
@@ -78,16 +110,16 @@ def key_to_string(filter_str, key, pandas_agg):
             filter_str = filter_str.rstrip()
             filter_str += ' self.as_pandas().index'
         # if key is a column
-        elif key in self.columns:
+        elif caller is not None and hasattr(caller, 'columns') and key in caller.columns:
             filter_str = filter_str.rstrip()
             filter_str += " self.as_pandas()['" + key + "']"
         # key might be a wellname, attribute or a pattern
-        elif len(self.find_Keys(key)) == 1:
+        elif caller is not None and hasattr(caller, 'find_Keys') and len(caller.find_Keys(key)) == 1:
             filter_str = filter_str.rstrip()
-            filter_str += " self.as_pandas()['" + self.find_Keys(key)[0] + "']"
-        elif len(self.find_Keys(key)) > 1:
+            filter_str += " self.as_pandas()['" + caller.find_Keys(key)[0] + "']"
+        elif caller is not None and hasattr(caller, 'find_Keys') and len(caller.find_Keys(key)) > 1:
             filter_str = filter_str.rstrip()
-            filter_str += " self.as_pandas()[" + str(list(self.find_Keys(key))) + "]"
+            filter_str += " self.as_pandas()[" + str(list(caller.find_Keys(key))) + "]"
             pandas_agg = '.any(axis=1)'
         else:
             filter_str += ' ' + key

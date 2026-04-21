@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simpandas"
-version = "0.83.22"
+version = "0.90.5"
 authors = [
   { name="Martin Carlos Araya", email="martinaraya@gmail.com" },
 ]
-description = "a couple of Pandas DataFrame and Series subclasses with extentions to work with units and to deal with column names in eclipse simulator output style."
+description = "a couple of Pandas DataFrame and Series subclasses with extensions to work with units and to deal with column names in eclipse simulator output style."
 readme = "README.md"
 license = { file="LICENSE" }
 requires-python = ">=3.7"
@@ -19,14 +19,48 @@ classifiers = [
 ]
 dependencies = [
     'numpy',
-    'pandas',
+    'pandas >= 1.3.0, < 3.0.0',
     'matplotlib',
     'seaborn',
-    'datetime',
-    'unyts >= 0.5.25',
+    'packaging',
+    'unyts >= 1.0.0',
     'openpyxl',
     'xlsxwriter',
 ]
 [project.urls]
 "Homepage" = "https://github.com/ayaranitram/simpandas"
 "Bug Tracker" = "https://github.com/ayaranitram/simpandas/issues"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = [
+    "test",
+]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["src/simpandas"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

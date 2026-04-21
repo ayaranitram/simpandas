@@ -93,7 +93,7 @@ def read_excel(io,
 
         if type(units) is list:
             if len(units) == len(df.columns):
-                dataunits = {df.columns[i]:units[i] for i in len(units)}
+                dataunits = {df.columns[i]:units[i] for i in range(len(units))}
             else:
                 raise ValueError("if 'units' is a list, it must be same length as the columns of the dataframe")
         elif type(units) is str:
@@ -150,7 +150,7 @@ def read_excel(io,
                 if df.name is not None:
                     dataunits = {df.name:'date'}
         if str(df.index.dtype).startswith('date'):
-            if str(indexUnits).lowrt().strip() not in dateunits:
+            if str(indexUnits).lower().strip() not in dateunits:
                 indexUnits = 'date'
 
         output[name] = SimDataFrame(data=df,

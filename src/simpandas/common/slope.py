@@ -57,7 +57,7 @@ def slope(df, x=None, y=None, window=None, slope=True, intercept=False):
     #         return _deltaDate(data)
     #     if 'datetime'
 
-    warnings.simplefilter('ignore', np.RankWarning)
+    warnings.simplefilter('ignore', np.exceptions.RankWarning if hasattr(np, 'exceptions') else np.RankWarning)
 
     # understanding input paramenters
     df = df.squeeze()
@@ -133,6 +133,8 @@ def slope(df, x=None, y=None, window=None, slope=True, intercept=False):
                 else:
                     yy = dfs.to_numpy()
                 del dfs
+            else:
+                yy = df[y].to_numpy()
 
 
         if slope and intercept:
@@ -208,7 +210,7 @@ def slope(df, x=None, y=None, window=None, slope=True, intercept=False):
 
     polys = np.array([np.polyfit(xx[ii], yy[ii], 1, full=False) for ii in range(len(xx))])
 
-    warnings.simplefilter('default', np.RankWarning)
+    warnings.simplefilter('default', np.exceptions.RankWarning if hasattr(np, 'exceptions') else np.RankWarning)
 
     if slope and intercept:
         return polys

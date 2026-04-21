@@ -9,11 +9,23 @@ __version__ = '0.80.2'
 __release__ = 20230214
 
 import datetime as dt
-from pandas import Timestamp, DatetimeIndex, Series, to_datetime
+from pandas import Timestamp, DatetimeIndex, Series, to_datetime as _to_datetime, NaT
 import numpy as np
 
 
 def check_day(day):
+    """Perform the `check_day` operation.
+
+    Parameters
+    ----------
+    day : object, optional
+        Input for `day`.
+
+    Returns
+    -------
+    object
+        Result of the operation.
+    """
     if day is None:
         day = '01'
     elif type(day) in [int, float]:
@@ -36,6 +48,18 @@ def check_day(day):
 
 
 def check_month(month):
+    """Perform the `check_month` operation.
+
+    Parameters
+    ----------
+    month : object, optional
+        Input for `month`.
+
+    Returns
+    -------
+    object
+        Result of the operation.
+    """
     months_names = {'JAN': 1, 'ENE': 1, 'GEN': 1,
                     'FEB': 2,
                     'MAR': 3,
@@ -71,6 +95,55 @@ def check_month(month):
             "`month` parameter must be an integer or the string representing a month, or 'first' or 'last'")
     month = '-' + month.zfill(2)
     return month
+
+
+def is_date_string(value):
+    """Return True if the input is a valid date string.
+
+    Parameters
+    ----------
+    value : str
+        Input expected to represent a date.
+
+    Returns
+    -------
+    bool
+        True if value is parseable by pandas.to_datetime, False otherwise.
+    """
+    if not isinstance(value, str):
+        return False
+
+    try:
+        parsed = _to_datetime(value, errors='raise')
+        return not parsed.isnull() if hasattr(parsed, 'isnull') else True
+    except Exception:
+        return False
+
+
+def to_datetime(value, errors='coerce'):
+    """Convert a value to datetime using pandas.to_datetime.
+
+    Parameters
+    ----------
+    value : object
+        Input expected to represent a date or datetime.
+    errors : {'ignore', 'raise', 'coerce'}, default 'coerce'
+        How to handle errors in conversion. Passed to pandas.to_datetime.
+
+    Returns
+    -------
+    datetime or NaT
+        The converted datetime, or NaT if conversion fails and errors='coerce'.
+    """
+    try:
+        return _to_datetime(value, errors=errors)
+    except Exception:
+        if errors == 'raise':
+            raise
+        elif errors == 'ignore':
+            return value
+        else:  # errors == 'coerce'
+            return NaT
 
 
 def days_in_year(year):

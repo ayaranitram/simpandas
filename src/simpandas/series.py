@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.83.23'
-__release__ = 20230726
+__version__ = '0.84.0'
+__release__ = 20260303
 __all__ = ['SimSeries']
 
 import logging
@@ -19,18 +19,12 @@ from pandas._config import get_option
 import fnmatch
 import warnings
 
-from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
-from unyts.operations import unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, \
-    unit_power as _unit_power, unit_addition as _unit_addition, unit_base_power as _unit_base_power
-from unyts.units.unitless import unitless_names as _unitless_names
-from unyts.dictionaries import unitless_names as _unitless_names
-from unyts.helpers.common_classes import number
-from unyts import units, is_Unit, Unit
+from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter, unit_product as _unit_product, unit_division as _unit_division, unit_base as _unit_base, unit_power as _unit_power, unit_addition as _unit_addition, unit_base_power as _unit_base_power, unitless_names as _unitless_names, number, units, is_Unit, Unit
 
 from .basics import SimBasics
 from .common.helpers import clean_axis as _clean_axis, string_new_name as _string_new_name
-from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.slope import slope as _slope
+from .common.daterelated import is_date_string, to_datetime
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
 
@@ -96,7 +90,7 @@ class SimSeries(SimBasics, Series):
                  'intersection_character',
                  'spdLocator',
                  'spdiLocator',
-                 'columns',
+                 #'columns',
                  'meta',
                  'source_path',
                  '_auto_append_',
@@ -127,20 +121,21 @@ class SimSeries(SimBasics, Series):
                  return_singles=None,
                  *args, **kwargs):
 
-        self.units = {}
-        self.verbose = bool(verbose)
-        self.index_units_ = None
-        self.name_separator = None
-        self.intersection_character = intersection_character if type(intersection_character) is str else '&'
-        self.spdLocator = _SimLocIndexer("loc", self)
-        self.spdiLocator = _iSimLocIndexer("iloc", self)
-        self.meta = meta
-        self.source_path = source_path
-        self._auto_append_ = bool(auto_append)
-        self._operate_per_name_ = bool(operate_per_name)
-        self._transposed_ = bool(transposed)
-        self._reverse_ = kwargs['reverse'] if 'reverse' in kwargs else False
-        self._return_singles_ = True if return_singles is None else bool(return_singles)
+        # Initialize attributes needed by units property FIRST using object.__setattr__ to bypass pandas
+        object.__setattr__(self, '_transposed_', bool(transposed))
+        object.__setattr__(self, '_units_', {})
+        object.__setattr__(self, 'verbose', bool(verbose))
+        object.__setattr__(self, 'index_units_', None)
+        object.__setattr__(self, 'name_separator', None)
+        object.__setattr__(self, 'intersection_character', intersection_character if type(intersection_character) is str else '&')
+        object.__setattr__(self, 'spdLocator', _SimLocIndexer("loc", self))
+        object.__setattr__(self, 'spdiLocator', _iSimLocIndexer("iloc", self))
+        object.__setattr__(self, 'meta', meta)
+        object.__setattr__(self, 'source_path', source_path)
+        object.__setattr__(self, '_auto_append_', bool(auto_append))
+        object.__setattr__(self, '_operate_per_name_', bool(operate_per_name))
+        object.__setattr__(self, '_reverse_', kwargs['reverse'] if 'reverse' in kwargs else False)
+        object.__setattr__(self, '_return_singles_', True if return_singles is None else bool(return_singles))
 
         # data validaton
         if isinstance(data, DataFrame) and len(data.columns) > 1:
@@ -182,7 +177,7 @@ class SimSeries(SimBasics, Series):
             if type(units) is dict and len(units) == 1:
                 self.name = list(units.keys())[0]
 
-        self.columns = Index([self.name]) if columns is None else columns
+        #self.columns = Index([self.name]) if columns is None else columns
 
         # set units
         if units is not None:
@@ -202,7 +197,7 @@ class SimSeries(SimBasics, Series):
         # override index.name with index_name
         if index_name is not None:
             if type(self.units) is dict and self.index.name in self.units:
-                self.units[index_name] = self.units[self.index.name]
+                self._units_[index_name] = self.units[self.index.name]
             self.index.name = index_name
 
         # change Index to SimIndex
@@ -220,6 +215,55 @@ class SimSeries(SimBasics, Series):
     def _constructor_expanddim(self):
         from simpandas.frame import SimDataFrame
         return SimDataFrame
+
+    @property
+    def columns(self):
+        return Index([self.name])
+    @columns.setter
+    def columns(self, columns):
+        if type(columns) is str:
+            if columns == self.name:
+                return
+            else:
+                self.rename(columns, inplace=True)
+        elif hasattr(columns, '__iter__'):
+            if len(columns) == 1:
+                self.rename(columns[0], inplace=True)
+            else:
+                raise ValueError(f"SimSeries can only take one column name, {len(columns)} items were received.")
+        else:
+            self.rename(columns, inplace=True)
+
+    @property
+    def units(self):
+        """Return units as str, dict, or None (SimSeries backward-compatible behavior).
+
+        SimSeries stores units as a plain string or dict internally.  Returning
+        a ColumnUnits here would break the many type(self.units) is str/dict
+        checks used throughout series arithmetic and conversion logic.
+        """
+        if not hasattr(self, '_units_'):
+            object.__setattr__(self, '_units_', {})
+        raw = self._units_
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            return raw
+        if isinstance(raw, dict):
+            return raw
+        # list (rare for series — positional units)
+        if isinstance(raw, list):
+            labels = list(self.columns)
+            if len(raw) < len(labels):
+                raw = list(raw) + [None] * (len(labels) - len(raw))
+            elif len(raw) > len(labels):
+                raw = raw[:len(labels)]
+            return dict(zip(labels, raw))
+        return {}
+
+    @units.setter
+    def units(self, units) -> None:
+        self.set_units(units)
 
     def to_pandas(self):
         return self.to_series()
@@ -272,12 +316,15 @@ class SimSeries(SimBasics, Series):
 
     def __getitem__(self, key=None):
         from .frame import SimDataFrame
-        if not hasattr(self.index, 'units'):
-            self.index = SimIndex(self.index, units=self.index_units)
+        # Use getattr to avoid converting self.index to SimIndex, which breaks
+        # regular Index-based access (e.g. index=['a'] after aggregation)
+        index_name = getattr(self.index, 'name', None)
+        index_units = getattr(self.index, 'units', self.index_units)
+
         def index_params_():
             params_ = self.params_
-            params_['name'] = self.index.name
-            params_['units'] = self.index.units
+            params_['name'] = index_name
+            params_['units'] = index_units
             params_['index_name'] = None
             params_['index_units'] = None
             return params_
@@ -286,18 +333,20 @@ class SimSeries(SimBasics, Series):
             return self
         elif type(key) is str and key not in self.index and key == self.name:
             return self
-        elif type(key) is str and key == self.index.name:
+        elif type(key) is str and index_name is not None and key == index_name:
             params_ = index_params_()
             return SimSeries(data=self.index.to_numpy(),
                              index=range(len(self.index)),
                              **params_)
         elif type(key) is list and key in [[], [self.name]]:
             return self.as_simdataframe()
-        elif type(key) is list and key == [self.index.name]:
+        elif type(key) is list and index_name is not None and key == [index_name]:
             params_ = index_params_()
-            return SimDataFrame(data={self.index.name: self.index.to_numpy()},
+            return SimDataFrame(data={index_name: self.index.to_numpy()},
                                 index=range(len(self.index)),
                                 **params_)
+        elif isinstance(key, str) and 'date' in self.index.dtype.name and is_date_string(key) and to_datetime(key, errors='coerce') in self.index:
+            result = self.loc[to_datetime(key)]
         else:
             try:
                 result = self.loc[key]
@@ -582,17 +631,50 @@ class SimSeries(SimBasics, Series):
             return operation(self.as_pandas().round(precision), other.as_pandas().round(precision),
                              level=level, fill_value=fill_value, axis=axis)
 
+    def rolling(self, *args, **kwargs):
+        """Return a rolling window proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimWindowProxy
+        return _SimWindowProxy(super().rolling(*args, **kwargs), self)
+
+    def expanding(self, *args, **kwargs):
+        """Return an expanding window proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimWindowProxy
+        return _SimWindowProxy(super().expanding(*args, **kwargs), self)
+
+    def ewm(self, *args, **kwargs):
+        """Return an EWM window proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimWindowProxy
+        return _SimWindowProxy(super().ewm(*args, **kwargs), self)
+
+    def groupby(self, *args, **kwargs):
+        """Return a GroupBy proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimGroupBy
+        return _SimGroupBy(super().groupby(*args, **kwargs), self)
+
+    def resample(self, *args, **kwargs):
+        """Return a Resample proxy that preserves SimPandas metadata on outputs."""
+        from .frame import _SimResampleProxy
+        return _SimResampleProxy(super().resample(*args, **kwargs), self)
+
+    def between(self, left, right, inclusive='both'):
+        """Return boolean SimSeries indicating whether each element is between left and right."""
+        return self._rewrap(self.as_series().between(left, right, inclusive=inclusive))
+
+    def unique(self):
+        """Return unique values as a numpy array."""
+        return self.as_pandas().unique()
+
     def astype(self, dtype, copy=True, errors='raise'):
         params_ = self.params_
         params_['dtype'] = dtype
         return self._class(data=self.as_pandas().astype(dtype), **params_)
 
-    def copy(self):
+    def copy(self, deep=True):
         if type(self.units) is dict:
             params_ = self.params_
             params_['units'] = self.units.copy()
-            return SimSeries(data=self.as_pandas().copy(True), **params_)
-        return SimSeries(data=self.as_pandas().copy(True), **self.params_)
+            return SimSeries(data=self.as_pandas().copy(deep), **params_)
+        return SimSeries(data=self.as_pandas().copy(deep), **self.params_)
 
     def convert(self, units):
         """
@@ -628,10 +710,10 @@ class SimSeries(SimBasics, Series):
         axis = _clean_axis(axis)
         if inplace:
             super().drop(labels=labels, axis=axis, index=index, columns=columns,
-                         level=level, inplace=inplace, errors='errors')
+                         level=level, inplace=inplace, errors=errors)
         else:
             return SimSeries(data=self.as_pandas().drop(labels=labels, axis=axis, index=index, columns=columns,
-                                                        level=level, inplace=inplace, errors='errors'),
+                                                        level=level, inplace=inplace, errors=errors),
                              **self.params_)
 
     def dropna(self, axis=0, inplace=False, how=None):
@@ -752,7 +834,7 @@ class SimSeries(SimBasics, Series):
 
             # catch logital operators
             if conditions[i] in ['&', "|", '~']:
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' )' + pandas_agg + ' ' + conditions[i] + '('
                 pandas_agg = ''
@@ -773,13 +855,13 @@ class SimSeries(SimBasics, Series):
                         raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
-                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                    filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                     i = f + 1
                     continue
 
             # pass blank spaces
             if conditions[i] == ' ':
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 if len(filter_str) > 0 and filter_str[-1] != ' ':
                     filter_str += ' '
                 i += 1
@@ -787,7 +869,7 @@ class SimSeries(SimBasics, Series):
 
             # pass parenthesis
             if conditions[i] in ['(', ')']:
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str += conditions[i]
                 i += 1
                 continue
@@ -805,7 +887,9 @@ class SimSeries(SimBasics, Series):
                     cond = cond[::-1]
                 elif cond in ['><', '<>']:
                     cond = '!='
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                if key == '':
+                    key = 'self.as_series().index'
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' ' + cond
                 i += len(cond)
@@ -819,7 +903,7 @@ class SimSeries(SimBasics, Series):
                     f += 1
                 oper = conditions[i:f]
                 oper = oper.replace('^', '**')
-                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg)
+                filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
                 filter_str = filter_str.rstrip()
                 filter_str += ' ' + oper
                 i += len(oper)
@@ -835,9 +919,9 @@ class SimSeries(SimBasics, Series):
         filter_str = filter_str.strip()
         # check missing key, means .index by default
         if filter_str[0] in ['=', '>', '<', '!']:
-            filter_str = 'self.as_Series().index ' + filter_str
+            filter_str = 'self.as_series().index ' + filter_str
         elif filter_str[-1] in ['=', '>', '<', '!']:
-            filter_str = filter_str + ' self.as_Series().index'
+            filter_str = filter_str + ' self.as_series().index'
         # close last parethesis and aggregation
         filter_str += ' )' * bool(and_or_not + bool(pandas_agg)) + pandas_agg
         # open parenthesis for aggregation, if needed
@@ -852,7 +936,8 @@ class SimSeries(SimBasics, Series):
         if return_filter:
             ret_tuple += [filter_array]
         if return_frame:
-            ret_tuple += [self.as_pandas()[filter_array]]
+            filtered = self.as_pandas()[filter_array]
+            ret_tuple += [self._rewrap(filtered)]
 
         if len(ret_tuple) == 1:
             return ret_tuple[0]
@@ -932,9 +1017,6 @@ class SimSeries(SimBasics, Series):
         else:
             return list(fnmatch.filter(keys, pattern))
 
-    def get_Units(self, items=None):
-        return self.get_units()
-
     def get_units(self, items=None):
         """
         returns the units for the selected 'items' or for all the columns in the SimDataFrame.
@@ -966,9 +1048,9 @@ class SimSeries(SimBasics, Series):
                 self.index_name = '_index_'
             elif '_index_' not in units_dict:
                 self.index_name = '_index_'
-                units_dict['_index_'] == self.index_units
+                units_dict['_index_'] = self.index_units
             else:
-                logging.warn("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
+                logging.warning("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
         elif self.index_name not in units_dict:
             units_dict[self.index_name] = self.index_units
         elif self.index_units != units_dict[self.index_name]:
@@ -1005,18 +1087,30 @@ class SimSeries(SimBasics, Series):
         if item is not None and type(item) in (str, int, float) and item not in self.columns and item not in self.index:
             raise ValueError("the required item '" + str(item) + "' is not in this SimSeries")
 
+        # Handle ColumnUnits: extract the unit for this series' name, or take first
+        from .common.units import ColumnUnits
+        if isinstance(units, ColumnUnits):
+            if self.name is not None and self.name in units:
+                units = units[self.name]
+            elif len(units) > 0:
+                units = units.to_list()[0]
+            else:
+                units = None
+
         if self.units is None or type(self.units) is str:
             if units is None:
-                self.units = None
+                object.__setattr__(self, '_units_', None)
+                return
             elif type(units) is str:
-                self.units = units.strip()
+                object.__setattr__(self, '_units_', units.strip())
+                return
             elif type(units) is dict:
                 old_units = self.units
                 try:
-                    self.units = {}
+                    object.__setattr__(self, '_units_', {})
                     return self.set_units(units)
                 except:
-                    self.units = old_units
+                    object.__setattr__(self, '_units_', old_units)
                     raise ValueError("not able to process dictionary of units.")
             else:
                 raise TypeError("units must be a string.")
@@ -1044,38 +1138,45 @@ class SimSeries(SimBasics, Series):
                         pass
             elif type(units) is str:
                 if item is None:
-                    self.units = units.strip()
+                    object.__setattr__(self, '_units_', units.strip())
+                    return
                 else:
                     if type(item) not in (str, dict) and hasattr(item, '__iter__'):
                         units = units.strip()
                         for i in item:
-                            if i in self.units:
-                                self.units[i] = units
+                            if i in self._units_:
+                                self._units_[i] = units
                     elif type(item) is str:
-                        if item in self.units:
-                            self.units[item] = units
+                        if item in self._units_:
+                            self._units_[item] = units
                         elif item in self.columns or item in self.index:
-                            self.units[item] = units
+                            self._units_[item] = units
 
             if item is None and len(self.columns) > 1:
                 raise ValueError("More than one column in this SimSeries, item must not be None")
             elif item is None and type(units) is str and len(self.columns) == 1:
-                return self.set_units(units, list(self.columns)[0])
+                # assign directly to the sole column instead of recursing
+                col = list(self.columns)[0]
+                if units is None:
+                    self._units_[col] = None
+                else:
+                    self._units_[col] = units.strip()
+                return
             elif item is not None:
                 if item in self.columns:
                     if units is None:
-                        self.units[item] = None
+                        self._units_[item] = None
                     elif type(units) is str:
-                        self.units[item] = units.strip()
+                        self._units_[item] = units.strip()
                     else:
                         raise TypeError("units must be a string.")
                 if item == self.index.name:
                     self.index_units = units.strip()
-                    self.units[item] = units.strip()
+                    self._units_[item] = units.strip()
                 elif item in self.index.names:
-                    self.units[item] = units.strip()
+                    self._units_[item] = units.strip()
                 elif item in self.index:
-                    self.units[item] = units.strip()
+                    self._units_[item] = units.strip()
 
     def daily(self, agg='mean', datetime_index=False):
         """
@@ -1200,14 +1301,14 @@ class SimSeries(SimBasics, Series):
             for i in range(len(col_before)):
                 new_units[col_after[i]] = self.units[col_before[i]]
             if inplace:
-                self.units = new_units
+                object.__setattr__(self, '_units_', new_units)
                 self.spdLocator = _SimLocIndexer("loc", self)
                 return None
             else:
                 catch.units = new_units
                 catch.spdLocator = _SimLocIndexer("loc", catch)
                 return catch
-        elif type(index) is str:
+        elif type(index) in (str, int, float):
             if inplace:
                 self.name = index.strip()
                 self.spdLocator = _SimLocIndexer("loc", self)
@@ -1217,6 +1318,8 @@ class SimSeries(SimBasics, Series):
                 catch.name = index
                 catch.spdLocator = _SimLocIndexer("loc", catch)
                 return catch
+        else:
+            return self
 
     def set_index(self, name):
         self.set_index_name(name)
@@ -1224,8 +1327,7 @@ class SimSeries(SimBasics, Series):
     def get_index_units(self):
         if not isinstance(self.index, SimIndex) and type(self.index_units_) in [dict, str]:
             self.index = SimIndex(self.index, units=self.index_units_)
-        elif isinstance(self.index, SimIndex) and (
-                type(self.index.units) is str and len(self.index.units) > 0
+        elif isinstance(self.index, SimIndex) and (type(self.index.units) is str and len(self.index.units) > 0
                 or type(self.index.units) is dict):
             self.index_units_ = self.index.units
         return self.index_units_
@@ -1282,11 +1384,14 @@ class SimSeries(SimBasics, Series):
         if window is None and x is not None and y is None:
             window, x = x, None
         params_ = self.params_
-        if self.name is not None and len(self.get_units(self.name)) == 1 and self.index_units is not None:
+        if self.name is not None and len(str(self.get_units(self.name))) == 1 and self.index_units is not None:
+            unit_val = self.get_units(self.name)
+            if isinstance(unit_val, dict):
+                unit_val = unit_val.get(self.name)
             if type(params_['units']) is dict:
-                params_['units'][self.name] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)
+                params_['units'][self.name] = str(unit_val) + '/' + str(self.index_units)
             else:
-                params_['units'] = str(self.get_units(self.name)[self.name]) + '/' + str(self.index_units)
+                params_['units'] = str(unit_val) + '/' + str(self.index_units)
         params_['name'] = 'slope_of_' + (self.name)
         slope_series= _slope(df=self, x=x, y=y, window=window, slope=slope, intercept=intercept)
         return SimSeries(data=slope_series, index=self.index, **params_)
@@ -1299,7 +1404,7 @@ class SimSeries(SimBasics, Series):
             return None
         else:
             return SimSeries(
-                data=self.as_Series().sort_values(axis=axis, ascending=ascending,
+                data=self.as_series().sort_values(axis=axis, ascending=ascending,
                                                   inplace=inplace, kind=kind,
                                                   na_position=na_position,
                                                   ignore_index=ignore_index,
