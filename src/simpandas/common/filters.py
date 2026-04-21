@@ -42,7 +42,7 @@ def zeros(series_or_frame, axis=None, value=0):
     return (series_or_frame == value).sum(axis=axis) == limit
 
 
-def key_to_string(filter_str, key, pandas_agg):
+def key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=None, conditions=''):
     """Internal helper converting a filter key to a string expression.
 
     This function is used by the filtering machinery in SimDataFrame to parse
@@ -57,6 +57,16 @@ def key_to_string(filter_str, key, pandas_agg):
         Next token to process.
     pandas_agg : str
         Current pandas aggregation expression (e.g. 'any', 'all').
+    special_operation : list
+        List of special pandas operations (e.g. '.notnull', '.isnull').
+    numpy_operation : list
+        List of numpy operations (e.g. '.sqrt', '.log10').
+    pandas_aggregation : list
+        List of pandas aggregation operations (e.g. '.any', '.all').
+    caller : SimDataFrame or SimSeries, optional
+        The calling instance, used for column lookup.
+    conditions : str, optional
+        The original conditions string, used in error messages.
 
     Returns
     -------
@@ -100,16 +110,16 @@ def key_to_string(filter_str, key, pandas_agg):
             filter_str = filter_str.rstrip()
             filter_str += ' self.as_pandas().index'
         # if key is a column
-        elif key in self.columns:
+        elif caller is not None and hasattr(caller, 'columns') and key in caller.columns:
             filter_str = filter_str.rstrip()
             filter_str += " self.as_pandas()['" + key + "']"
         # key might be a wellname, attribute or a pattern
-        elif len(self.find_Keys(key)) == 1:
+        elif caller is not None and hasattr(caller, 'find_Keys') and len(caller.find_Keys(key)) == 1:
             filter_str = filter_str.rstrip()
-            filter_str += " self.as_pandas()['" + self.find_Keys(key)[0] + "']"
-        elif len(self.find_Keys(key)) > 1:
+            filter_str += " self.as_pandas()['" + caller.find_Keys(key)[0] + "']"
+        elif caller is not None and hasattr(caller, 'find_Keys') and len(caller.find_Keys(key)) > 1:
             filter_str = filter_str.rstrip()
-            filter_str += " self.as_pandas()[" + str(list(self.find_Keys(key))) + "]"
+            filter_str += " self.as_pandas()[" + str(list(caller.find_Keys(key))) + "]"
             pandas_agg = '.any(axis=1)'
         else:
             filter_str += ' ' + key

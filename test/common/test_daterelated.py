@@ -76,6 +76,17 @@ def test_check_month():
     assert check_month(12) == '-12'
     assert check_month('1') == '-01'
     assert check_month('12') == '-12'
+
+
+def test_is_date_string():
+    from simpandas.common.daterelated import is_date_string
+
+    assert is_date_string('2100-01-08')
+    assert is_date_string('2022-12-31')
+    assert is_date_string('01/08/2100')
+    assert not is_date_string('2100-13-01')
+    assert not is_date_string('not-a-date')
+    assert not is_date_string(None)
     
     # Month names (if supported)
     try:

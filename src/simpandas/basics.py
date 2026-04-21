@@ -17,10 +17,7 @@ from numpy import array, nan, log as np_log, log2 as np_log2, log10 as np_log10,
 from sys import getsizeof
 from warnings import warn
 
-from unyts import is_Unit
-from unyts.converter import convertible as _convertible
-from unyts.operations import unit_inverse as _unit_inverse
-from unyts.dictionaries import unitless_names as _unitless_names
+from .common.lazy_unyts import is_Unit, convertible as _convertible, unit_inverse as _unit_inverse, unitless_names as _unitless_names
 
 from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .common.compat import concat_compat
@@ -28,6 +25,7 @@ from .common.daterelated import days_in_year, real_year, days_in_month, check_da
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
 from .common.helpers import clean_axis as _clean_axis, hashable
+from .common.units import ColumnUnits
 
 logging.basicConfig(level=logging.INFO)
 
@@ -180,31 +178,17 @@ class SimBasics(object, metaclass=SimType):
                 self._units_.extend([None] * (len(labels) - len(self._units_)))
             elif len(self._units_) > len(labels):
                 object.__setattr__(self, '_units_', self._units_[:len(labels)])
-            # Check for duplicate column names
-            if len(labels) == len(set(labels)):
-                # No duplicates: return dict for backward compatibility
-                return dict(zip(labels, self._units_))
-            else:
-                # Has duplicates: return list for position-based access
-                return self._units_.copy()
+            return ColumnUnits(labels, self._units_)
         
         # Handle legacy dict storage (convert to list internally)
         if isinstance(self._units_, dict):
-            # If _units_ is empty dict, return it directly
-            if not self._units_:
-                return {}
-            
             labels = list(self.labels)
             units_list = [self._units_.get(label, None) for label in labels]
             object.__setattr__(self, '_units_', units_list)
-            # Return dict if no duplicates, list if duplicates
-            if len(labels) == len(set(labels)):
-                return dict(zip(labels, units_list))
-            else:
-                return units_list.copy()
+            return ColumnUnits(labels, units_list)
         
-        # Fallback: empty list
-        return []
+        # Fallback: empty ColumnUnits
+        return ColumnUnits()
 
     @units.setter
     def units(self, units) -> None:
@@ -281,10 +265,10 @@ class SimBasics(object, metaclass=SimType):
             SimSeries or SimDataFrame
             Return cumulative sum of Series or DataFrame.
         """
-        return self._class(data=self.as_Pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
+        return self._class(data=self.as_pandas().cumsum(skipna=skipna, *args, **kwargs), **self.params_)
 
     def describe(self, *args, **kwargs):
-        return self._class(data=self.to_Pandas().describe(*args, **kwargs),
+        return self._class(data=self.to_pandas().describe(*args, **kwargs),
                            **self.params_)
 
     def apply(self, func, axis=0, raw=False, result_type=None, args=(), **kwargs):
@@ -456,8 +440,14 @@ class SimBasics(object, metaclass=SimType):
         operations so that properties such as units, index units, verbosity,
         etc. are preserved.
         """
+        _units_val = self.units
+        if isinstance(_units_val, ColumnUnits):
+            # Use dict so set_units can handle column-count changes (e.g. set_index)
+            _units_val = _units_val.to_dict()
+        elif type(_units_val) is dict:
+            _units_val = self.get_units()
         return {'name': self.name if hasattr(self, 'name') else None,
-                'units': self.get_units() if type(self.units) is dict else self.units,
+                'units': _units_val,
                 'index_name': self.index.name if hasattr(self.index, 'name') else None,
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
@@ -508,8 +498,10 @@ class SimBasics(object, metaclass=SimType):
         params_ = self.params_
         if type(self.units) is str:
             params_['units'] = _unit_inverse(self.units)
-        elif type(self.units) is dict:
-            params_['units'] = {k: _unit_inverse(self.units[k]) for k in self.units}
+        elif isinstance(self.units, (dict, ColumnUnits)):
+            params_['units'] = [_unit_inverse(v) if v is not None else None
+                                 for v in (self.units.to_list() if isinstance(self.units, ColumnUnits)
+                                           else self.units.values())]
         return self._class(data=1 / self.as_pandas(), **params_)
 
     def neg(self):
@@ -1048,7 +1040,7 @@ class SimBasics(object, metaclass=SimType):
             if other.units not in _unitless_names:
                 if type(self.units) is str:
                     result.units = self.units + '/' + other.units
-                elif type(self.units) is dict:
+                elif isinstance(self.units, (dict, ColumnUnits)):
                     result.units = {k: (str(u) + '/' + other.units) for k, u in self.units.items()}
             return result
         else:
@@ -1064,7 +1056,7 @@ class SimBasics(object, metaclass=SimType):
             if other.units not in _unitless_names:
                 if type(self.units) is str:
                     result.units = other.units + '/' + self.units
-                elif type(self.units) is dict:
+                elif isinstance(self.units, (dict, ColumnUnits)):
                     result.units = {k: (other.units + '/' + str(u)) for k, u in self.units.items()}
             return result
         else:
@@ -1643,6 +1635,80 @@ class SimBasics(object, metaclass=SimType):
             return self._class(
                 data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
                                               regex=regex), **self.params_)
+
+    def ffill(self, axis=0, inplace=False, limit=None):
+        """Forward fill NaN values, preserving units and metadata."""
+        if inplace:
+            super().ffill(axis=axis, inplace=True, limit=limit)
+        else:
+            return self._class(data=self.as_pandas().ffill(axis=axis, limit=limit),
+                               **self.params_)
+
+    def bfill(self, axis=0, inplace=False, limit=None):
+        """Backward fill NaN values, preserving units and metadata."""
+        if inplace:
+            super().bfill(axis=axis, inplace=True, limit=limit)
+        else:
+            return self._class(data=self.as_pandas().bfill(axis=axis, limit=limit),
+                               **self.params_)
+
+    def pct_change(self, periods=1, fill_method=None, limit=None, freq=None, **kwargs):
+        """Fractional change between current and prior element, preserving metadata.
+
+        Units become dimensionless since the result is a fractional change.
+        """
+        result = self.as_pandas().pct_change(periods=periods, fill_method=fill_method,
+                                             limit=limit, freq=freq, **kwargs)
+        params = self.params_
+        params['units'] = 'dimensionless'
+        return self._class(data=result, **params)
+
+    def asfreq(self, freq, method=None, how=None, normalize=False, fill_value=None):
+        """Convert time series to specified frequency, preserving units and metadata."""
+        return self._class(data=self.as_pandas().asfreq(freq, method=method, how=how,
+                                                        normalize=normalize, fill_value=fill_value),
+                           **self.params_)
+
+    def combine_first(self, other):
+        """Update null elements with values from other, preserving units and metadata."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        return self._rewrap(self.as_pandas().combine_first(other_pd))
+
+    def isin(self, values):
+        """Element-wise check whether values are in the given set, preserving Sim type."""
+        return self._rewrap(self.as_pandas().isin(values))
+
+    def compare(self, other, align_axis=1, keep_shape=False, keep_equal=False, result_names=('self', 'other')):
+        """Compare with another object, preserving Sim type."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        result = self.as_pandas().compare(other_pd, align_axis=align_axis,
+                                          keep_shape=keep_shape, keep_equal=keep_equal,
+                                          result_names=result_names)
+        # compare() may change the column structure, so build with minimal metadata
+        from .frame import SimDataFrame
+        from .series import SimSeries
+        if isinstance(result, DataFrame):
+            return SimDataFrame(data=result)
+        return SimSeries(data=result)
+
+    def swaplevel(self, i=-2, j=-1, axis=0):
+        """Swap levels i and j in a MultiIndex, preserving units and metadata."""
+        return self._class(data=self.as_pandas().swaplevel(i, j, axis=axis), **self.params_)
+
+    def update(self, other, **kwargs):
+        """Modify in place using values from other, preserving units."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        super().update(other_pd, **kwargs)
+
+    def align(self, other, join='outer', axis=None, level=None, copy=None,
+              fill_value=None):
+        """Align two objects on their axes, returning two Sim objects."""
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        left, right = self.as_pandas().align(other_pd, join=join, axis=axis,
+                                             level=level, copy=copy, fill_value=fill_value)
+        left_wrapped = self._rewrap(left)
+        right_wrapped = other._rewrap(right) if hasattr(other, '_rewrap') else right
+        return left_wrapped, right_wrapped
 
     @property
     def type(self):
@@ -3241,6 +3307,9 @@ Copy of input object, shifted.
         items_units_dict = self.get_units(items)
         if items_units_dict is None:
             return 'unitless'
+        if isinstance(items_units_dict, ColumnUnits):
+            # Convert to dict for the string extraction logic below
+            items_units_dict = items_units_dict.to_dict()
         if not isinstance(items_units_dict, dict):  # Already a string/unit object, return as-is
             return str(items_units_dict)
         # Now safe to proceed with dict operations
@@ -3324,6 +3393,48 @@ Copy of input object, shifted.
             if not drop and type(self.index_units) in (str, dict) and self.index.name is not None:
                 result.set_units(self.index_units, item=self.index.name)
             return result
+
+    def to_csv(self, path_or_buf=None, units=True, index=True, **kwargs):
+        """Write to CSV with a units row.  See ``writers.csv.write_csv``."""
+        from simpandas.writers.csv import write_csv
+        return write_csv(self, path_or_buf, units=units, index=index, **kwargs)
+
+    def to_json(self, path_or_buf=None, **kwargs):
+        """Write to JSON with units metadata.  See ``writers.json.write_json``."""
+        from simpandas.writers.json import write_json
+        return write_json(self, path_or_buf, **kwargs)
+
+    def to_hdf5(self, filepath, group='simpandas', compression='gzip'):
+        """Write to HDF5 with units metadata.  See ``writers.h5.write_hdf5``."""
+        from simpandas.writers.h5 import write_hdf5
+        return write_hdf5(self, filepath, group=group, compression=compression)
+
+    def to_summary(self, smspec_path, unsmry_path=None, startdat=None, dimens=None):
+        """Write to Eclipse binary summary format.  See ``writers.summary.write_summary``."""
+        from simpandas.writers.summary import write_summary
+        return write_summary(self, smspec_path, unsmry_path=unsmry_path,
+                             startdat=startdat, dimens=dimens)
+
+    def to_parquet(self, filepath, compression='snappy', **kwargs):
+        """Write to Parquet with units metadata.  See ``writers.parquet.write_parquet``."""
+        from simpandas.writers.parquet import write_parquet
+        return write_parquet(self, filepath, compression=compression, **kwargs)
+
+    def to_prodml(self, filepath, style='timeseries', facility='SimPandas'):
+        """Write to PRODML XML.  See ``writers.prodml.write_prodml``."""
+        from simpandas.writers.prodml import write_prodml
+        return write_prodml(self, filepath, style=style, facility=facility)
+
+    def to_witsml(self, filepath, well_name='', wellbore_name='', log_name='SimPandas Export'):
+        """Write to WITSML v1.4.1.1 log XML.  See ``writers.witsml.write_witsml``."""
+        from simpandas.writers.witsml import write_witsml
+        return write_witsml(self, filepath, well_name=well_name,
+                            wellbore_name=wellbore_name, log_name=log_name)
+
+    def to_resqml(self, filepath):
+        """Write to RESQML EPC package.  See ``writers.resqml.write_resqml``."""
+        from simpandas.writers.resqml import write_resqml
+        return write_resqml(self, filepath)
 
     def to_excel(self, excel_writer, split_by=None, sheet_name=None, na_rep='',
                  float_format=None, columns=None, header=True, units=True, index=True,

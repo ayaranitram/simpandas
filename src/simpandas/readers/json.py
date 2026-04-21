@@ -71,6 +71,8 @@ def read_json(path_or_buf,
         df = pd.DataFrame(raw['data'])
         if units is None:
             units = raw.get('units', None)
+        if indexUnits is None:
+            indexUnits = raw.get('index_units', None)
     else:
         df = pd.read_json(path_or_buf, *args, **kwargs)
 

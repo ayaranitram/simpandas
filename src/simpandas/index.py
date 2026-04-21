@@ -12,7 +12,7 @@ __all__ = ['SimIndex']
 from abc import ABC
 import weakref
 import pandas as pd
-from unyts.converter import convertible as _convertible, convert_for_SimPandas as _converter
+from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter
 
 
 def convert(values, from_units, to_units):
@@ -86,7 +86,7 @@ class SimIndex(pd.MultiIndex, ABC):
             elif hasattr(units, 'units') and type(units.units) is str:
                 units = units.units
             if type(units) is str:
-                actual.units = units.split()
+                actual.units = units.strip()
             elif type(units) is dict:
                 actual.units = units.copy()
 
@@ -105,7 +105,7 @@ class SimIndex(pd.MultiIndex, ABC):
         elif hasattr(units, 'units') and type(units.units) is str:
             units = units.units
         if type(units) is str:
-            self.units = units.split()
+            self.units = units.strip()
         elif type(units) is dict:
             self.units = units.copy()
 
