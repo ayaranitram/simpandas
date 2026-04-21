@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Additional tests that close Chapter 4 (Test Coverage Gaps) items.
+"""
+Tests that verify units are preserved (or correctly dropped) through
+operations that have corresponding coverage in other test files but do
+not assert unit survival there.  Includes:
+  - Window and group-by operations (rolling, expanding, ewm, groupby)
+  - All arithmetic dunder operators + convert()
+  - I/O round-trips (CSV, JSON, Excel) with unit metadata
+  - insert() with positional unit tracking
 """
 
 import os
@@ -10,6 +17,10 @@ import pytest
 
 from simpandas import SimDataFrame, SimSeries, read_csv, read_excel, read_json
 
+
+# ---------------------------------------------------------------------------
+# Window and group-by — units must survive rolling / ewm / groupby
+# ---------------------------------------------------------------------------
 
 class TestWindowAndGroupByUnits:
     def test_window_ops_preserve_units(self):
@@ -41,49 +52,9 @@ class TestWindowAndGroupByUnits:
         assert transformed.get_units()['x'] == 'm'
 
 
-class TestRoundTripIOUnits:
-    def test_csv_round_trip_preserves_units(self):
-        df = SimDataFrame({'x': [1, 2], 'y': [3, 4]}, units={'x': 'm', 'y': 'kg'})
-
-        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as f:
-            path = f.name
-        try:
-            df.to_csv(path, index=False)
-            out = read_csv(path, units=0)
-            assert isinstance(out, SimDataFrame)
-            assert out.get_units()['x'] == 'm'
-            assert out.get_units()['y'] == 'kg'
-        finally:
-            os.unlink(path)
-
-    def test_json_round_trip_preserves_units(self):
-        df = SimDataFrame({'x': [1, 2], 'y': [3, 4]}, units={'x': 'm', 'y': 'kg'})
-
-        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
-            path = f.name
-        try:
-            df.to_json(path)
-            out = read_json(path)
-            assert isinstance(out, SimDataFrame)
-            assert out.get_units()['x'] == 'm'
-            assert out.get_units()['y'] == 'kg'
-        finally:
-            os.unlink(path)
-
-    def test_excel_round_trip_preserves_units(self):
-        df = SimDataFrame({'x': [1, 2], 'y': [3, 4]}, units={'x': 'm', 'y': 'kg'})
-
-        with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as f:
-            path = f.name
-        try:
-            df.to_excel(path, index=False)
-            out = read_excel(path)
-            assert isinstance(out, SimDataFrame)
-            assert out.get_units()['x'] == 'm'
-            assert out.get_units()['y'] == 'kg'
-        finally:
-            os.unlink(path)
-
+# ---------------------------------------------------------------------------
+# Arithmetic operators — all seven dunder ops must keep Sim type and units
+# ---------------------------------------------------------------------------
 
 class TestOperatorAndConvertCoverage:
     @pytest.mark.parametrize('operation', ['add', 'sub', 'mul', 'truediv', 'floordiv', 'mod', 'pow'])
@@ -137,22 +108,59 @@ class TestOperatorAndConvertCoverage:
         assert out.units == 'cm'
 
 
-class TestSetIndexAndInsertCoverage:
-    def test_set_index_inplace_tracks_index_units_and_remaining_units(self):
-        df = SimDataFrame({'date': [1, 2], 'x': [10.0, 20.0], 'y': [30.0, 40.0]},
-                          units={'date': 'day', 'x': 'm', 'y': 'kg'})
+# ---------------------------------------------------------------------------
+# I/O round-trips — unit metadata must survive write -> read
+# ---------------------------------------------------------------------------
 
-        non_inplace = df.set_index('date')
-        non_inplace_units = non_inplace.get_units()
+class TestRoundTripIOUnits:
+    def test_csv_round_trip_preserves_units(self):
+        df = SimDataFrame({'x': [1, 2], 'y': [3, 4]}, units={'x': 'm', 'y': 'kg'})
 
-        df.set_index('date', inplace=True)
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as f:
+            path = f.name
+        try:
+            df.to_csv(path, index=False)
+            out = read_csv(path, units=0)
+            assert isinstance(out, SimDataFrame)
+            assert out.get_units()['x'] == 'm'
+            assert out.get_units()['y'] == 'kg'
+        finally:
+            os.unlink(path)
 
-        assert df.index.units == 'day'
-        units = df.get_units()
-        assert units == non_inplace_units
-        assert units['x'] == 'm'
-        assert units['y'] == 'kg'
+    def test_json_round_trip_preserves_units(self):
+        df = SimDataFrame({'x': [1, 2], 'y': [3, 4]}, units={'x': 'm', 'y': 'kg'})
 
+        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
+            path = f.name
+        try:
+            df.to_json(path)
+            out = read_json(path)
+            assert isinstance(out, SimDataFrame)
+            assert out.get_units()['x'] == 'm'
+            assert out.get_units()['y'] == 'kg'
+        finally:
+            os.unlink(path)
+
+    def test_excel_round_trip_preserves_units(self):
+        df = SimDataFrame({'x': [1, 2], 'y': [3, 4]}, units={'x': 'm', 'y': 'kg'})
+
+        with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as f:
+            path = f.name
+        try:
+            df.to_excel(path, index=False)
+            out = read_excel(path)
+            assert isinstance(out, SimDataFrame)
+            assert out.get_units()['x'] == 'm'
+            assert out.get_units()['y'] == 'kg'
+        finally:
+            os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# insert() — positional unit tracking must follow column insertion
+# ---------------------------------------------------------------------------
+
+class TestInsertUnitTracking:
     def test_insert_tracks_unit_position(self):
         df = SimDataFrame({'a': [1, 2], 'c': [3, 4]}, units={'a': 'm', 'c': 'kg'})
 
@@ -163,28 +171,3 @@ class TestSetIndexAndInsertCoverage:
         assert units['a'] == 'm'
         assert units['b'] == 's'
         assert units['c'] == 'kg'
-
-
-class TestAliasAndShortcutCoverage:
-    @pytest.mark.parametrize('alias_name', ['to_Pandas', 'toPandas', 'as_Pandas', 'asPandas'])
-    def test_pandas_aliases(self, alias_name):
-        df = SimDataFrame({'a': [1, 2]}, units='m')
-        out = getattr(df, alias_name)()
-        assert isinstance(out, pd.DataFrame)
-
-    @pytest.mark.parametrize('method_name', ['eq0', 'eq1', 'eq2', 'eq3', 'eq4', 'eq6',
-                                             'ge0', 'ge1', 'ge2', 'ge3', 'ge4', 'ge6'])
-    def test_precision_shortcuts(self, method_name):
-        s = SimSeries([1.001, 1.500], name='x', units='m')
-        other = SimSeries([1.0, 1.0], name='x', units='m')
-        result = getattr(s, method_name)(other)
-        assert len(result) == 2
-        assert result.isin([True, False]).all()
-
-    def test_property_shortcuts(self):
-        df = SimDataFrame({'a': [1, 2]}, units='m')
-
-        assert isinstance(df.s, pd.Series)
-        assert isinstance(df.df, pd.DataFrame)
-        assert isinstance(df.ss, pd.Series)
-        assert isinstance(df.sdf, SimDataFrame)

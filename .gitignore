@@ -50,3 +50,9 @@ fix_*.py
 inspect_*.py
 import_test.py
 scripts
+
+# Environment / cache
+.env
+.env.*
+.cache/
+build_squash.py
