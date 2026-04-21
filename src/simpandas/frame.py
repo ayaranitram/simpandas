@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.90.0'
-__release__ = 20260420
+__version__ = '0.90.5'
+__release__ = 20260421
 __all__ = ['SimDataFrame']
 
 import logging
@@ -27,6 +27,7 @@ from .indexer import _SimLocIndexer, _iSimLocIndexer
 from .index import SimIndex
 from .series import SimSeries
 from .common.helpers import clean_axis as _clean_axis
+from .common.units import ColumnUnits
 
 logging.basicConfig(level=logging.INFO)
 
@@ -81,7 +82,7 @@ class _SimWindowProxy:
             wrapped = SimDataFrame(result, **self._parent.params_)
             try:
                 parent_units = self._parent.get_units()
-                if isinstance(parent_units, dict):
+                if isinstance(parent_units, (dict, ColumnUnits)):
                     wrapped.set_units({c: parent_units.get(c, None) for c in wrapped.columns})
             except Exception:
                 pass
@@ -96,6 +97,8 @@ class _SimWindowProxy:
                     params['units'] = None
             except Exception:
                 params['units'] = None
+            if 'name' in params:
+                del params['name']
             return SimSeries(result, **params)
         return result
 
@@ -120,7 +123,7 @@ class _SimGroupBy:
             wrapped = SimDataFrame(result, **self._parent.params_)
             try:
                 parent_units = self._parent.get_units()
-                if isinstance(parent_units, dict):
+                if isinstance(parent_units, (dict, ColumnUnits)):
                     wrapped.set_units({c: parent_units.get(c, None)
                                        for c in wrapped.columns if c in parent_units})
             except Exception:
@@ -217,7 +220,7 @@ class _SimResampleProxy:
             wrapped = SimDataFrame(result, **self._parent.params_)
             try:
                 parent_units = self._parent.get_units()
-                if isinstance(parent_units, dict):
+                if isinstance(parent_units, (dict, ColumnUnits)):
                     wrapped.set_units({c: parent_units.get(c, None)
                                        for c in wrapped.columns if c in parent_units})
             except Exception:
@@ -325,7 +328,7 @@ class SimDataFrame(SimBasics, DataFrame):
         object.__setattr__(self, '_return_singles_', False if return_singles is None else bool(return_singles))
 
         # get units from data if it is SimDataFrame or SimSeries
-        if units is None or (type(units) in [list, dict] and len(units) == 0):
+        if units is None or (isinstance(units, (list, dict, ColumnUnits)) and len(units) == 0):
             if hasattr(data, 'get_units'):
                 units = data.get_units()
         elif type(units) is str:
@@ -392,11 +395,11 @@ class SimDataFrame(SimBasics, DataFrame):
         if index_units is None:
             if self.index.name is not None:
                 # Get index units from proper storage (works with both dict and list formats)
-                if isinstance(self.units, dict) and self.index.name in self.units:
+                if isinstance(self.units, (dict, ColumnUnits)) and self.index.name in self.units:
                     self.index_units_ = self.units[self.index.name]
-                elif isinstance(self.units, list) and self.index.name in self.columns:
+                elif self.index.name in list(self.columns):
                     idx = list(self.columns).index(self.index.name)
-                    self.index_units_ = self.units[idx] if idx < len(self.units) else None
+                    self.index_units_ = self._units_[idx] if idx < len(self._units_) else None
             if self.index_units_ is None and hasattr(data, 'index_units'):
                 self.index_units_ = data.index_units.copy() if type(data.index_units) is dict else data.index_units
         else:  # override index.units with index_units
@@ -1018,7 +1021,9 @@ class SimDataFrame(SimBasics, DataFrame):
 
         if inplace:
             pre_units = self.get_units()
-            if isinstance(pre_units, list):
+            if isinstance(pre_units, ColumnUnits):
+                pre_units = pre_units.to_dict()
+            elif isinstance(pre_units, list):
                 pre_units = dict(zip(list(self.columns), pre_units))
 
             super().set_index(key, drop=drop, append=append, inplace=inplace, verify_integrity=verify_integrity,
@@ -1360,6 +1365,56 @@ class SimDataFrame(SimBasics, DataFrame):
                 return self.drop(index=filt[filt == True].index, inplace=False)
             else:
                 raise ValueError(" valid `axis´ argument are 'index', 'columns' or 'both'.")
+
+    def deduplicate_columns(self, inplace=False):
+        """Rename duplicate column names to make them unique.
+
+        The first occurrence of each name is unchanged.  Subsequent
+        occurrences receive a ``_<k>`` numeric suffix (e.g. ``BHP``,
+        ``BHP_1``, ``BHP_2``).  A warning is logged listing every column
+        that was renamed.
+
+        This method is called automatically by writers that cannot represent
+        duplicate column names without losing unit metadata (JSON, PRODML,
+        WITSML).
+
+        Parameters
+        ----------
+        inplace : bool, default False
+            Whether to modify *self* in place.  When ``False`` (default) a
+            new ``SimDataFrame`` is returned.
+
+        Returns
+        -------
+        SimDataFrame or None
+            The deduplicated frame (``inplace=False``) or ``None``
+            (``inplace=True``).
+        """
+        from .common.renamer import deduplicate_column_names
+
+        current_names = list(self.columns)
+        new_names = deduplicate_column_names(current_names)
+
+        if current_names == new_names:
+            return None if inplace else self
+
+        renamed = {old: new for old, new in zip(current_names, new_names)
+                   if old != new}
+        logging.warning(
+            "SimDataFrame.deduplicate_columns: renamed columns to avoid "
+            "duplicate keys (which would cause unit metadata loss): %s",
+            renamed,
+        )
+
+        if inplace:
+            self.columns = new_names
+            return None
+        else:
+            pandas_df = self.as_pandas().copy()
+            pandas_df.columns = new_names
+            units = list(self._units_) if isinstance(self._units_, list) else self._units_
+            params = {k: v for k, v in self.params_.items() if k != 'units'}
+            return self._class(data=pandas_df, units=units, **params)
 
     def rename(self, mapper=None, index=None, columns=None, axis=None, copy=True,
                inplace=False, level=None, errors='ignore'):
@@ -2197,8 +2252,11 @@ class SimDataFrame(SimBasics, DataFrame):
             result = self.units
             
             # Add index units if needed
-            if isinstance(result, dict) and self.index_name is not None:
+            if isinstance(result, (dict, ColumnUnits)) and self.index_name is not None:
                 if self.index_name not in result and self.index_units is not None:
+                    # Convert to a plain dict so we can add the index key
+                    if isinstance(result, ColumnUnits):
+                        result = result.to_dict()
                     result[self.index_name] = self.index_units
             
             return result
@@ -2270,6 +2328,10 @@ class SimDataFrame(SimBasics, DataFrame):
         if isinstance(units, (Series, SimSeries)):
             units = units.to_dict()
 
+        # Handle ColumnUnits (convert to positional list)
+        if isinstance(units, ColumnUnits):
+            units = units.to_list()
+
         # Case 1: units is a list
         if isinstance(units, list):
             if item is not None:
@@ -2286,7 +2348,8 @@ class SimDataFrame(SimBasics, DataFrame):
                 # list of units for all columns
                 cols = self.index if self._ensure_transposed_exists() else self.columns
                 if len(units) != len(cols):
-                    raise ValueError(f"units list length ({len(units)}) must match column count ({len(cols)})")
+                    # Column count changed (e.g. after groupby/set_index); truncate or pad
+                    units = list(units)[:len(cols)] + [None] * max(0, len(cols) - len(units))
                 object.__setattr__(self, '_units_', list(units))
                 return
 

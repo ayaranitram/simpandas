@@ -10,12 +10,13 @@ __release__ = 20230104
 
 from pandas import Series, DataFrame
 from simpandas import SimSeries, SimDataFrame
+from simpandas.common.units import ColumnUnits
 
 
 def _get_units(data, units, columns=None):
     """catch units or get from data if it is SimDataFrame or SimSeries"""
     if units is not None:
-        if isinstance(units, dict):
+        if isinstance(units, (dict, ColumnUnits)):
             return units
         if isinstance(units, str):
             if columns is not None:

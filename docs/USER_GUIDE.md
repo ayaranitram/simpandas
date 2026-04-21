@@ -29,7 +29,8 @@ sdf = SimDataFrame(
 )
 
 print(sdf.units)
-# {'rate': 'bbl/d', 'pressure': 'psi'}
+# ColumnUnits({'rate': 'bbl/d', 'pressure': 'psi'})
+# Use .to_dict() for a plain dict, or .to_list() for a positional list
 
 sdf2 = sdf * 2
 print(sdf2.units)  # metadata is preserved
@@ -57,6 +58,12 @@ sdf = SimDataFrame(
 Key capabilities:
 - Convert/export: `to_pandas`, `as_pandas`, `to_series`, `to_simseries`, `to_dataframe`.
 - Units and index units: `get_units`, `set_units`, `get_index_units`, `set_index_units`, `convert`.
+  `get_units()` returns a `ColumnUnits` object — an ordered mapping that keeps units
+  positionally so frames with duplicate column names remain lossless.  Call
+  `.to_dict()` or `.to_list()` to obtain a plain native type.
+- Duplicate-column handling: `deduplicate_columns(inplace=False)` renames duplicate
+  column names (`BHP` → `BHP`, `BHP_1`, …) and logs a warning.  Writers that rely
+  on dict-based metadata (JSON, PRODML, WITSML) call this automatically.
 - Aggregations: `sum`, `mean`, `median`, `min`, `max`, `std`, `var`, `prod`, `quantile`, `mode`, `count`, `rms`.
 - Data wrangling: `drop`, `dropna`, `drop_duplicates`, `sort_values`, `melt`, `rename`, `reindex`, `transpose`.
 - Additional wrappers: `ffill`, `bfill`, `pct_change`, `asfreq`, `combine_first`, `compare`, `isin`, `swaplevel`, `align`, `update`, `resample`.

@@ -67,11 +67,14 @@ def write_parquet(sdf, filepath, compression='snappy', **kwargs):
     # Gather units metadata
     units = {}
     if hasattr(sdf, 'units') and sdf.units:
-        if isinstance(sdf.units, dict):
-            units = {str(k): str(v) for k, v in sdf.units.items()}
+        raw = sdf.units
+        if isinstance(raw, dict):
+            units = {str(k): str(v) for k, v in raw.items() if v is not None}
+        elif hasattr(raw, 'names') and hasattr(raw, 'values_list'):  # ColumnUnits
+            units = {str(k): str(v) for k, v in zip(raw.names, raw.values_list) if v is not None}
         else:
             units = {str(c): str(u)
-                     for c, u in zip(df.columns, sdf.units)}
+                     for c, u in zip(df.columns, raw) if u is not None}
 
     index_units = ''
     if hasattr(sdf, 'index_units'):

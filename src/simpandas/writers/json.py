@@ -45,6 +45,11 @@ def write_json(sdf, path_or_buf=None, **kwargs):
     import json
     import pandas as pd
 
+    # Deduplicate column names before serialisation so that the units dict
+    # retains a value for every column (dict keys must be unique).
+    if hasattr(sdf, 'deduplicate_columns'):
+        sdf = sdf.deduplicate_columns()
+
     # Get a plain pandas object for data serialisation
     if hasattr(sdf, 'as_dataframe'):
         data_obj = sdf.as_dataframe()
@@ -60,11 +65,13 @@ def write_json(sdf, path_or_buf=None, **kwargs):
     # Gather units
     try:
         units = sdf.units
-        if not isinstance(units, dict):
+        if not isinstance(units, (dict,)) and not hasattr(units, 'to_dict'):
             if isinstance(units, str) and hasattr(sdf, 'name'):
                 units = {sdf.name: units}
             else:
                 units = {}
+        elif hasattr(units, 'to_dict') and not isinstance(units, dict):
+            units = units.to_dict()
     except Exception:
         units = {}
 

@@ -57,6 +57,59 @@ def test_series_conversion():
     s = df['a']
     assert isinstance(s, SimSeries)
 
+
+# ===========================================================================
+# deduplicate_columns tests
+# ===========================================================================
+
+def test_deduplicate_columns_no_duplicates_returns_self():
+    df = SimDataFrame({'a': [1, 2], 'b': [3, 4]}, units={'a': 'm', 'b': 'ft'})
+    result = df.deduplicate_columns()
+    assert list(result.columns) == ['a', 'b']
+    assert result is df  # same object: no-op path
+
+
+def test_deduplicate_columns_renames_duplicates():
+    df = SimDataFrame(
+        {'a': [1, 2], 'b': [3, 4], 'a_dup': [5, 6]},
+        units={'a': 'm', 'b': 'ft', 'a_dup': 'cm'},
+    )
+    # Rename column to create an actual duplicate
+    df.columns = ['a', 'b', 'a']
+    df._units_ = ['m', 'ft', 'cm']
+
+    result = df.deduplicate_columns()
+    assert list(result.columns) == ['a', 'b', 'a_1']
+
+
+def test_deduplicate_columns_preserves_positional_units():
+    df = SimDataFrame(
+        {'a': [1, 2], 'b': [3, 4], 'a_dup': [5, 6]},
+        units={'a': 'm', 'b': 'ft', 'a_dup': 'cm'},
+    )
+    df.columns = ['a', 'b', 'a']
+    df._units_ = ['m', 'ft', 'cm']
+
+    result = df.deduplicate_columns()
+    units_list = list(result._units_)
+    assert units_list[0] == 'm'   # original 'a'
+    assert units_list[1] == 'ft'  # 'b'
+    assert units_list[2] == 'cm'  # renamed 'a_1'
+
+
+def test_deduplicate_columns_inplace():
+    df = SimDataFrame(
+        {'a': [1, 2], 'b': [3, 4], 'a_dup': [5, 6]},
+        units={'a': 'm', 'b': 'ft', 'a_dup': 'cm'},
+    )
+    df.columns = ['a', 'b', 'a']
+    df._units_ = ['m', 'ft', 'cm']
+
+    ret = df.deduplicate_columns(inplace=True)
+    assert ret is None
+    assert list(df.columns) == ['a', 'b', 'a_1']
+
+
 def test_groupby_sum_with_units_no_crash():
     sdf = SimDataFrame(
         {

@@ -5,7 +5,26 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2026-04-20
+## [Unreleased] - 2026-04-21
+
+### Added
+- `ColumnUnits` class (`simpandas.common.units`): an ordered, duplicate-key-safe
+  `Mapping` that stores column units positionally.  `SimDataFrame.units` now
+  returns `ColumnUnits` instead of `dict` or `list`.
+- `SimDataFrame.deduplicate_columns(inplace=False)`: rename duplicate column
+  names to make them unique (`BHP`, `BHP_1`, `BHP_2`, …) with a warning.
+  Called automatically by the JSON, PRODML, and WITSML writers.
+- `simpandas.common.renamer.deduplicate_column_names(names)`: pure-function
+  helper for the above.
+
+### Fixed
+- `write_csv` / `to_csv`: unit row now uses `ColumnUnits.to_list()` positionally
+  so frames with duplicate column names retain all per-column units.
+- `write_hdf5` / `to_hdf5`: same positional fix.
+- `write_summary` / `to_summary`: same positional fix.
+- `write_json` / `to_json`, `write_prodml` / `to_prodml`, `write_witsml` /
+  `to_witsml`: duplicate column names are now deduplicated (with a warning)
+  before the dict-based unit metadata is serialised, so no unit is silently lost.
 
 ### Changed
 - All writer methods (`to_csv`, `to_json`, `to_hdf5`, `to_summary`,

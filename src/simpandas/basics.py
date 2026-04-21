@@ -25,6 +25,7 @@ from .common.daterelated import days_in_year, real_year, days_in_month, check_da
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
 from .common.helpers import clean_axis as _clean_axis, hashable
+from .common.units import ColumnUnits
 
 logging.basicConfig(level=logging.INFO)
 
@@ -177,31 +178,17 @@ class SimBasics(object, metaclass=SimType):
                 self._units_.extend([None] * (len(labels) - len(self._units_)))
             elif len(self._units_) > len(labels):
                 object.__setattr__(self, '_units_', self._units_[:len(labels)])
-            # Check for duplicate column names
-            if len(labels) == len(set(labels)):
-                # No duplicates: return dict for backward compatibility
-                return dict(zip(labels, self._units_))
-            else:
-                # Has duplicates: return list for position-based access
-                return self._units_.copy()
+            return ColumnUnits(labels, self._units_)
         
         # Handle legacy dict storage (convert to list internally)
         if isinstance(self._units_, dict):
-            # If _units_ is empty dict, return it directly
-            if not self._units_:
-                return {}
-            
             labels = list(self.labels)
             units_list = [self._units_.get(label, None) for label in labels]
             object.__setattr__(self, '_units_', units_list)
-            # Return dict if no duplicates, list if duplicates
-            if len(labels) == len(set(labels)):
-                return dict(zip(labels, units_list))
-            else:
-                return units_list.copy()
+            return ColumnUnits(labels, units_list)
         
-        # Fallback: empty list
-        return []
+        # Fallback: empty ColumnUnits
+        return ColumnUnits()
 
     @units.setter
     def units(self, units) -> None:
@@ -453,8 +440,14 @@ class SimBasics(object, metaclass=SimType):
         operations so that properties such as units, index units, verbosity,
         etc. are preserved.
         """
+        _units_val = self.units
+        if isinstance(_units_val, ColumnUnits):
+            # Use dict so set_units can handle column-count changes (e.g. set_index)
+            _units_val = _units_val.to_dict()
+        elif type(_units_val) is dict:
+            _units_val = self.get_units()
         return {'name': self.name if hasattr(self, 'name') else None,
-                'units': self.get_units() if type(self.units) is dict else self.units,
+                'units': _units_val,
                 'index_name': self.index.name if hasattr(self.index, 'name') else None,
                 'index_units': self.index_units if hasattr(self, 'index_units') else None,
                 'name_separator': self.name_separator if hasattr(self, 'name_separator') else None,
@@ -505,8 +498,10 @@ class SimBasics(object, metaclass=SimType):
         params_ = self.params_
         if type(self.units) is str:
             params_['units'] = _unit_inverse(self.units)
-        elif type(self.units) is dict:
-            params_['units'] = {k: _unit_inverse(self.units[k]) for k in self.units}
+        elif isinstance(self.units, (dict, ColumnUnits)):
+            params_['units'] = [_unit_inverse(v) if v is not None else None
+                                 for v in (self.units.to_list() if isinstance(self.units, ColumnUnits)
+                                           else self.units.values())]
         return self._class(data=1 / self.as_pandas(), **params_)
 
     def neg(self):
@@ -1045,7 +1040,7 @@ class SimBasics(object, metaclass=SimType):
             if other.units not in _unitless_names:
                 if type(self.units) is str:
                     result.units = self.units + '/' + other.units
-                elif type(self.units) is dict:
+                elif isinstance(self.units, (dict, ColumnUnits)):
                     result.units = {k: (str(u) + '/' + other.units) for k, u in self.units.items()}
             return result
         else:
@@ -1061,7 +1056,7 @@ class SimBasics(object, metaclass=SimType):
             if other.units not in _unitless_names:
                 if type(self.units) is str:
                     result.units = other.units + '/' + self.units
-                elif type(self.units) is dict:
+                elif isinstance(self.units, (dict, ColumnUnits)):
                     result.units = {k: (other.units + '/' + str(u)) for k, u in self.units.items()}
             return result
         else:
@@ -3312,6 +3307,9 @@ Copy of input object, shifted.
         items_units_dict = self.get_units(items)
         if items_units_dict is None:
             return 'unitless'
+        if isinstance(items_units_dict, ColumnUnits):
+            # Convert to dict for the string extraction logic below
+            items_units_dict = items_units_dict.to_dict()
         if not isinstance(items_units_dict, dict):  # Already a string/unit object, return as-is
             return str(items_units_dict)
         # Now safe to proceed with dict operations

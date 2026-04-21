@@ -234,6 +234,37 @@ class SimSeries(SimBasics, Series):
         else:
             self.rename(columns, inplace=True)
 
+    @property
+    def units(self):
+        """Return units as str, dict, or None (SimSeries backward-compatible behavior).
+
+        SimSeries stores units as a plain string or dict internally.  Returning
+        a ColumnUnits here would break the many type(self.units) is str/dict
+        checks used throughout series arithmetic and conversion logic.
+        """
+        if not hasattr(self, '_units_'):
+            object.__setattr__(self, '_units_', {})
+        raw = self._units_
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            return raw
+        if isinstance(raw, dict):
+            return raw
+        # list (rare for series — positional units)
+        if isinstance(raw, list):
+            labels = list(self.columns)
+            if len(raw) < len(labels):
+                raw = list(raw) + [None] * (len(labels) - len(raw))
+            elif len(raw) > len(labels):
+                raw = raw[:len(labels)]
+            return dict(zip(labels, raw))
+        return {}
+
+    @units.setter
+    def units(self, units) -> None:
+        self.set_units(units)
+
     def to_pandas(self):
         return self.to_series()
 
@@ -1055,6 +1086,16 @@ class SimSeries(SimBasics, Series):
         """
         if item is not None and type(item) in (str, int, float) and item not in self.columns and item not in self.index:
             raise ValueError("the required item '" + str(item) + "' is not in this SimSeries")
+
+        # Handle ColumnUnits: extract the unit for this series' name, or take first
+        from .common.units import ColumnUnits
+        if isinstance(units, ColumnUnits):
+            if self.name is not None and self.name in units:
+                units = units[self.name]
+            elif len(units) > 0:
+                units = units.to_list()[0]
+            else:
+                units = None
 
         if self.units is None or type(self.units) is str:
             if units is None:

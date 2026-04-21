@@ -8,7 +8,8 @@ Created on Wed Nov 16 18:25:41 2022
 
 __version__ = '0.81.2'
 __release__ = 20230725
-__all__ = ['left', 'right', 'rename_left', 'rename_right', 'common_rename']
+__all__ = ['left', 'right', 'rename_left', 'rename_right', 'common_rename',
+           'deduplicate_column_names']
 
 
 
@@ -362,3 +363,54 @@ def common_rename(series_or_frame_1, series_or_frame_2, *,
         out1 = renamer(series_or_frame_1, name_separator=name_separator_1)
         out2 = renamer(series_or_frame_2, name_separator=name_separator_2)
     return out1, out2, common_names
+
+
+def deduplicate_column_names(names):
+    """Return a copy of *names* where every entry is unique.
+
+    The first occurrence of a name is preserved unchanged.  Each subsequent
+    occurrence receives a ``_<k>`` suffix, where *k* is its occurrence index
+    (1-based starting from the second occurrence).  The suffix counter is
+    incremented further whenever the candidate would collide with another
+    name already present in the original list.
+
+    Examples
+    --------
+    >>> deduplicate_column_names(['A', 'B', 'A', 'A'])
+    ['A', 'B', 'A_1', 'A_2']
+    >>> deduplicate_column_names(['A', 'A_1', 'A'])
+    ['A', 'A_1', 'A_2']
+
+    Parameters
+    ----------
+    names : list of str
+        Column names to deduplicate.
+
+    Returns
+    -------
+    list of str
+        New list with unique names.
+    """
+    # Pre-populate taken with the first occurrence of each name so that
+    # generated suffixes never clash with names that won't be renamed.
+    taken = set()
+    for name in names:
+        if name not in taken:
+            taken.add(name)
+
+    seen = {}       # original_name → occurrence count (0-based so far)
+    result = []
+    for name in names:
+        count = seen.get(name, 0)
+        if count == 0:
+            result.append(name)
+        else:
+            k = count
+            candidate = f'{name}_{k}'
+            while candidate in taken:
+                k += 1
+                candidate = f'{name}_{k}'
+            result.append(candidate)
+            taken.add(candidate)
+        seen[name] = count + 1
+    return result

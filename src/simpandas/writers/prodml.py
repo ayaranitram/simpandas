@@ -59,6 +59,11 @@ def write_prodml(sdf, filepath, style='timeseries', facility='SimPandas'):
     -------
     None
     """
+    # Deduplicate column names before serialisation so that the units dict
+    # retains a value for every column (dict keys must be unique).
+    if hasattr(sdf, 'deduplicate_columns'):
+        sdf = sdf.deduplicate_columns()
+
     if hasattr(sdf, 'as_dataframe'):
         df = sdf.as_dataframe()
     elif hasattr(sdf, 'as_pandas'):
@@ -74,6 +79,8 @@ def write_prodml(sdf, filepath, style='timeseries', facility='SimPandas'):
     if hasattr(sdf, 'units') and sdf.units:
         if isinstance(sdf.units, dict):
             units = sdf.units
+        elif hasattr(sdf.units, 'to_dict'):  # ColumnUnits
+            units = sdf.units.to_dict()
         else:
             units = {str(c): str(u)
                      for c, u in zip(df.columns, sdf.units)}

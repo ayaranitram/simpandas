@@ -213,3 +213,57 @@ class TestJSONRoundTrip:
         result = read_json(path)
         assert isinstance(result, SimDataFrame)
         assert result.units['rate'] == 'bbl/d'
+
+
+# ===========================================================================
+# Duplicate-column unit fidelity tests
+# ===========================================================================
+
+def _make_dup_sdf():
+    """SimDataFrame with two identically-named columns but different units."""
+    import pandas as pd
+    from simpandas import SimDataFrame
+    df = SimDataFrame({'a': [1.0, 2.0], 'b': [3.0, 4.0], 'dup': [5.0, 6.0]},
+                      units={'a': 'm', 'b': 'ft', 'dup': 'psi'})
+    # Rename the last column to create a duplicate of 'a'
+    df.columns = ['a', 'b', 'a']
+    df._units_ = ['m', 'ft', 'psi']
+    return df
+
+
+class TestCSVDuplicateColumns:
+
+    def test_csv_duplicate_units_preserved_positionally(self):
+        """CSV writer must keep both units for duplicate columns."""
+        sdf = _make_dup_sdf()
+        csv_str = write_csv(sdf, index=False)
+        lines = csv_str.strip().splitlines()
+        # Row 0 is the header, row 1 is the units row
+        units_row = lines[1].split(',')
+        # Positional: col0='a' → 'm', col1='b' → 'ft', col2='a' → 'psi'
+        assert units_row[0] == 'm'
+        assert units_row[1] == 'ft'
+        assert units_row[2] == 'psi'
+
+    def test_csv_unique_columns_still_work(self):
+        """CSV writer still works correctly when there are no duplicates."""
+        sdf = _make_sdf()
+        csv_str = write_csv(sdf, index=False)
+        lines = csv_str.strip().splitlines()
+        units_row = lines[1].split(',')
+        assert 'psi' in units_row
+        assert 'degF' in units_row
+
+
+class TestJSONDuplicateColumns:
+
+    def test_json_deduplicates_before_writing(self):
+        """JSON writer must auto-deduplicate so all units are preserved."""
+        sdf = _make_dup_sdf()
+        json_str = write_json(sdf)
+        payload = json.loads(json_str)
+        units = payload['units']
+        # After deduplication there should be 3 distinct keys
+        assert len(units) == 3
+        # The values should include all three original units
+        assert set(units.values()) >= {'m', 'ft', 'psi'}

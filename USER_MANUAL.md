@@ -172,9 +172,12 @@ df = read_excel('data.xlsx', units=1)     # row 1 is the units row
 ### 4.2 Units
 
 ```python
-# Read units
-df.units              # dict {col: unit_str} or list when columns have duplicates
-df.get_units()        # same as .units, always returns dict
+# Read units — returns a ColumnUnits object (ordered, positional)
+df.units              # ColumnUnits({'pressure': 'psi', 'depth': 'ft'})
+df.units['pressure']  # 'psi'
+df.units.to_dict()    # plain dict (last value wins for duplicate column names)
+df.units.to_list()    # positional list — safe even for duplicate column names
+df.get_units()        # same as .units
 df.get_units('depth') # unit for a single column
 df.get_units_string('pressure')  # unit string for a column (never None)
 
@@ -189,6 +192,11 @@ df.get_index_units()
 # Convert a column to different units (returns a new object)
 df_metric = df.to('bar')         # convert all convertible columns
 df_metric = df.convert('bar')    # equivalent
+
+# Handle duplicate column names
+df.columns = ['BHP', 'BHP', 'GRAT']   # two identical names
+clean = df.deduplicate_columns()        # BHP, BHP_1, GRAT
+df.deduplicate_columns(inplace=True)   # modifies df in place
 ```
 
 Units participate in arithmetic automatically:

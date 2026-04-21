@@ -14,6 +14,7 @@ from pandas.core.indexing import _LocIndexer, _iLocIndexer
 import pandas as pd
 from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter, units, Unit
 from .common.daterelated import is_date_string, to_datetime
+from .common.units import ColumnUnits
 
 logging.basicConfig(level=logging.INFO)
 
@@ -51,11 +52,11 @@ class _SimBaseIndexer(object):
                     return None
 
                 if ser.name is not None:
-                    if isinstance(units_map, dict) and ser.name in units_map:
+                    if isinstance(units_map, (dict, ColumnUnits)) and ser.name in units_map:
                         return units_map[ser.name]
 
                 # prefer a non-index unit if possible
-                if isinstance(units_map, dict):
+                if isinstance(units_map, (dict, ColumnUnits)):
                     index_keys = {getattr(ser, 'index_name', None), '_index_'}
                     for ukey, uval in units_map.items():
                         if ukey in index_keys:

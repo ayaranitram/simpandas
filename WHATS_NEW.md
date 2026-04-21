@@ -1,6 +1,55 @@
 # What's New in SimPandas
 
-## Maintenance — writer consolidation & VDB fix — April 2026
+47## `ColumnUnits` type and duplicate-column unit fidelity — April 2026
+
+### `ColumnUnits` — ordered, duplicate-key-safe units mapping
+
+`SimDataFrame.units` now returns a `ColumnUnits` object instead of a plain
+`dict`.  `ColumnUnits` is a `Mapping` that stores one unit string per column
+**positionally**, so frames with duplicate column names keep every unit intact.
+
+```python
+from simpandas import SimDataFrame
+df = SimDataFrame({'A': [1, 2], 'B': [3, 4]}, units={'A': 'm', 'B': 'ft'})
+df.units          # ColumnUnits({'A': 'm', 'B': 'ft'})
+df.units['A']     # 'm'
+df.units.to_list()  # ['m', 'ft']   — positional, safe for duplicate columns
+df.units.to_dict()  # {'A': 'm', 'B': 'ft'}
+```
+
+`ColumnUnits` is importable from the top-level package:
+
+```python
+from simpandas import ColumnUnits
+```
+
+### `SimDataFrame.deduplicate_columns()` — rename duplicates before writing
+
+Formats whose metadata is stored as a `dict` (JSON, PRODML, WITSML) cannot
+represent two columns with the same name without losing one unit.  The new
+`deduplicate_columns()` method renames duplicate columns automatically:
+
+```python
+df.columns = ['BHP', 'BHP', 'GRAT']  # two identical names
+clean = df.deduplicate_columns()       # returns new frame
+# clean.columns → ['BHP', 'BHP_1', 'GRAT']
+
+df.deduplicate_columns(inplace=True)   # modifies df in place
+```
+
+The method emits a `logging.WARNING` listing every renamed column so the
+caller knows what changed.
+
+### Writer improvements
+
+| Writer | Change |
+|---|---|
+| `to_csv` / `write_csv` | Uses positional `ColumnUnits.to_list()` — all units preserved even for duplicate column names |
+| `to_hdf5` / `write_hdf5` | Same positional fix |
+| `to_summary` / `write_summary` | Same positional fix |
+| `to_json` / `write_json` | Calls `deduplicate_columns()` automatically before writing |
+| `to_prodml` / `write_prodml` | Same auto-deduplication |
+| `to_witsml` / `write_witsml` | Same auto-deduplication |
 
 ### Writer methods now available on `SimSeries` too
 

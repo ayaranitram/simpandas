@@ -62,10 +62,14 @@ def write_csv(sdf, path_or_buf=None, units=True, index=True, **kwargs):
         return df.to_csv(path_or_buf, index=index, **kwargs)
 
     # Gather column-level units
+    col_units_list = None  # positional list (used when ColumnUnits detected)
     try:
         raw_units = sdf.units
         if isinstance(raw_units, dict):
             col_units = raw_units
+        elif hasattr(raw_units, 'to_list'):  # ColumnUnits – preserve positional order
+            col_units_list = raw_units.to_list()
+            col_units = {}
         elif isinstance(raw_units, str) and hasattr(sdf, 'name') and sdf.name is not None:
             col_units = {sdf.name: raw_units}
         else:
@@ -77,7 +81,7 @@ def write_csv(sdf, path_or_buf=None, units=True, index=True, **kwargs):
     index_units_val = getattr(sdf, 'index_units', None)
 
     # Nothing to embed → plain write
-    if not col_units and not index_units_val:
+    if not col_units and not col_units_list and not index_units_val:
         return df.to_csv(path_or_buf, index=index, **kwargs)
 
     col_units = dict(col_units)  # defensive copy
@@ -87,15 +91,21 @@ def write_csv(sdf, path_or_buf=None, units=True, index=True, **kwargs):
         # appear in the units row alongside data columns.
         idx_name = df.index.name
         df = df.reset_index()
-        if idx_name is not None and index_units_val:
-            col_units[idx_name] = index_units_val
-        elif idx_name is None and index_units_val:
-            # reset_index() creates a column named 'index' when name is None
-            generated = df.columns[0]
-            col_units[generated] = index_units_val
+        if col_units_list is None:
+            if idx_name is not None and index_units_val:
+                col_units[idx_name] = index_units_val
+            elif idx_name is None and index_units_val:
+                # reset_index() creates a column named 'index' when name is None
+                generated = df.columns[0]
+                col_units[generated] = index_units_val
 
     # Build the units row (one value per column, matching column order)
-    unit_vals = [str(col_units.get(c) or '') for c in df.columns]
+    if col_units_list is not None:
+        idx_unit = str(index_units_val or '') if index else None
+        unit_vals = ([idx_unit] if idx_unit is not None else []) + \
+                    [str(u or '') for u in col_units_list]
+    else:
+        unit_vals = [str(col_units.get(c) or '') for c in df.columns]
     unit_row = pd.DataFrame([unit_vals], columns=df.columns)
     combined = pd.concat([unit_row, df], ignore_index=True)
 

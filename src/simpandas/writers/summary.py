@@ -219,10 +219,14 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
     sep = getattr(sdf, 'name_separator', ':') or ':'
 
     # ---- Gather units (handle dict or positional list) ------------------
+    col_units_list = None  # positional list (used when ColumnUnits detected)
     try:
         raw_units = sdf.units
         if isinstance(raw_units, dict):
             col_units = dict(raw_units)
+        elif hasattr(raw_units, 'to_list'):  # ColumnUnits – preserve positional order
+            col_units_list = raw_units.to_list()
+            col_units = {}
         elif isinstance(raw_units, (list, tuple)):
             col_units = dict(zip(df.columns, raw_units))
         else:
@@ -236,8 +240,13 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
     # the leading PARAMS entry that comes from the index.
     _drop_cols = [c for c in df.columns if c.upper() in ('DATE', 'TIME', 'YEARS')]
     if _drop_cols:
+        _drop_set = set(_drop_cols)
+        if col_units_list is not None:
+            col_units_list = [u for c, u in zip(df.columns, col_units_list)
+                               if c not in _drop_set]
+        else:
+            col_units = {k: v for k, v in col_units.items() if k not in _drop_set}
         df = df.drop(columns=_drop_cols)
-        col_units = {k: v for k, v in col_units.items() if k not in _drop_cols}
 
     index_units_val = getattr(sdf, 'index_units', None) or 'DAYS'
 
@@ -299,12 +308,15 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
     nums_list = [0]
     units_out = [index_units_val]
 
+    _col_idx = 0
     for col in df.columns:
         kw, wg, num = _decompose_column(col, sep, nx=nx, ny=ny)
         keywords.append(kw)
         wgnames.append(wg)
         nums_list.append(num)
-        units_out.append(col_units.get(col, ''))
+        units_out.append(col_units_list[_col_idx] if col_units_list is not None
+                          else col_units.get(col, ''))
+        _col_idx += 1
 
     nlist = len(keywords)
 

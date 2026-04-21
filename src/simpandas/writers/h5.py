@@ -67,10 +67,14 @@ def write_hdf5(sdf, filepath, group='simpandas', compression='gzip'):
         df = pd.DataFrame(sdf)
 
     # Gather metadata
+    col_units_list = None  # positional list (used when ColumnUnits detected)
     try:
         raw_units = sdf.units
         if isinstance(raw_units, dict):
             col_units = raw_units
+        elif hasattr(raw_units, 'to_list'):  # ColumnUnits – preserve positional order
+            col_units_list = raw_units.to_list()
+            col_units = {}
         elif isinstance(raw_units, str) and hasattr(sdf, 'name') and sdf.name is not None:
             col_units = {sdf.name: raw_units}
         else:
@@ -101,7 +105,10 @@ def write_hdf5(sdf, filepath, group='simpandas', compression='gzip'):
         grp.create_dataset('index', data=idx_ds, compression=compression)
 
         # --- units -----------------------------------------------------------
-        unit_strs = [str(col_units.get(c) or '') for c in df.columns]
+        if col_units_list is not None:
+            unit_strs = [str(u or '') for u in col_units_list]
+        else:
+            unit_strs = [str(col_units.get(c) or '') for c in df.columns]
         grp.create_dataset('units',
                            data=np.array(unit_strs, dtype=h5py.string_dtype()))
 

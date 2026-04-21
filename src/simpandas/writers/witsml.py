@@ -60,6 +60,11 @@ def write_witsml(sdf, filepath, well_name='', wellbore_name='',
     -------
     None
     """
+    # Deduplicate column names before serialisation so that the units dict
+    # retains a value for every column (dict keys must be unique).
+    if hasattr(sdf, 'deduplicate_columns'):
+        sdf = sdf.deduplicate_columns()
+
     if hasattr(sdf, 'as_dataframe'):
         df = sdf.as_dataframe()
     elif hasattr(sdf, 'as_pandas'):
@@ -75,6 +80,8 @@ def write_witsml(sdf, filepath, well_name='', wellbore_name='',
     if hasattr(sdf, 'units') and sdf.units:
         if isinstance(sdf.units, dict):
             units = {str(k): str(v) for k, v in sdf.units.items()}
+        elif hasattr(sdf.units, 'to_dict'):  # ColumnUnits
+            units = {str(k): str(v) for k, v in sdf.units.to_dict().items()}
         else:
             units = {str(c): str(u)
                      for c, u in zip(df.columns, sdf.units)}
