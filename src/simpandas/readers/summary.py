@@ -30,6 +30,7 @@ _DTYPE_MAP = {
     b'REAL': ('>f', 4),   # big-endian float32
     b'DOUB': ('>d', 8),   # big-endian float64
     b'CHAR': ('8s', 8),   # 8-byte ASCII string
+    b'C008': ('8s', 8),   # 8-byte string (ECHELON/OPM variant of CHAR)
     b'LOGI': ('>i', 4),   # logical stored as int32
     b'MESS': (None, 0),   # message keyword (no data)
 }
@@ -40,6 +41,7 @@ _MAX_ITEMS = {
     b'REAL': 1000,
     b'DOUB': 1000,
     b'CHAR': 105,
+    b'C008': 105,          # same chunking as CHAR
     b'LOGI': 1000,
     b'MESS': 0,
 }
@@ -82,7 +84,7 @@ def _read_keyword(fh):
         rec = _read_record(fh)
         if rec is None:
             break
-        if dtype_tag == b'CHAR':
+        if dtype_tag in (b'CHAR', b'C008'):
             for i in range(chunk_count):
                 s = rec[i * 8:(i + 1) * 8].decode('ascii', errors='replace').strip()
                 data.append(s)
@@ -199,6 +201,11 @@ def read_summary(smspec_path,
                 keywords = data[:nlist] if nlist else data
             elif kw == 'WGNAMES':
                 wgnames = data[:nlist] if nlist else data
+            elif kw == 'NAMES':
+                # Some simulators (e.g. ECHELON) use NAMES (type C008) instead
+                # of WGNAMES.  Only use it when WGNAMES was not already found.
+                if not wgnames:
+                    wgnames = data[:nlist] if nlist else data
             elif kw == 'NUMS':
                 nums = [int(x) for x in (data[:nlist] if nlist else data)]
             elif kw == 'UNITS':
@@ -235,7 +242,11 @@ def read_summary(smspec_path,
         #   R / A  – region / aquifer number         → KEYWORD:NUM
         #   B      – linearised grid block index     → KEYWORD:i,j,k
         kw_prefix = kw[0].upper() if kw else 'X'
-        
+
+        # -32767 is the Eclipse NUMS sentinel for "no number"; treat as 0.
+        if num == -32767:
+            num = 0
+
         # Sentinel WGNAME (':+:+:+:+' or empty) on a non-F keyword means
         # the entry has no real entity name → skip it entirely.
         is_sentinel = wg.startswith(':+')  # or (not wg and kw_prefix in ('W', 'G'))  # discard empty wgnames only for W and G keywords
