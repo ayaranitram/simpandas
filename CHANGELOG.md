@@ -5,7 +5,7 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.90.5] - 2026-04-21
+## [0.90.6] - 2026-04-21
 
 ### Added
 - `ColumnUnits` class (`simpandas.common.units`): an ordered, duplicate-key-safe
@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Called automatically by the JSON, PRODML, and WITSML writers.
 - `simpandas.common.renamer.deduplicate_column_names(names)`: pure-function
   helper for the above.
+- `read_auto(path, **kwargs)`: automatic reader dispatch based on file
+  extension, with explicit `format='prodml'` or `format='witsml'` support for
+  ambiguous XML inputs.
 
 ### Fixed
 - `write_csv` / `to_csv`: unit row now uses `ColumnUnits.to_list()` positionally

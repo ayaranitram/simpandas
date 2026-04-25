@@ -19,10 +19,6 @@ src/*.egg-info
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
-.venv/
 
 # Testing
 .coverage
@@ -56,3 +52,7 @@ scripts
 .env.*
 .cache/
 build_squash.py
+env/
+venv/
+ENV/
+.venv/

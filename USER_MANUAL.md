@@ -1,6 +1,6 @@
 # SimPandas — User Manual
 
-**Version 0.90.5 | Python ≥ 3.7 | pandas 1.3 – 2.x**
+**Version 0.90.6 | Python ≥ 3.7 | pandas 1.3 – 2.x**
 
 ---
 
@@ -45,6 +45,7 @@
    - 7.8 [PRODML XML](#78-prodml-xml)
    - 7.9 [WITSML XML](#79-witsml-xml)
    - 7.10 [RESQML EPC](#710-resqml-epc)
+   - 7.11 [Automatic Dispatcher](#711-automatic-dispatcher)
 8. [Column-Name Conventions](#8-column-name-conventions)
    - 8.1 [Name Separator](#81-name-separator)
    - 8.2 [Intersection Character](#82-intersection-character)
@@ -983,6 +984,40 @@ sdf.to_resqml('output.epc')
 ```
 
 Requires `h5py` (`pip install h5py`).
+
+---
+
+### 7.11 Automatic Dispatcher
+
+`read_auto` detects file type from the provided path and forwards the call
+to the appropriate reader.
+
+```python
+from simpandas import read_auto
+
+# Excel
+sdf = read_auto('data.xlsx')
+
+# CSV
+sdf = read_auto('data.csv')
+
+# Eclipse summary
+sdf = read_auto('CASE.SMSPEC')
+
+# VDB directory or .vdb file
+sdf = read_auto('RUN.vdb')
+
+# Parquet
+sdf = read_auto('data.parquet')
+
+# XML: default is PRODML; override for WITSML
+sdf = read_auto('well.xml', format='prodml')
+sdf = read_auto('well.xml', format='witsml')
+```
+
+When the extension is ambiguous, pass ``format='prodml'`` or
+``format='witsml'``.  Any additional keyword arguments are forwarded to the
+selected reader.
 
 ---
 

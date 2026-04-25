@@ -3,7 +3,7 @@ A couple of Pandas DataFrame and Series subclasses, extended to work with units 
 
 This package is under development and is regularly updated. Back-compatibility is intended to be maintained when possible.
 
-**Version:** 0.90.5 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 2.x
+**Version:** 0.90.6 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 2.x
 
 ## What Contains This Package
 It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>, <a href="https://seaborn.pydata.org/">**seaborn**</a> and <a href="https://github.com/ayaranitram/unyts">**unyts**</a> and further own methods, to be able to deal with tables of quantities and facilitate common manipulations of time-dependent data.
