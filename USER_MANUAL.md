@@ -1,6 +1,6 @@
 # SimPandas — User Manual
 
-**Version 0.90.6 | Python ≥ 3.7 | pandas 1.3 – 2.x**
+**Version 0.90.7 | Python ≥ 3.7 | pandas 1.3 – 2.x**
 
 ---
 
@@ -46,6 +46,7 @@
    - 7.9 [WITSML XML](#79-witsml-xml)
    - 7.10 [RESQML EPC](#710-resqml-epc)
    - 7.11 [Automatic Dispatcher](#711-automatic-dispatcher)
+   - 7.12 [Eclipse Summary I/O](#712-eclipse-summary-io)
 8. [Column-Name Conventions](#8-column-name-conventions)
    - 8.1 [Name Separator](#81-name-separator)
    - 8.2 [Intersection Character](#82-intersection-character)
@@ -1018,6 +1019,34 @@ sdf = read_auto('well.xml', format='witsml')
 When the extension is ambiguous, pass ``format='prodml'`` or
 ``format='witsml'``.  Any additional keyword arguments are forwarded to the
 selected reader.
+
+
+### 7.12 Eclipse Summary I/O
+
+`read_summary` and `write_summary` support the Eclipse/OPM binary summary
+format (`.SMSPEC` + `.UNSMRY`). This includes field, well, group, completion,
+and block vectors, and preserves grid dimensions and start date in `sdf.meta`.
+
+```python
+from simpandas import read_summary
+from simpandas.writers.summary import write_summary
+
+sdf = read_summary('CASE.SMSPEC')
+print(sdf.meta)
+# {'dimens': [nx, ny, nz], 'startdat': [day, month, year]}
+
+write_summary(sdf, 'OUTPUT.SMSPEC', style='OPM')
+# or
+write_summary(sdf, 'OUTPUT.SMSPEC', style='ECLIPSE')
+```
+
+Supported summary styles:
+
+- `OPM`: writes `NAMES` as `C008`, compatible with OPM Flow and ECHELON.
+- `ECLIPSE`: writes `WGNAMES` as `CHAR`, compatible with classic Eclipse.
+
+Local Grid Refinement (LGR) vectors are also supported in both reader and
+writer.
 
 ---
 

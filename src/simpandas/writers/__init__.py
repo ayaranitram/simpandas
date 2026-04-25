@@ -5,8 +5,8 @@ Created on Wed Aug  3 20:24:36 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.90.5'
-__release__ = 20260421
+__version__ = '0.90.7'
+__release__ = 20260426
 
 from simpandas.writers.xlsx import write_excel
 from simpandas.writers.csv import write_csv

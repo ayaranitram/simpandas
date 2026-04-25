@@ -2,6 +2,7 @@
 
 - `read_auto` dispatcher for automatic reader selection.
 - `ColumnUnits` type and duplicate-column unit fidelity.
+- `read_summary` / `write_summary` now support Eclipse/OPM binary summary format with `OPM`/`ECLIPSE` style output and LGR vector handling.
 
 ### `ColumnUnits` — ordered, duplicate-key-safe units mapping
 

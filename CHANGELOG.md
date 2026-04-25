@@ -5,7 +5,7 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.90.6] - 2026-04-21
+## [0.90.7] - 2026-04-24
 
 ### Added
 - `ColumnUnits` class (`simpandas.common.units`): an ordered, duplicate-key-safe
@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `read_auto(path, **kwargs)`: automatic reader dispatch based on file
   extension, with explicit `format='prodml'` or `format='witsml'` support for
   ambiguous XML inputs.
+- `read_summary()` / `write_summary()` support Eclipse/OPM binary summary format
+  (`.SMSPEC` + `.UNSMRY`) with grid dimensions and start date preservation.
+- `read_summary()` now accepts OPM/ECHELON-style `NAMES` / `C008` metadata in
+  addition to classic `WGNAMES` / `CHAR`.
+- `write_summary(..., style='OPM')` and `write_summary(..., style='ECLIPSE')`
+  for OPM/ECHELON vs classic Eclipse metadata formatting.
+- `read_summary` / `write_summary` support Local Grid Refinement (LGR) vectors
+  via `LGRS`, `NUMLX`, `NUMLY`, and `NUMLZ`.
 
 ### Fixed
 - `write_csv` / `to_csv`: unit row now uses `ColumnUnits.to_list()` positionally
@@ -28,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `write_json` / `to_json`, `write_prodml` / `to_prodml`, `write_witsml` /
   `to_witsml`: duplicate column names are now deduplicated (with a warning)
   before the dict-based unit metadata is serialised, so no unit is silently lost.
+- `read_summary` now preserves LGR vector metadata and does not drop `TIMESTEP:1`
+  after reading OPM-style `NAMES` / `C008` metadata.
 
 ---
 
