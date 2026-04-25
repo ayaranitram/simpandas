@@ -56,14 +56,15 @@ def _write_keyword(fh, keyword: str, dtype_tag: bytes, data):
         b'REAL': 1000,
         b'DOUB': 1000,
         b'CHAR': 105,
+        b'C008': 105,
         b'LOGI': 1000,
     }.get(dtype_tag, 1000)
 
     offset = 0
     while offset < count:
         chunk = data[offset:offset + max_items]
-        if dtype_tag == b'CHAR':
-            buf = b''.join(s.encode('ascii', errors='replace').ljust(8)[:8]
+        if dtype_tag in (b'CHAR', b'C008'):
+            buf = b''.join((s or '').encode('ascii', errors='replace').ljust(8)[:8]
                            for s in chunk)
         elif dtype_tag == b'INTE':
             buf = struct.pack(f'>{len(chunk)}i', *[int(x) for x in chunk])
@@ -84,33 +85,39 @@ def _write_keyword(fh, keyword: str, dtype_tag: bytes, data):
 # ---------------------------------------------------------------------------
 
 def _decompose_column(col_name, sep=':', nx=1, ny=1):
-    """Split a SimPandas column name into (KEYWORD, WGNAME, NUM).
+    """Split a SimPandas column name into Eclipse summary vector components.
 
-    The decomposition mirrors the naming conventions used by the reader:
+    The decomposition mirrors the naming conventions used by the reader,
+    including LGR (Local Grid Refinement) vectors:
 
-    * ``FOPR``             → ``('FOPR', '', 0)``   (F-prefix, bare keyword)
-    * ``WBHP:PROD1``      → ``('WBHP', 'PROD1', 0)``
-    * ``COPR:PROD1:3``    → ``('COPR', 'PROD1', 3)``
-    * ``RPR:5``           → ``('RPR',  '', 5)``
-    * ``BPR:3,4,5``       → ``('BPR',  '', linearised_num)``
-    * ``TIME``            → ``('TIME', '', 0)``
+    * ``FOPR``                   → ``('FOPR', '', 0, '', -1, -1, -1)``
+    * ``WBHP:PROD1``             → ``('WBHP', 'PROD1', 0, '', -1, -1, -1)``
+    * ``WBHP:PROD1:LGR1``        → ``('WBHP', 'PROD1', 0, 'LGR1', -1, -1, -1)``
+    * ``COPR:PROD1:3``           → ``('COPR', 'PROD1', 3, '', -1, -1, -1)``
+    * ``COPR:PROD1:LGR1:3``      → ``('COPR', 'PROD1', 3, 'LGR1', -1, -1, -1)``
+    * ``BPR:3,4,5``              → ``('BPR',  '', linearised_num, '', -1, -1, -1)``
+    * ``BPR:LGR1:2,3,1``         → ``('BPR',  '', 0, 'LGR1', 2, 3, 1)``
+    * ``RPR:5``                  → ``('RPR',  '', 5, '', -1, -1, -1)``
 
     Parameters
     ----------
     col_name : str
     sep : str
     nx, ny : int
-        Grid dimensions needed to re-encode B-vector ``i,j,k`` back to
-        a linearised block number.
+        Grid dimensions for encoding main-grid B-vector ``i,j,k`` as a
+        linearised NUMS value.
 
     Returns
     -------
-    tuple of (str, str, int)
+    tuple : (keyword, wgname, num, lgr_name, numlx, numly, numlz)
+        ``numlx/numly/numlz`` are -1 for non-LGR vectors.
     """
     parts = col_name.split(sep)
     keyword = parts[0]
     wgname = ''
     num = 0
+    lgr_name = ''
+    lx = ly = lz = -1
     kw_prefix = keyword[0].upper() if keyword else 'X'
 
     if len(parts) == 1:
@@ -119,31 +126,46 @@ def _decompose_column(col_name, sep=':', nx=1, ny=1):
     elif len(parts) == 2:
         tail = parts[1]
         if kw_prefix == 'B' and ',' in tail:
-            # B-vector: i,j,k → linearised NUMS
+            # Main-grid B-vector: KEYWORD:i,j,k → linearised NUMS
             ijk = [int(x) for x in tail.split(',')]
             if len(ijk) == 3:
                 i, j, k = ijk
                 num = (i - 1) + (j - 1) * nx + (k - 1) * nx * ny + 1
         elif kw_prefix in ('R', 'A'):
-            # Region / Aquifer: always KEYWORD:NUM
             try:
                 num = int(tail)
             except ValueError:
                 wgname = tail
         else:
-            # Could be KEYWORD:WGNAME or KEYWORD:NUM
             try:
                 num = int(tail)
             except ValueError:
                 wgname = tail
-    elif len(parts) >= 3:
+    elif len(parts) == 3:
+        if kw_prefix == 'B' and ',' in parts[2]:
+            # LGR B-vector: KEYWORD:LGRNAME:ix,iy,iz
+            lgr_name = parts[1]
+            ijk = [int(x) for x in parts[2].split(',')]
+            if len(ijk) == 3:
+                lx, ly, lz = ijk
+        else:
+            # KEYWORD:WGNAME:NUM  (completion, main grid)
+            # or KEYWORD:WGNAME:LGRNAME  (well/group in LGR)
+            wgname = parts[1]
+            try:
+                num = int(parts[2])
+            except ValueError:
+                lgr_name = parts[2]
+    elif len(parts) >= 4:
+        # KEYWORD:WGNAME:LGRNAME:NUM  (completion in LGR)
         wgname = parts[1]
+        lgr_name = parts[2]
         try:
-            num = int(parts[2])
+            num = int(parts[3])
         except ValueError:
             pass
 
-    return keyword, wgname, num
+    return keyword, wgname, num, lgr_name, lx, ly, lz
 
 
 # ---------------------------------------------------------------------------
@@ -151,19 +173,19 @@ def _decompose_column(col_name, sep=':', nx=1, ny=1):
 # ---------------------------------------------------------------------------
 
 def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
-                  dimens=None):
+                  dimens=None, style='OPM'):
     """
     Write a SimDataFrame to Eclipse binary summary format.
 
     Produces a pair of files:
 
-    * ``<smspec_path>``  – the SMSPEC header (KEYWORDS, WGNAMES, NUMS,
-      UNITS, STARTDAT, DIMENS)
+    * ``<smspec_path>``  – the SMSPEC header (KEYWORDS, NAMES/WGNAMES, NUMS,
+      LGRS, NUMLX, NUMLY, NUMLZ, UNITS, STARTDAT, DIMENS)
     * ``<unsmry_path>``  – the unified UNSMRY data (SEQHDR + repeating
       MINISTEP / PARAMS records)
 
     The column names are decomposed using the SimPandas ``name_separator``
-    (default ``:``) into KEYWORD, WGNAME and NUM.
+    (default ``:``) into KEYWORD, WGNAME, NUM and (when present) LGR info.
 
     Parameters
     ----------
@@ -186,6 +208,13 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
         dimensions are inferred from the maximum ``i,j,k`` found in
         column names (which is only exact when at least the corner
         block is present).
+    style : str, default ``'OPM'``
+        Output format style.
+
+        * ``'OPM'``     – writes entity names as ``NAMES`` (dtype ``C008``);
+          compatible with OPM Flow, ECHELON and our reader.
+        * ``'ECLIPSE'`` – writes entity names as ``WGNAMES`` (dtype ``CHAR``);
+          required by classic Eclipse 100/300.
 
     Returns
     -------
@@ -235,10 +264,16 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
         col_units = {}
 
     # ---- Drop time/date columns that must not be written as data vectors --
-    # DATE is always derivative (STARTDAT + TIME); its Timestamp values cannot
-    # be stored as REAL PARAMS values.  A TIME/YEARS column is redundant with
-    # the leading PARAMS entry that comes from the index.
-    _drop_cols = [c for c in df.columns if c.upper() in ('DATE', 'TIME', 'YEARS')]
+    # DATE is always Timestamp-valued (can't be stored as REAL PARAMS).
+    # The keyword that becomes the leading PARAMS entry (TIME when index is DATE
+    # or TIME; YEARS when index is YEARS) would produce a duplicate SMSPEC entry
+    # if also present as a data column, so it is dropped too.
+    # Other time vectors (e.g. YEARS when TIME is the index, or TIME when YEARS
+    # is the index) are legitimate data vectors and must be preserved.
+    _idx_name = (df.index.name or '').upper()
+    _leading_time_kw = 'YEARS' if _idx_name in ('YEARS', 'YEAR') else 'TIME'
+    _drop_cols = [c for c in df.columns
+                  if c.upper() == 'DATE' or c.upper() == _leading_time_kw]
     if _drop_cols:
         _drop_set = set(_drop_cols)
         if col_units_list is not None:
@@ -303,19 +338,27 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
 
     # ---- Build SMSPEC vectors -------------------------------------------
     # The TIME vector is always the first entry (comes from the index).
-    keywords = [time_kw]
-    wgnames = ['']
+    keywords  = [time_kw]
+    wgnames   = ['']
     nums_list = [0]
     units_out = [index_units_val]
+    lgrs_list  = ['']
+    numlx_list = [-1]
+    numly_list = [-1]
+    numlz_list = [-1]
 
     _col_idx = 0
     for col in df.columns:
-        kw, wg, num = _decompose_column(col, sep, nx=nx, ny=ny)
+        kw, wg, num, lgr, lx, ly, lz = _decompose_column(col, sep, nx=nx, ny=ny)
         keywords.append(kw)
         wgnames.append(wg)
         nums_list.append(num)
+        lgrs_list.append(lgr)
+        numlx_list.append(lx)
+        numly_list.append(ly)
+        numlz_list.append(lz)
         units_out.append(col_units_list[_col_idx] if col_units_list is not None
-                          else col_units.get(col, ''))
+                          else (col_units.get(col) or ''))
         _col_idx += 1
 
     nlist = len(keywords)
@@ -339,11 +382,20 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
         # KEYWORDS
         _write_keyword(fh, 'KEYWORDS', b'CHAR', keywords)
 
-        # WGNAMES
-        _write_keyword(fh, 'WGNAMES', b'CHAR', wgnames_enc)
+        # Entity names: NAMES (C008) for OPM/ECHELON, WGNAMES (CHAR) for Eclipse
+        if style.upper() == 'OPM':
+            _write_keyword(fh, 'NAMES', b'C008', wgnames_enc)
+        else:
+            _write_keyword(fh, 'WGNAMES', b'CHAR', wgnames_enc)
 
         # NUMS
         _write_keyword(fh, 'NUMS', b'INTE', nums_list)
+
+        # LGR metadata (written even when all empty / -1 for format completeness)
+        _write_keyword(fh, 'LGRS',  b'CHAR', lgrs_list)
+        _write_keyword(fh, 'NUMLX', b'INTE', numlx_list)
+        _write_keyword(fh, 'NUMLY', b'INTE', numly_list)
+        _write_keyword(fh, 'NUMLZ', b'INTE', numlz_list)
 
         # UNITS
         _write_keyword(fh, 'UNITS', b'CHAR', units_out)

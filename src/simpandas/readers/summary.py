@@ -180,6 +180,10 @@ def read_summary(smspec_path,
     wgnames = []
     nums = []
     units_list = []
+    lgrs = []
+    numlx = []
+    numly = []
+    numlz = []
     nlist = 0
     nx, ny, nz = 1, 1, 1   # grid dimensions for block-vector decoding
     startdat = None
@@ -208,6 +212,14 @@ def read_summary(smspec_path,
                     wgnames = data[:nlist] if nlist else data
             elif kw == 'NUMS':
                 nums = [int(x) for x in (data[:nlist] if nlist else data)]
+            elif kw == 'LGRS':
+                lgrs = data[:nlist] if nlist else data
+            elif kw == 'NUMLX':
+                numlx = [int(x) for x in (data[:nlist] if nlist else data)]
+            elif kw == 'NUMLY':
+                numly = [int(x) for x in (data[:nlist] if nlist else data)]
+            elif kw == 'NUMLZ':
+                numlz = [int(x) for x in (data[:nlist] if nlist else data)]
             elif kw == 'UNITS':
                 units_list = data[:nlist] if nlist else data
             elif kw == 'STARTDAT':
@@ -225,6 +237,14 @@ def read_summary(smspec_path,
         nums.append(0)
     while len(units_list) < nlist:
         units_list.append('')
+    while len(lgrs) < nlist:
+        lgrs.append('')
+    while len(numlx) < nlist:
+        numlx.append(-1)
+    while len(numly) < nlist:
+        numly.append(-1)
+    while len(numlz) < nlist:
+        numlz.append(-1)
 
     # ----- build column names (None = skip this SMSPEC item) ------------
     sep = nameSeparator if nameSeparator else ':'
@@ -233,6 +253,11 @@ def read_summary(smspec_path,
         kw = keywords[i]
         wg = wgnames[i]
         num = nums[i]
+        lgr = lgrs[i].strip() if i < len(lgrs) else ''
+        lx  = numlx[i] if i < len(numlx) else -1
+        ly  = numly[i] if i < len(numly) else -1
+        lz  = numlz[i] if i < len(numlz) else -1
+        is_lgr = bool(lgr)
 
         # Build composite name using keyword prefix to determine structure.
         # In Eclipse SMSPEC the NUMS value means different things:
@@ -267,8 +292,11 @@ def read_summary(smspec_path,
                 col_names.append(None)
         elif kw_prefix == 'B':
             # Block vector: sentinel WGNAME is normal
-            if num > 0:
-                # Grid block: decode linearised index → i,j,k (1-based)
+            if is_lgr and lx > 0 and ly > 0 and lz > 0:
+                # LGR block: NUMLX/NUMLY/NUMLZ give coordinates directly
+                col_names.append(f'{kw}{sep}{lgr}{sep}{lx},{ly},{lz}')
+            elif num > 0:
+                # Main-grid block: decode linearised index → i,j,k (1-based)
                 n0 = num - 1
                 bi = (n0 % nx) + 1
                 bj = ((n0 // nx) % ny) + 1
@@ -276,28 +304,38 @@ def read_summary(smspec_path,
                 col_names.append(f'{kw}{sep}{bi},{bj},{bk}')
             else:
                 col_names.append(None)
-        elif is_sentinel:
-            # W/G/C/S with sentinel WGNAME → no real entity, skip
+        elif is_sentinel and kw_prefix in ('W', 'G', 'C', 'S'):
+            # Sentinel WGNAME on W/G/C/S vector → no real entity, skip
             col_names.append(None)
         elif kw_prefix in ('W', 'G'):
             if wg:
-                # Well / Group: KEYWORD:WGNAME  (NUMS is just a sequence index)
-                col_names.append(f'{kw}{sep}{wg}')
+                if is_lgr:
+                    # Well / Group scoped to an LGR: KEYWORD:WGNAME:LGRNAME
+                    col_names.append(f'{kw}{sep}{wg}{sep}{lgr}')
+                else:
+                    # Well / Group: KEYWORD:WGNAME
+                    col_names.append(f'{kw}{sep}{wg}')
             else:
                 # keyword with no WGNAME → no real entity, skip
                 col_names.append(None)
         elif kw_prefix in ('C', 'S'):
-            if num > 0:
+            if is_lgr:
+                # Completion / Segment in LGR: KEYWORD:WGNAME:LGRNAME[:NUM]
+                if num > 0:
+                    col_names.append(f'{kw}{sep}{wg}{sep}{lgr}{sep}{num}')
+                else:
+                    col_names.append(f'{kw}{sep}{wg}{sep}{lgr}')
+            elif num > 0:
                 # Completion / Segment: KEYWORD:WGNAME:NUM
                 col_names.append(f'{kw}{sep}{wg}{sep}{num}')
             else:
                 col_names.append(None)
-        elif num > 0 and wg:
+        elif num > 0 and wg and not is_sentinel:
             # Generic vector with entity name and qualifier
             col_names.append(f'{kw}{sep}{wg}{sep}{num}')
-        elif num > 0:
+        elif num > 0 and (not wg or is_sentinel):
             col_names.append(f'{kw}{sep}{num}')
-        elif wg:
+        elif wg and not is_sentinel:
             col_names.append(f'{kw}{sep}{wg}')
         else:
             col_names.append(f'{kw}')
