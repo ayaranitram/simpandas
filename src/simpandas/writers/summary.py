@@ -179,7 +179,7 @@ def write_summary(sdf, smspec_path, unsmry_path=None, startdat=None,
         ``[day, month, year]`` (optionally ``[day, month, year, hour,
         minute, microsecond]``).  When ``None`` and the index is a
         DatetimeIndex the start date is derived from the first entry;
-        otherwise ``[1, 1, 2000]`` is used.
+        otherwise ``[1, 1, 1900]`` is used.
     dimens : list or tuple of ints, optional
         ``[nx, ny, nz]`` grid dimensions.  Required for correct
         round-trip of B-prefix (block) vectors.  When ``None`` the
