@@ -9,13 +9,13 @@ __version__ = '0.90.5'
 __release__ = 20260421
 __all__ = ['SimSeries', 'SimDataFrame', 'ColumnUnits', 'read_excel', 'read_csv', 'read_json',
            'read_hdf5', 'read_summary', 'read_vdb', 'read_parquet',
-           'read_prodml', 'read_witsml', 'read_resqml', 'read_auto', 'concat']
+           'read_prodml', 'read_witsml', 'read_resqml', 'read_schedule', 'read_auto', 'concat']
 
 from .series import SimSeries
 from .frame import SimDataFrame
 from .index import SimIndex
 from .readers import (read_excel, read_csv, read_json, read_hdf5, read_summary,
                       read_vdb, read_parquet, read_prodml, read_witsml, read_resqml,
-                      read_auto)
+                      read_schedule, read_auto)
 from .common.merger import concat
 from .common.units import ColumnUnits

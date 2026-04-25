@@ -18,6 +18,7 @@ from simpandas.readers.parquet import read_parquet
 from simpandas.readers.prodml import read_prodml
 from simpandas.readers.witsml import read_witsml
 from simpandas.readers.resqml import read_resqml
+from simpandas.readers.schedule import read_schedule
 
 
 def read_auto(path, **kwargs):
@@ -31,6 +32,7 @@ def read_auto(path, **kwargs):
     .json                       →  read_json
     .h5, .hdf5, .he5            →  read_hdf5
     .smspec, .unsmry            →  read_summary
+    .data                       →  read_schedule
     .vdb  (file or folder)      →  read_vdb
     .parquet                    →  read_parquet
     .xml (PRODML)               →  read_prodml  (default for .xml)
@@ -87,6 +89,8 @@ def read_auto(path, **kwargs):
             'unsmry': read_summary,
             'vdb': read_vdb,
             'parquet': read_parquet,
+            'schedule': read_schedule,
+            'data': read_schedule,
             'prodml': read_prodml,
             'witsml': read_witsml,
             'resqml': read_resqml,
@@ -114,6 +118,7 @@ def read_auto(path, **kwargs):
         '.smspec': read_summary,
         '.unsmry': read_summary,
         '.parquet': read_parquet,
+        '.data': read_schedule,
         '.xml':   read_prodml,   # default; override with format='witsml'
         '.epc':   read_resqml,
     }

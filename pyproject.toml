@@ -24,6 +24,7 @@ dependencies = [
     'seaborn',
     'packaging',
     'unyts >= 1.0.0',
+    'schedule_reader >= 0.7.15',
     'openpyxl',
     'xlsxwriter',
 ]
