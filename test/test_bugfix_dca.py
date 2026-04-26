@@ -163,3 +163,53 @@ class TestFromDict:
         d = {0.0: units(100, 'psi'), 1.0: units(200, 'psi')}
         ss = SimSeries.from_dict(d, name='BHP', index_name='time', index_units='day')
         assert ss.index.name == 'time'
+
+
+# ---- Issue 4: SimSeries.__call__ vs apply_if_callable ----
+
+class TestApplyIfCallable:
+    """Issue #4: SimSeries.__call__ must not interfere with pandas
+    apply_if_callable used inside .mask(), .where(), etc."""
+
+    def test_simseries_mask_with_series_cond(self):
+        sdf = SimDataFrame({"GR": [50., 60., 70.]}, units={"GR": "gAPI"})
+        gr = sdf["GR"]
+        masked = gr.mask(gr == 60.0, 0.0)
+        assert masked.tolist() == [50., 0., 70.]
+        assert masked.units == "gAPI"
+
+    def test_simseries_where_with_series_cond(self):
+        sdf = SimDataFrame({"GR": [50., 60., 70.]}, units={"GR": "gAPI"})
+        gr = sdf["GR"]
+        kept = gr.where(gr > 55, 0.0)
+        assert kept.tolist() == [0., 60., 70.]
+
+    def test_simdataframe_setitem_via_mask(self):
+        """The full end-to-end pattern from the original report."""
+        sdf = SimDataFrame({"GR": [50., 60., 70.]}, units={"GR": "gAPI"})
+        sdf["GR"] = sdf["GR"].mask(sdf["GR"] == 60., 0.)
+        assert sdf.get_units("GR") == "gAPI"
+        assert sdf["GR"].tolist() == [50., 0., 70.]
+
+    def test_simseries_call_with_key_still_works(self):
+        """Backward compat: series(key) must still work."""
+        ss = SimSeries([10, 20, 30], index=['a', 'b', 'c'], units='m')
+        assert ss('b') == 20       # existing __call__ behavior
+        assert list(ss()) == [10, 20, 30]  # ss() returns values
+
+    def test_simseries_call_with_series_arg_returns_self(self):
+        """When __call__ receives a Series (apply_if_callable pattern),
+        it must return self unchanged."""
+        import pandas as pd
+        ss = SimSeries([1, 2, 3], units='m')
+        result = ss(pd.Series([10, 20, 30]))
+        assert result is ss
+
+    def test_simdataframe_mask_preserves_unit(self):
+        """mask() on a SimDataFrame itself (not just SimSeries)."""
+        sdf = SimDataFrame(
+            {"GR": [50., 60., 70.], "RHOB": [2.5, 2.4, 2.3]},
+            units={"GR": "gAPI", "RHOB": "g/cc"})
+        masked = sdf.mask(sdf > 60)   # NaN where > 60
+        assert masked.get_units("GR") == "gAPI"
+        assert masked.get_units("RHOB") == "g/cc"

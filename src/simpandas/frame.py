@@ -538,6 +538,13 @@ class SimDataFrame(SimBasics, DataFrame):
         return self
 
     def __call__(self, key=None):
+        # Guard against pandas' apply_if_callable: when mask/where/assign
+        # pass a SimDataFrame condition, pandas calls cond(self) because
+        # callable(simdataframe) is True.  Return self so pandas treats
+        # this SimDataFrame as a non-callable value.
+        import pandas as pd
+        if isinstance(key, (pd.Series, pd.DataFrame)):
+            return self
         if key is None:
             key = self.columns
         result = self.__getitem__(key)

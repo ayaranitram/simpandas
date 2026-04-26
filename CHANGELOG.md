@@ -5,6 +5,13 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.90.9] - 2026-04-27
+
+### Fixed
+- Fixed an interaction where `SimSeries` and `SimDataFrame` being callable (due to `__call__`) caused pandas internal helper `apply_if_callable` to crash operations like `.mask()`, `.where()`, and `.assign()` when they received a Sim type as an argument. The internal implementations of `__call__` now safely return `self` when invoked with another pandas Series or DataFrame.
+
+---
+
 ## [0.90.8] - 2026-04-26
 
 ### Added

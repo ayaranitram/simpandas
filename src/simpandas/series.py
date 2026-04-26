@@ -431,11 +431,18 @@ class SimSeries(SimBasics, Series):
     def __call__(self, key=None):
         """
         Returns the series values, a NumPy array or number without units.
+
+        Special-case: if ``key`` is itself a Series or DataFrame, this
+        method is being called by pandas' ``apply_if_callable`` inside
+        ``.mask()`` / ``.where()`` / ``.assign()`` etc.  Return ``self``
+        so pandas treats this SimSeries as a non-callable value.
         """
         if key is None:
             return self.values
-        else:
-            return self[key].values
+        import pandas as pd
+        if isinstance(key, (pd.Series, pd.DataFrame)):
+            return self
+        return self[key].values
 
     def __getitem__(self, key=None):
         from .frame import SimDataFrame

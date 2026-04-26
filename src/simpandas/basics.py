@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Sun Oct 11 11:14:32 2020
 
@@ -290,10 +290,18 @@ class SimBasics(object, metaclass=SimType):
 
     def where(self, cond, other=None, *args, **kwargs):
         """Replace values where the condition is False, preserving units."""
+        if hasattr(cond, 'as_pandas'):
+            cond = cond.as_pandas()
+        if hasattr(other, 'as_pandas'):
+            other = other.as_pandas()
         return self._rewrap(self.as_pandas().where(cond, other, *args, **kwargs))
 
     def mask(self, cond, other=None, *args, **kwargs):
         """Replace values where the condition is True, preserving units."""
+        if hasattr(cond, 'as_pandas'):
+            cond = cond.as_pandas()
+        if hasattr(other, 'as_pandas'):
+            other = other.as_pandas()
         return self._rewrap(self.as_pandas().mask(cond, other, *args, **kwargs))
 
     def sample(self, *args, **kwargs):

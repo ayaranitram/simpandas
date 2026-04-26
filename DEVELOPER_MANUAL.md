@@ -637,6 +637,14 @@ separately.
 
 ## 14. Common Pitfalls
 
+### Pandas `apply_if_callable` interpreting Sim types as functions
+
+**Symptom:** `ValueError: The truth value of a DataFrame is ambiguous` or `KeyError` when calling `.mask()`, `.where()`, `.assign()`, etc., with a SimPandas type as an argument.
+
+**Cause:** Both `SimSeries` and `SimDataFrame` implement `__call__` for convenience extraction. The internal pandas wrapper function `apply_if_callable(cond, self)` checks `callable(cond)` and invokes `cond(self)` if true. This means passing a `SimSeries` as the condition to `.mask()` would result in pandas attempting to execute the SimSeries as a function, treating the target object as the key argument.
+
+**Fix:** `__call__` in both classes contains a specialized guard that checks `if isinstance(key, (pd.Series, pd.DataFrame)): return self`. This intercepts the `apply_if_callable` invocation and returns the object safely, ensuring it is effectively treated as a scalar non-callable value during pandas internals traversal.
+
 ### `_units_` not initialised after pandas internal construction
 
 **Symptom:** `AttributeError: '_units_'` or `TypeError` inside the `units`
