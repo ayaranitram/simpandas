@@ -82,6 +82,13 @@ class SimSeries(SimBasics, Series):
     SimDataFrame
     pandas.Series
 
+    Truthiness
+    ----------
+    Because ``SimSeries`` inherits from ``pandas.Series``, evaluating it as a
+    boolean (e.g. ``series or {}``) raises ``ValueError`` on multi-element
+    series. Use ``series.empty``, ``len(series) == 0``, or an explicit
+    ``series if series is not None else {}`` instead.
+
     """
     _metadata = ['units',
                  'verbose',
@@ -107,7 +114,7 @@ class SimSeries(SimBasics, Series):
                  dtype=None,
                  name=None,
                  copy=False,
-                 fastpath=False,
+                 fastpath=False,  # deprecated; kept for API compat but no longer forwarded to pandas
                  verbose=False,
                  index_name=None,
                  index_units=None,
@@ -170,7 +177,7 @@ class SimSeries(SimBasics, Series):
             index_units = index.units
 
         # initialize Series
-        super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy, fastpath=fastpath)
+        super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy)
 
         # get name
         if self.name is None or (type(self.name) is str and self.name.strip() == ''):
@@ -304,6 +311,122 @@ class SimSeries(SimBasics, Series):
 
     def as_simdataframe(self):
         return self.to_simdataframe()
+
+    def as_dict(self, data_only: bool = False) -> dict:
+        """Convert this SimSeries to a dictionary.
+
+        Parameters
+        ----------
+        data_only : bool, default False
+            If True, return a plain ``{index_val: raw_value}`` dict (no
+            unit metadata — same as ``dict(self)``).
+            If False (default), return ``{index_val: unyts_value}`` where
+            each value is a ``unyts`` instance carrying its own unit.
+            This makes the conversion reversible via ``SimSeries.from_dict()``.
+
+        Returns
+        -------
+        dict
+            When ``data_only=True``: ``{index_val: raw_value, ...}``
+            When ``data_only=False``: ``{index_val: unyts_instance, ...}``
+            Returns ``{}`` if the series is empty.
+
+        See Also
+        --------
+        SimSeries.from_dict : Reconstruct a SimSeries from a unyts-valued dict.
+
+        Examples
+        --------
+        >>> ss = SimSeries([100, 200], index=[0.0, 1.0],
+        ...               units='psi', name='BHP')
+        >>> d = ss.as_dict()
+        >>> d[0.0]
+        100_psi
+        >>> d[0.0].value
+        100
+        >>> d[0.0].units
+        'psi'
+        >>> reconstructed = SimSeries.from_dict(d, name='BHP')
+        >>> (reconstructed == ss).all()
+        True
+        """
+        if self.empty:
+            return {}
+
+        if data_only:
+            return dict(self)
+
+        from .common.lazy_unyts import units as _units
+
+        unit_str = self.units if isinstance(self.units, str) else None
+        result = {}
+        for idx_val, data_val in self.items():
+            if unit_str and unit_str != 'unitless':
+                result[idx_val] = _units(data_val, unit_str)
+            else:
+                result[idx_val] = data_val
+        return result
+
+    @classmethod
+    def from_dict(cls, d: dict, name: str = None,
+                  index_name: str = None, index_units: str = None) -> 'SimSeries':
+        """Reconstruct a SimSeries from a dict with unyts-valued entries.
+
+        Parameters
+        ----------
+        d : dict
+            A dict produced by :meth:`as_dict` (``data_only=False``).
+            Values may be ``unyts`` instances or plain numbers.
+        name : str, optional
+            Name for the resulting SimSeries.
+        index_name : str, optional
+            Name for the index.
+        index_units : str, optional
+            Units for the index.
+
+        Returns
+        -------
+        SimSeries
+
+        See Also
+        --------
+        SimSeries.as_dict : Produce the unyts-valued dict.
+
+        Examples
+        --------
+        >>> from unyts import units
+        >>> d = {0.0: units(100, 'psi'), 1.0: units(200, 'psi')}
+        >>> ss = SimSeries.from_dict(d, name='BHP')
+        >>> ss.units
+        'psi'
+        """
+        from .common.lazy_unyts import is_Unit
+
+        if not d:
+            return cls(data=None, name=name, dtype=object)
+
+        index = list(d.keys())
+        values = list(d.values())
+
+        # Extract units from unyts instances if present
+        unit_str = None
+        raw_values = []
+        for v in values:
+            if is_Unit(v):
+                if unit_str is None:
+                    unit_str = v.units
+                raw_values.append(v.value)
+            else:
+                raw_values.append(v)
+
+        return cls(
+            data=raw_values,
+            index=index,
+            units=unit_str,
+            name=name,
+            index_name=index_name,
+            index_units=index_units,
+        )
 
     def __call__(self, key=None):
         """

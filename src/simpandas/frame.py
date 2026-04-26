@@ -833,7 +833,22 @@ class SimDataFrame(SimBasics, DataFrame):
         after = len(self.columns)
 
         if after == before:
-            self.new_units(key, u_dict[key])
+            incoming_unit = u_dict.get(key)
+            if incoming_unit is not None and incoming_unit != 'unitless':
+                # The incoming value explicitly carries a unit — use it.
+                self.new_units(key, incoming_unit)
+            elif key in self.columns:
+                # The incoming value has no explicit unit (plain Series, array,
+                # list, etc.) or was tagged 'unitless'. Preserve the column's
+                # existing unit rather than overwriting it — this is the common
+                # case when users do sdf["col"] = sdf["col"].mask(...) or
+                # assign a numpy array back to the same column.
+                existing_unit = self.get_units(key)
+                if existing_unit is None:
+                    existing_unit = incoming_unit if incoming_unit is not None else 'unitless'
+                self.new_units(key, existing_unit)
+            else:
+                self.new_units(key, incoming_unit if incoming_unit is not None else 'unitless')
         elif after > before:
             for c in range(before, after):
                 if self.columns[c] in self.columns[before: after] and self.columns[c] in u_dict:

@@ -1,6 +1,41 @@
 # What's New in SimPandas — April 2026
 
-- `read_auto` dispatcher for automatic reader selection.
+## 0.90.8 — Maintenance and dictionary interop — April 2026
+
+This release improves dictionary interop for `SimSeries` and fixes a critical `KeyError` in `SimDataFrame` assignments.
+
+### Reversible `as_dict()` for `SimSeries`
+
+`SimSeries.as_dict()` now returns a dictionary where each value is a `unyts` instance (e.g., `100_psi`).  This makes the dictionary **self-describing** and **reversible** — you can reconstruct the `SimSeries` with all its units intact using the new `from_dict()` classmethod.
+
+```python
+>>> ss = SimSeries([100, 200], index=[0.0, 1.0], units='psi', name='BHP')
+>>> d = ss.as_dict()
+>>> # d is {0.0: 100_psi, 1.0: 200_psi}
+>>> reconstructed = SimSeries.from_dict(d, name='BHP')
+>>> reconstructed.units  # 'psi'
+```
+
+If you prefer a plain dictionary with raw numbers, use `as_dict(data_only=True)`.
+
+### Preserving units on re-assignment
+
+Fixed a `KeyError` that occurred when re-assigning a plain pandas Series, numpy array, or list to an existing `SimDataFrame` column.  The column's existing units are now correctly preserved if the incoming data doesn't carry his own units.
+
+```python
+# Before: this would crash with KeyError or lose units
+sdf['GR'] = sdf['GR'].mask(sdf['GR'] == -999.25, np.nan) 
+
+# After: works correctly and preserves 'gAPI' unit
+```
+
+### Other fixes
+- Removed deprecated `fastpath` parameter from `SimSeries` internal constructor to eliminate `DeprecationWarning` in modern pandas.
+- Added truthiness warning to `SimSeries` docstring regarding ambiguous boolean evaluation (matches pandas behavior).
+
+---
+
+# Previous Updates
 - `ColumnUnits` type and duplicate-column unit fidelity.
 - `read_summary` / `write_summary` now support Eclipse/OPM binary summary format with `OPM`/`ECLIPSE` style output and LGR vector handling.
 

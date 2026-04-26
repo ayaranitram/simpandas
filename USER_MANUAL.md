@@ -1,6 +1,6 @@
 # SimPandas — User Manual
 
-**Version 0.90.7 | Python ≥ 3.7 | pandas 1.3 – 2.x**
+**Version 0.90.8 | Python ≥ 3.7 | pandas 1.3 – 2.x**
 
 ---
 
@@ -695,7 +695,32 @@ s.to_series()          # plain pandas Series
 s.as_series()          # same (no copy)
 s.to_simdataframe()    # wrap in a one-column SimDataFrame
 s.to_frame()           # alias
+
+# Dictionary conversion
+s.as_dict()            # {index: unyts_instance} — unit metadata preserved
+s.as_dict(data_only=True)  # {index: raw_value} — plain python dict
+
+# Reconstruction
+SimSeries.from_dict(d, name='BHP', units='psi')  # reconstruct from dict
 ```
+
+**Reversible conversion**
+
+`as_dict()` returns a dictionary where each value is a `unyts` instance (e.g., `100_psi`). This allows for a naturally reversible process where the units metadata travels intrinsically with each value.
+
+```python
+>>> ss = SimSeries([100, 200], index=[0.0, 1.0], units='psi', name='BHP')
+>>> d = ss.as_dict()
+>>> d[0.0]
+100_psi
+>>> reconstructed = SimSeries.from_dict(d, name='BHP')
+>>> reconstructed.units
+'psi'
+```
+
+If you only need raw numbers without unit metadata, use `as_dict(data_only=True)`.
+
+---
 
 ### 5.6 Time-Series Aggregations
 

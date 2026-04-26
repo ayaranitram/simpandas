@@ -1,6 +1,6 @@
 # SimPandas — Developer Manual
 
-**Version 0.84.0 | For contributors and maintainers**
+**Version 0.90.8 | For contributors and maintainers**
 
 ---
 
@@ -365,8 +365,12 @@ def resample(self, *args, **kwargs):
   results.
 - Overrides comparison methods (`eq`, `ge`, `gt`, `le`, `lt`, `ne`) as
   named methods that accept a `precision` argument for rounded comparison.
-- Has extra conversion helpers: `to_simdataframe()`, `as_simdataframe()`,
+- Has extra conversion helpers: `as_dict()`, `from_dict()`, `to_simdataframe()`, `as_simdataframe()`,
   `daily()`, `monthly()`, `yearly()`, `slope()`.
+
+### `as_dict()` Implementation Detail
+
+`as_dict(data_only=False)` leverages the fact that `unyts` instances are self-contained. It iterates over the series and returns `{index: unyts.Unit(value, unit)}`. This makes the dictionary serializable and reversible without needing a separate units sidecar. `from_dict()` performs the inverse by checking `is_Unit(val)` on each dictionary value to extract both raw data and the canonical unit for the series.
 
 ---
 
@@ -697,7 +701,13 @@ return self._class(data=result, **self.params_)
 Never hard-code `SimDataFrame(...)` inside `SimBasics` unless you specifically
 need a DataFrame regardless of type.
 
----
+### `KeyError` during column re-assignment (`__setitem__`)
+
+**Symptom**: `KeyError` when performing `sdf['col'] = sdf['col'].mask(...)` or assigning a plain Series back to an existing column.
+
+**Cause**: The `__setitem__` logic traditionally looked up units in an incoming `u_dict`. If the column already existed but the incoming data didn't provide a new unit (plain pandas object), the lookup would fail or overwrite with `'unitless'`.
+
+**Fix**: `SimDataFrame.__setitem__` now includes an `after == before` check. If the column exists and no explicit unit is provided in the assignment, it attempts to **preserve** the existing unit from `self.get_units(key)`. This ensures operations like `.mask`, `.where`, or manual array assignments don't strip metadata.
 
 ## 15. Versioning and Release
 

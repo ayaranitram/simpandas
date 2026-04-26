@@ -3,7 +3,7 @@ A couple of Pandas DataFrame and Series subclasses, extended to work with units 
 
 This package is under development and is regularly updated. Back-compatibility is intended to be maintained when possible.
 
-**Version:** 0.90.7 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 2.x
+**Version:** 0.90.8 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 2.x
 
 ## What Contains This Package
 It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>, <a href="https://seaborn.pydata.org/">**seaborn**</a> and <a href="https://github.com/ayaranitram/unyts">**unyts**</a> and further own methods, to be able to deal with tables of quantities and facilitate common manipulations of time-dependent data.
@@ -83,7 +83,9 @@ from simpandas.writers import write_excel
 - Added wrappers for missing pandas methods in `SimBasics` to preserve metadata through more operations.
 - Added `_SimResampleProxy` and `resample()` support on both `SimDataFrame` and `SimSeries`.
 - Fixed filter parsing infrastructure by wiring `common.filters.key_to_string(...)` correctly from `SimSeries.filter()` and `SimDataFrame.filter()`.
-- Added regression coverage in `test/test_audit_bugs.py` and `test/test_missing_wrappers.py`.
+- Added `as_dict()` and `from_dict()` for `SimSeries` with `unyts` instance support.
+- Fixed `KeyError` in `__setitem__` when re-assigning columns and preserved existing units.
+- Added regression coverage in `test/test_bugfix_dca.py`.
 
 ## Documentation
 

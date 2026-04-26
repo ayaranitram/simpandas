@@ -5,6 +5,27 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.90.8] - 2026-04-26
+
+### Added
+- `SimSeries.as_dict(data_only=False)`: converts a `SimSeries` to a dictionary.
+  By default, values are returned as `unyts` instances (`100_psi`), preserving
+  unit metadata intrinsically.  `data_only=True` returns plain raw values.
+- `SimSeries.from_dict(d, name=None, ...)`: classmethod to reconstruct a
+  `SimSeries` from a dictionary.  Extracts values and units from `unyts`
+  instances if present.
+
+### Fixed
+- `SimDataFrame.__setitem__`: fixed a `KeyError` when re-assigning a value
+  (plain Series, array, or list) to a column that was not previously registered 
+  in the incoming units metadata.  The column's existing unit is now correctly 
+  preserved instead of being lost or crashing.
+- `SimSeries.__init__`: removed deprecated `fastpath` forwarding to pandas
+  to eliminate `DeprecationWarning` in pandas 2.x/3.x.
+- Documentation: added ambiguous truthiness warning to `SimSeries` docstring.
+
+---
+
 ## [0.90.7] - 2026-04-24
 
 ### Added
