@@ -5,7 +5,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.90.11'
+__version__ = '0.90.12'
 __release__ = 20260502
 __all__ = ['SimDataFrame']
 
@@ -3117,10 +3117,13 @@ class SimDataFrame(SimBasics, DataFrame):
                 tempdf['_PROD:' + str(w)].iloc[i] < tempdf['_INJE:' + str(w)].iloc[i] else None for i in
                 range(len(tempdf))]
 
-        tempdf['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)].fillna(method='ffill').fillna(method='bfill').astype(
-            'category')
+            tempdf['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)].ffill().bfill().astype('category')
 
+        drop_cols = [c for c in
+                     ['_INJE:' + str(w) for w in tempdf.wells] + ['_PROD:' + str(w) for w in tempdf.wells]
+                     if c in tempdf.columns]
         if inplace:
-            self['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)]
+            for w in tempdf.wells:
+                self['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)]
         else:
-            return tempdf.drop(columns=['_INJE:' + str(w), '_PROD:' + str(w)], inplace=True)
+            return tempdf.drop(columns=drop_cols)

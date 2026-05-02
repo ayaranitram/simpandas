@@ -5,7 +5,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.90.11'
+__version__ = '0.90.12'
 __release__ = 20260502
 __all__ = ['SimSeries']
 

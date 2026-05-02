@@ -24,7 +24,7 @@ def melt(df, hue='--auto', label='--auto', SimObject=None, full_output=False, **
         SimDF = True
         unitsdict = df.get_units().copy()
         units = lambda col: unitsdict[col] if col in unitsdict else None
-        df = df.DF
+        df = df.df
     else:
         SimDF = False
 

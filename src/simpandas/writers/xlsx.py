@@ -11,6 +11,7 @@ __all__ = ['write_excel']
 
 import fnmatch
 import pandas as pd
+from ..common.renamer import left as _left, right as _right
 
 def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
                 float_format=None, columns=None, header=True, units=True, index=True,
@@ -105,7 +106,7 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
     """
     # if header is not requiered and sheet_name is str, directly pass it to Pandas
     if(not header and type(sheet_name) is str ) or(not units and type(sheet_name) is str ):
-        sdf.DF.to_excel(excel_writer, sheet_name=sheet_name, na_rep=na_rep, float_format=float_format, columns=columns, header=False, index=index, index_label=index_label, startrow=startrow, startcol=startcol, engine=engine, merge_cells=merge_cells, inf_rep=inf_rep, freeze_panes=freeze_panes)
+        sdf.df.to_excel(excel_writer, sheet_name=sheet_name, na_rep=na_rep, float_format=float_format, columns=columns, header=False, index=index, index_label=index_label, startrow=startrow, startcol=startcol, engine=engine, merge_cells=merge_cells, inf_rep=inf_rep, freeze_panes=freeze_panes)
 
     # helper function
     firstChar = lambda s : str(s)[0]
@@ -132,10 +133,10 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
     # define the split and sheet(s) name(s)
     if split_by is None : # no split_by, use a single sheet
         if sheet_name is None : # generate the sheet name
-            if len(sdf[cols].left) == 1:
-                names = sdf[cols].left
-            elif len(sdf[cols].right) == 1:
-                names = sdf[cols].right
+            if len(set(_left(sdf[cols]).values())) == 1:
+                names = tuple(set(_left(sdf[cols]).values()))
+            elif len(set(_right(sdf[cols]).values())) == 1:
+                names = tuple(set(_right(sdf[cols]).values()))
             elif len(set(map(firstChar, cols))) == 1:
                 names = list(set(map(firstChar, cols)))[0]
                 if names == 'F':
@@ -161,9 +162,9 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
 
     elif type(split_by) is str:
         if split_by == 'left':
-            names = tuple(sorted(sdf[cols].left))
+            names = tuple(sorted(set(_left(sdf[cols]).values())))
         elif split_by == 'right':
-            names = tuple(sorted(sdf[cols].right))
+            names = tuple(sorted(set(_right(sdf[cols]).values())))
         elif split_by == 'first':
             names = tuple(sorted(set(map(firstChar, cols))))
         elif split_by == 'last':
@@ -195,14 +196,14 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
     headerRows = 2 if header is True else 0
 
     if index:
-        if sdf.index.name is None:
-            indexName =('', )
         if type(sdf.index) is pd.core.indexes.multi.MultiIndex:
             indexName = tuple(sdf.index.names)
         else:
-            indexName =(sdf.index.name, )
+            indexName = (sdf.index.name or '',)
         indexUnits = '' if sdf.index_units is None else sdf.index_units
         indexCols = len(sdf.index.names) if type(sdf.index) is pd.core.indexes.multi.MultiIndex else 1
+    else:
+        indexCols = 0
 
     if freeze_panes is None:
         freeze_panes =(startrow+headerRows, startcol+(indexCols if index else 0))
@@ -262,7 +263,7 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
                 colselect = tuple(fnmatch.filter(cols, '*'+names[i][-1] ))
 
         # write the sheet to the ExcelWriter
-        sdf.DF.to_excel(SDFwriter, sheet_name=names[i], na_rep=na_rep, float_format=float_format, columns=colselect, header=False, index=index, index_label=index_label, startrow=startrow+headerRows, startcol=startcol, engine=engine, merge_cells=merge_cells, inf_rep=inf_rep, freeze_panes=freeze_panes)
+        sdf.df.to_excel(SDFwriter, sheet_name=names[i], na_rep=na_rep, float_format=float_format, columns=colselect, header=False, index=index, index_label=index_label, startrow=startrow+headerRows, startcol=startcol, engine=engine, merge_cells=merge_cells, inf_rep=inf_rep, freeze_panes=freeze_panes)
 
         # Get the xlsxwriter workbook and worksheet objects.
         SDFworkbook  = SDFwriter.book

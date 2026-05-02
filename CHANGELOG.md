@@ -5,6 +5,18 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.90.12] - 2026-05-02
+
+### Fixed
+- `read_schedule()`: scoped the reader to history keywords only (`WCONHIST`, `WCONINJH`). For forecast keywords (`WCONPROD`, `WCONINJE`), use the `schedule_reader` package directly.
+- `read_schedule()` / `schedule_reader.wcon`: added `None` guards to all four `extract_wcon*` functions to prevent `TypeError: object of type 'NoneType' has no len()` when a keyword is declared but contains no records.
+- `SimDataFrame._SimGroupBy.apply()`: passes `include_groups=False` to suppress the pandas 2.2+ `FutureWarning` about grouping columns being included in the apply result.
+- `read_xlsx()`: replaced deprecated `date_parser=` parameter with `date_format=` for pandas 2.x compatibility.
+- `schedule_reader.wcon.extract_wconhist`: replaced deprecated `.fillna(method='ffill')` with `.ffill()`.
+- `schedule_reader.wcon.extract_wconinjh`: fixed VFP forward-fill applied to full DataFrame instead of the `VFP` column only.
+
+---
+
 ## [0.90.11] - 2026-05-02
 
 ### Fixed

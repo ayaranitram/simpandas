@@ -2551,14 +2551,16 @@ Copy of input object, shifted.
                 if fillna_method is False:
                     pass
                 elif fillna_method is None:
-                    group_df = group_df.interpolate(method='time').fillna(method='pad')
-                elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                    group_df = group_df.fillna(method=fillna_method)
+                    group_df = group_df.interpolate(method='time').ffill()
+                elif fillna_method in ['pad', 'ffill']:
+                    group_df = group_df.ffill()
+                elif fillna_method in ['backfill', 'bfill']:
+                    group_df = group_df.bfill()
                 elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                        'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
-                    group_df = group_df.interpolate(method=fillna_method).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method).ffill()
                 elif fillna_method in ['polynomial', 'spline']:
-                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).ffill()
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
@@ -2570,8 +2572,10 @@ Copy of input object, shifted.
                 pass
             elif fillna_method is None:
                 result = result.interpolate(method='time')
-            elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                result = result.fillna(method=fillna_method)
+            elif fillna_method in ['pad', 'ffill']:
+                result = result.ffill()
+            elif fillna_method in ['backfill', 'bfill']:
+                result = result.bfill()
             elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                    'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
                 result = result.interpolate(method=fillna_method)
@@ -2623,14 +2627,16 @@ Copy of input object, shifted.
                 if fillna_method is False:
                     pass
                 elif fillna_method is None:
-                    group_df = group_df.interpolate(method='time').fillna(method='pad')
-                elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                    group_df = group_df.fillna(method=fillna_method)
+                    group_df = group_df.interpolate(method='time').ffill()
+                elif fillna_method in ['pad', 'ffill']:
+                    group_df = group_df.ffill()
+                elif fillna_method in ['backfill', 'bfill']:
+                    group_df = group_df.bfill()
                 elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                        'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
-                    group_df = group_df.interpolate(method=fillna_method).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method).ffill()
                 elif fillna_method in ['polynomial', 'spline']:
-                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).ffill()
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
@@ -2642,8 +2648,10 @@ Copy of input object, shifted.
                 pass
             elif fillna_method is None:
                 result = result.interpolate(method='time')
-            elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                result = result.fillna(method=fillna_method)
+            elif fillna_method in ['pad', 'ffill']:
+                result = result.ffill()
+            elif fillna_method in ['backfill', 'bfill']:
+                result = result.bfill()
             elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                    'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
                 result = result.interpolate(method=fillna_method)

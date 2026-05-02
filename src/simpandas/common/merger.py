@@ -113,12 +113,13 @@ def merge_index(left, right, how='outer', *, drop_duplicates=True, keep='first')
             new_frame = None
             for dup in range(len(dup_frame.index)):
                 if new_frame is None:
-                    new_frame = temp.iloc[0:list(temp.index).index(dup_frame.index[dup]) + 1].append(
-                        dup_frame.iloc[dup])
+                    new_frame = pd.concat([temp.iloc[0:list(temp.index).index(dup_frame.index[dup]) + 1],
+                                           dup_frame.iloc[[dup]]])
                 else:
-                    new_frame = new_frame.append(
-                        [temp.iloc[list(temp.index).index(dup - 1):list(temp.index).index(dup)], dup_frame.iloc[dup]])
-            new_frame = new_frame.append(temp.iloc[list(temp.index).index(dup_frame.index[dup]) + 1:])
+                    new_frame = pd.concat([new_frame,
+                                           temp.iloc[list(temp.index).index(dup - 1):list(temp.index).index(dup)],
+                                           dup_frame.iloc[[dup]]])
+            new_frame = pd.concat([new_frame, temp.iloc[list(temp.index).index(dup_frame.index[dup]) + 1:]])
         else:
             new_frame = frame.reindex(index=new_index)
         return SimDataFrame(new_frame, **frame.params_)
