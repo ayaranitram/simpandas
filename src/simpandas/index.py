@@ -28,11 +28,48 @@ def convert(values, from_units, to_units):
 
 
 class SimIndex(pd.MultiIndex, ABC):
-    """SimIndex with unit-aware behavior for simpandas.
+    """
+    A unit-aware MultiIndex for simpandas.
 
-    Notes
-    -----
-    This class extends pandas objects and carries units metadata through operations.
+    SimIndex extends pandas.MultiIndex to carry units metadata and provide
+    unit conversion capabilities. It supports automatic unit conversion
+    through the `to()` method and preserves units through indexing operations.
+
+    Parameters
+    ----------
+    data : array-like, list of arrays, or list of tuples
+        Data to construct the index from. Can be:
+        - List of arrays for MultiIndex.from_arrays
+        - List of tuples for MultiIndex.from_tuples
+        - Other array-like data for regular Index
+    units : str, optional
+        Units associated with the index values.
+    names : list of str, optional
+        Names for the index levels.
+
+    Attributes
+    ----------
+    units : str
+        Units of the index values.
+
+    Methods
+    -------
+    to(units) : SimIndex
+        Convert index to specified units.
+    set_units(units) : None
+        Set units for the index.
+
+    See Also
+    --------
+    pandas.MultiIndex : Base pandas MultiIndex class.
+
+    Examples
+    --------
+    >>> import simpandas as sp
+    >>> idx = sp.SimIndex([['A', 'A', 'B', 'B'], [1, 2, 1, 2]], units='m')
+    >>> idx.units
+    'm'
+    >>> idx.to('ft')  # Convert to feet
     """
     _metadata = ['units']
 

@@ -68,19 +68,40 @@ class SimSeries(SimBasics, Series):
         The data to store in the SimSeries.
     index : array-like or Index
         The index for the SimSeries.
-    units : string or dictionary of units(optional)
-        Can be any string, but only units acepted by the UnitConverter will
-        be considered when doing arithmetic calculations with other SimSeries
-        or SimDataFrames.
-
-    kwargs
-        Additional arguments passed to the Series constructor,
-         e.g. ``name``.
+    units : str, optional
+        Units for the Series. Can be any string, but only units accepted by 
+        the UnitConverter will be considered for arithmetic operations.
+    dtype : str, numpy.dtype, or ExtensionDtype, optional
+        Data type to force.
+    name : str, optional
+        Name of the Series.
+    copy : bool, default False
+        Copy data from inputs.
+    verbose : bool, default False
+        Enable verbose logging for operations.
+    index_units : str, optional
+        Units for the index.
+    name_separator : str, default ':'
+        Character used to separate name components.
+    intersection_character : str, default '&'
+        Character used for intersection operations.
+    auto_append : bool, default False
+        Automatically append units to names.
+    operate_per_name : bool, default False
+        Perform operations per name component.
+    transposed : bool, default False
+        Whether the Series is transposed.
+    meta : dict, optional
+        Additional metadata.
+    source_path : str, optional
+        Path to the source file.
+    return_singles : bool, optional
+        Whether to return single values.
 
     See Also
     --------
-    SimDataFrame
-    pandas.Series
+    SimDataFrame : Two-dimensional unit-aware DataFrame.
+    pandas.Series : Base pandas Series class.
 
     Truthiness
     ----------
@@ -88,7 +109,13 @@ class SimSeries(SimBasics, Series):
     boolean (e.g. ``series or {}``) raises ``ValueError`` on multi-element
     series. Use ``series.empty``, ``len(series) == 0``, or an explicit
     ``series if series is not None else {}`` instead.
-
+    
+    Examples
+    --------
+    >>> import simpandas as sp
+    >>> s = sp.SimSeries([1, 2, 3], units='m')
+    >>> s.get_units()
+    'm'
     """
     _metadata = ['units',
                  'verbose',
@@ -1149,7 +1176,7 @@ class SimSeries(SimBasics, Series):
 
     def get_units(self, items=None, include_index=False):
         """
-        returns the units for the selected 'items' or for all the columns in the SimDataFrame.
+        Returns the units for the SimSeries.
 
         Parameters
         ----------
@@ -1164,7 +1191,7 @@ class SimSeries(SimBasics, Series):
         Returns
         -------
         dict
-            A dictionary of series.name as key and its units as value.
+            A dictionary with series.name as key and its units as value.
             When ``include_index=True``, the index name/units pair is also
             included.
 

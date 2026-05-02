@@ -40,6 +40,18 @@ class SimType(type):
 
 
 class SimBasics(object, metaclass=SimType):
+    """
+    Mixin class providing common functionality for SimDataFrame and SimSeries.
+
+    This class contains shared methods and properties used by both SimDataFrame
+    and SimSeries, including unit handling, metadata management, and common
+    operations that preserve units through pandas transformations.
+
+    Notes
+    -----
+    SimBasics uses a custom metaclass (SimType) to enable dynamic type checking
+    and method wrapping for unit-aware operations.
+    """
 
     def __contains__(self, item):
         """Membership test against columns or index name.

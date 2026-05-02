@@ -21,10 +21,10 @@ def write_excel(sdf, excel_writer, split_by=None, sheet_name=None, na_rep='',
     """
     Wrapper of .to_excel method from Pandas.
     On top of Pandas method this method is able to split the data into different
-    sheets based on the column names. See paramenters `split_by´ and `sheet_name´.
+    sheets based on the column names. See parameters `split_by` and `sheet_name`.
 
-    Write {klass} to an Excel sheet.
-    To write a single {klass} to an Excel .xlsx file it is only necessary to
+    Write SimDataFrame to an Excel sheet.
+    To write a single SimDataFrame to an Excel .xlsx file it is only necessary to
     specify a target file name. To write to multiple sheets it is necessary to
     create an `ExcelWriter` object with a target file name, and specify a sheet
     in the file to write to.

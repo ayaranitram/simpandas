@@ -257,22 +257,59 @@ class _SimResampleProxy:
 
 class SimDataFrame(SimBasics, DataFrame):
     """
-    A SimDataFrame object is a pandas.DataFrame that units associated with to
-    each column. In addition to the standard DataFrame constructor arguments,
-    SimDataFrame also accepts the following keyword arguments:
+    A SimDataFrame object is a pandas.DataFrame with units associated with each column.
+    
+    In addition to the standard DataFrame constructor arguments, SimDataFrame also 
+    accepts the following keyword arguments for unit tracking and configuration:
 
     Parameters
     ----------
-    units : string or dictionary of units(optional)
-        Can be any string, but only units acepted by the UnitConverter will
-        be considered when doing arithmetic calculations with other SimSeries
-        or SimDataFrames.
+    data : array-like, Iterable, dict, or DataFrame, optional
+        Data to initialize DataFrame with.
+    index : Index or array-like, optional
+        Index to use for resulting DataFrame.
+    columns : Index or array-like, optional
+        Column labels to use for resulting DataFrame.
+    dtype : str, numpy.dtype, or ExtensionDtype, optional
+        Data type to force.
+    copy : bool, default False
+        Copy data from inputs.
+    units : str, dict, or ColumnUnits, optional
+        Units for columns. Can be a single string (applied to all columns), 
+        or a dict mapping column names to unit strings. Only units accepted 
+        by the UnitConverter will be considered for arithmetic operations.
+    verbose : bool, default False
+        Enable verbose logging for operations.
+    index_units : str, optional
+        Units for the index.
+    name_separator : str, default ':'
+        Character used to separate name components in column names.
+    intersection_character : str, default '&'
+        Character used for intersection operations in column names.
+    auto_append : bool, default False
+        Automatically append units to column names.
+    operate_per_name : bool, default False
+        Perform operations per name component.
+    transposed_ : bool, default False
+        Whether the DataFrame is transposed.
+    meta : dict, optional
+        Additional metadata.
+    source_path : str, optional
+        Path to the source file.
+    return_singles : bool, optional
+        Whether to return single values instead of Series.
 
     See Also
     --------
-    SimSeries
-    pandas.DataFrame
+    SimSeries : One-dimensional unit-aware Series.
+    pandas.DataFrame : Base pandas DataFrame class.
 
+    Examples
+    --------
+    >>> import simpandas as sp
+    >>> df = sp.SimDataFrame({'A': [1, 2], 'B': [3, 4]}, units={'A': 'm', 'B': 'kg'})
+    >>> df.get_units()
+    {'A': 'm', 'B': 'kg'}
     """
     _metadata = ['units',
                  'verbose',
