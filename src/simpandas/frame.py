@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.90.5'
-__release__ = 20260421
+__version__ = '0.90.10'
+__release__ = 20260502
 __all__ = ['SimDataFrame']
 
 import logging
@@ -2879,7 +2879,7 @@ class SimDataFrame(SimBasics, DataFrame):
         slope_df = _slope(df=self, x=x, y=y, window=window, slope=slope, intercept=intercept)
         return SimDataFrame(data=slope_df, index=self.index, columns=names, **params_)
 
-    def plot(self, y=None, x=None, others=None, figsize=None, dpi=None, **kwargs):
+    def plot(self, y=None, x=None, others=None, figsize=None, dpi=None, labels=None, **kwargs):
         """
         wrapper of Pandas plot method, with some superpowers
 
@@ -2899,6 +2899,13 @@ class SimDataFrame(SimBasics, DataFrame):
             The resolution of the figure in dots-per-inch.
             It will be passed to matplotlib.pyplot.figure to create the figure.
             Only valid for a new figure ('figure' keyword not found in kwargs).
+        labels : list of str, optional
+            Override the legend labels for the plotted columns.  The list must
+            have the same length as the number of columns being plotted (``y``).
+            A single string is also accepted when only one column is plotted.
+            When ``others`` is provided this parameter labels only ``self``;
+            use the ``labels`` kwarg with length ``len(others)+1`` for
+            per-source labelling across multiple frames.
         xMin, xMin, yMin, yMax : as per values of X or Y axes.
             A shorcut to xlim and ylim matplotlib keywords,
             must be provided as keyword arguments.
@@ -2957,14 +2964,20 @@ class SimDataFrame(SimBasics, DataFrame):
             if 'figure' not in kwargs and 'ax' not in kwargs:
                 kwargs['figure'], kwargs['ax'] = plt.subplots(figsize=figsize, dpi=dpi)
 
-        labels = None
+        # Merge legacy kwargs['labels'] into the named parameter (backward compat)
+        if labels is None and 'labels' in kwargs:
+            labels = kwargs.pop('labels')
+
+        # Normalise to list and validate length
+        _labels = None
+        if labels is not None:
+            if not isinstance(labels, list):
+                labels = [labels]
+            if len(labels) == len(y):
+                _labels = labels
+
+        labels = _labels
         if others is None:
-            if 'labels' in kwargs:
-                if type(kwargs['labels']) is not list:
-                    kwargs['labels'] = [kwargs['labels']]
-                if len(kwargs['labels']) == len(y):
-                    labels = kwargs['labels']
-                del kwargs['labels']
             if 'ylabel' not in kwargs:
                 ylabel_parts = []
                 for yi in y:
@@ -2975,19 +2988,31 @@ class SimDataFrame(SimBasics, DataFrame):
                 kwargs['ylabel'] = ('\n').join(ylabel_parts)
             if x is not None:
                 if x in self.columns:
+                    _ax = kwargs.get('ax')
+                    if _ax is not None:
+                        _leg = _ax.get_legend()
+                        if _leg is not None and not hasattr(_leg, 'legendHandles'):
+                            _leg.legendHandles = getattr(_leg, 'legend_handles', [])
                     if labels is None:
                         fig = self.as_pandas().plot(x=x, y=y, **kwargs)
                     else:
-                        fig = self.as_pandas().plot(x=x, y=y, label=labels, **kwargs)
+                        col_map = dict(zip(list(y), labels))
+                        fig = self.as_pandas().rename(columns=col_map).plot(x=x, y=labels, **kwargs)
                     plt.tight_layout()
                     return fig
                 else:
                     raise ValueError("Required 'x', " + str(x) + " is not a column name in this SimDataFrame")
             else:
+                _ax = kwargs.get('ax')
+                if _ax is not None:
+                    _leg = _ax.get_legend()
+                    if _leg is not None and not hasattr(_leg, 'legendHandles'):
+                        _leg.legendHandles = getattr(_leg, 'legend_handles', [])
                 if labels is None:
                     fig = self[y].as_pandas().plot(**kwargs)
                 else:
-                    fig = self[y].as_pandas().plot(label=labels, **kwargs)
+                    col_map = dict(zip(list(y), labels))
+                    fig = self[y].as_pandas().rename(columns=col_map).plot(**kwargs)
                 plt.tight_layout()
                 return fig
         else:

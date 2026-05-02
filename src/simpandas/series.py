@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.84.0'
-__release__ = 20260303
+__version__ = '0.90.10'
+__release__ = 20260502
 __all__ = ['SimSeries']
 
 import logging
@@ -1541,7 +1541,7 @@ class SimSeries(SimBasics, Series):
                                                   key=key),
                 **self.params_)
 
-    def plot(self, y=None, x=None, others=None, **kwargs):
+    def plot(self, y=None, x=None, others=None, label=None, **kwargs):
         """
         wrapper of Pandas plot method, with some superpowers
 
@@ -1553,6 +1553,9 @@ class SimSeries(SimBasics, Series):
             the columns to be used for x coordinates. The default is the index.
         others : SimDataFrame, SimSeries, DataFrame or Series; optional
             other Frames to include in the plot, for the same selected columns. The default is None.
+        label : str, optional
+            Override the legend label for this series in the chart.
+            When provided, replaces the default series name in the legend.
         **kwargs : TYPE
             any other keyword argument for matplolib.
 
@@ -1560,4 +1563,4 @@ class SimSeries(SimBasics, Series):
         -------
         matplotlib AxesSubplot.
         """
-        return self.sdf.plot(y=y, x=x, others=others, **kwargs)
+        return self.sdf.plot(y=y, x=x, others=others, labels=[label] if label is not None else None, **kwargs)

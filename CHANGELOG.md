@@ -5,6 +5,17 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.90.10] - 2026-05-02
+
+### Fixed
+- `SimSeries.plot()` and `SimDataFrame.plot()`: fixed `AttributeError: 'Legend' object has no attribute 'legendHandles'` when overlaying a second series onto an existing axis on matplotlib ≥ 3.7 (which renamed the attribute to `legend_handles`). A compatibility shim now backfills the old name before calling pandas' internal legend merge.
+
+### Added
+- `SimSeries.plot(label=...)`: new explicit `label` string parameter to override the legend label for the plotted series, replacing the default series name.
+- `SimDataFrame.plot(labels=...)`: new explicit `labels` list-of-strings parameter to override the legend labels for all plotted columns. A single string is accepted when only one column is plotted. Wrong-length lists are silently ignored (falls back to column names). The legacy `plot(labels=[...])` via `**kwargs` continues to work for backward compatibility.
+
+---
+
 ## [0.90.9] - 2026-04-27
 
 ### Fixed
