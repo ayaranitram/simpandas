@@ -5,7 +5,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.90.10'
+__version__ = '0.90.11'
 __release__ = 20260502
 __all__ = ['SimSeries']
 
@@ -1147,7 +1147,7 @@ class SimSeries(SimBasics, Series):
         else:
             return list(fnmatch.filter(keys, pattern))
 
-    def get_units(self, items=None):
+    def get_units(self, items=None, include_index=False):
         """
         returns the units for the selected 'items' or for all the columns in the SimDataFrame.
 
@@ -1155,11 +1155,18 @@ class SimSeries(SimBasics, Series):
         ----------
         items : str or list of str, optional
             Ignored, this parameter is kept for compatibility with SimDataFrame. The default is None.
+        include_index : bool, optional
+            When True, the index units (if any) are appended to the returned
+            dict under the index name.  Defaults to False so that
+            ``SimSeries(data, units=ss.get_units())`` only receives column
+            units and does not accidentally inject index units as column units.
 
         Returns
         -------
         dict
-            A dictionary of series.name or index.values as keys and their units as values.
+            A dictionary of series.name as key and its units as value.
+            When ``include_index=True``, the index name/units pair is also
+            included.
 
         """
         if self.units is None:
@@ -1171,23 +1178,24 @@ class SimSeries(SimBasics, Series):
         else:
             raise TypeError("unexpected type of .units attribute")
 
-        if self.index_units is None:
-            pass
-        elif self.index.name is None:
-            if '_index_' in units_dict and units_dict['_index_'] == self.index_units:
-                self.index_name = '_index_'
-            elif '_index_' not in units_dict:
-                self.index_name = '_index_'
-                units_dict['_index_'] = self.index_units
-            else:
-                logging.warning("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
-        elif self.index_name not in units_dict:
-            units_dict[self.index_name] = self.index_units
-        elif self.index_units != units_dict[self.index_name]:
-            if self.index_name not in self.columns:
+        if include_index:
+            if self.index_units is None:
+                pass
+            elif self.index.name is None:
+                if '_index_' in units_dict and units_dict['_index_'] == self.index_units:
+                    self.index_name = '_index_'
+                elif '_index_' not in units_dict:
+                    self.index_name = '_index_'
+                    units_dict['_index_'] = self.index_units
+                else:
+                    logging.warning("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
+            elif self.index_name not in units_dict:
                 units_dict[self.index_name] = self.index_units
-            else:
-                units_dict[str(self.index_name) + '_index_'] = self.index_units
+            elif self.index_units != units_dict[self.index_name]:
+                if self.index_name not in self.columns:
+                    units_dict[self.index_name] = self.index_units
+                else:
+                    units_dict[str(self.index_name) + '_index_'] = self.index_units
         return units_dict
 
     def set_units(self, units, item=None):

@@ -5,6 +5,14 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.90.11] - 2026-05-02
+
+### Fixed
+- `SimDataFrame.reindex()`: removed an erroneous length-heuristic that raised `TypeError: labels does not match neither len(index) or len(columns)` when a positional label array had a different length from both current axes (the common case when reindexing to a new DatetimeIndex). Positional `labels` now default to axis 0 (rows), exactly matching pandas' own behaviour. Supplying both `index=` and `columns=` simultaneously to reindex both axes in one call is also now supported.
+- `SimSeries.get_units()`: fixed index-unit leakage — the method previously always injected the index name/unit pair into the returned dict, causing downstream operations (e.g. `SimSeries(data, units=ss.get_units())`) to accidentally treat the index unit as a column unit. Index units are now opt-in via the new `include_index=False` parameter.
+
+---
+
 ## [0.90.10] - 2026-05-02
 
 ### Fixed

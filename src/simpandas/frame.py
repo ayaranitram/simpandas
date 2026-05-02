@@ -5,7 +5,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.90.10'
+__version__ = '0.90.11'
 __release__ = 20260502
 __all__ = ['SimDataFrame']
 
@@ -1168,25 +1168,34 @@ class SimDataFrame(SimBasics, DataFrame):
         wrapper for pandas.DataFrame.reindex
 
         labels : array-like, optional
-            New labels / index to conform the axis specified by ‘axis’ to.
-        index, columns : array-like, optional(should be specified using keywords)
-            New labels / index to conform to. Preferably an Index object to avoid duplicating data
+            New labels / index to conform the axis specified by 'axis' to.
+            When only ``labels`` is given (no ``axis``), axis 0 (index) is
+            assumed -- matching pandas' own default behaviour.
+        index, columns : array-like, optional
+            New labels for axis 0 (index) and axis 1 (columns) respectively.
+            Both may be supplied simultaneously to reindex both axes at once.
         axis : int or str, optional
-            Axis to target. Can be either the axis name(‘index’, ‘columns’) or number(0, 1).
+            Axis to target. Can be either the axis name ('index', 'columns')
+            or number (0, 1). Only relevant when ``labels`` is provided.
         """
-        if labels is None and axis is None and index is not None:
-            labels = index
+        # Both index= and columns= supplied -- forward directly to pandas
+        if index is not None and columns is not None:
+            return SimDataFrame(
+                data=self.to_pandas().reindex(index=index, columns=columns, **kwargs),
+                **self.params_)
+
+        # Only index= supplied
+        if index is not None:
+            labels, axis = index, 0
+
+        # Only columns= supplied
+        elif columns is not None:
+            labels, axis = columns, 1
+
+        # Positional labels with no axis -- default to axis 0 (pandas default)
+        elif labels is not None and axis is None:
             axis = 0
-        elif labels is None and axis is None and columns is not None:
-            labels = columns
-            axis = 1
-        elif labels is not None and axis is None and columns is None and index is None:
-            if len(labels) == len(self.index):
-                axis = 0
-            elif len(labels) == len(self.columns):
-                axis = 1
-            else:
-                raise TypeError("labels does not match neither len(index) or len(columns).")
+
         axis = _clean_axis(axis)
         return SimDataFrame(data=self.to_pandas().reindex(labels=labels, axis=axis, **kwargs), **self.params_)
 
