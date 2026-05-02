@@ -181,6 +181,7 @@ class _SimGroupBy:
     aggregate = agg
 
     def apply(self, *args, **kwargs):
+        kwargs.setdefault('include_groups', False)
         return self._wrap_result(self._groupby_obj.apply(*args, **kwargs))
 
     def transform(self, *args, **kwargs):

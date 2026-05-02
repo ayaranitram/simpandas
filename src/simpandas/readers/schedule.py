@@ -134,7 +134,7 @@ def read_schedule(filepath,
         ('WCONINJE', extract_wconinje),
     ]:
         table = extractor(schedule_dict)
-        if len(table) > 0:
+        if table is not None and len(table) > 0:
             table = table.copy()
             table['keyword'] = keyword
             tables.append(table)
