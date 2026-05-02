@@ -1539,7 +1539,7 @@ class SimBasics(object, metaclass=SimType):
             return self.name_separator
 
     def interpolate(self, method='slinear', axis='index', limit=None, inplace=False,
-                    limit_direction=None, limit_area=None, downcast=None, **kwargs):
+                    limit_direction=None, limit_area=None, **kwargs):
         """Fill NaN values using interpolation.
 
         This wraps :py:meth:`pandas.DataFrame.interpolate` or :py:meth:`pandas.Series.interpolate`
@@ -1559,8 +1559,6 @@ class SimBasics(object, metaclass=SimType):
             Direction for limit parameter.
         limit_area : {'inside', 'outside'}, optional
             Whether to fill NaN values inside or outside known values.
-        downcast : str, optional
-            Downcast data type if possible.
         **kwargs : optional
             Additional arguments passed to pandas interpolate method.
 
@@ -1569,17 +1567,21 @@ class SimBasics(object, metaclass=SimType):
         SimSeries or SimDataFrame or None
             Interpolated object (or None if inplace=True).
         """
+        # Note: ``downcast`` was removed from pandas.interpolate in pandas 2.2;
+        # do not forward it to avoid FutureWarning / TypeError.
         axis = _clean_axis(axis)
         if inplace:
-            super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace, limit_direction=limit_direction,
-                                limit_area=limit_area, downcast=downcast, **kwargs)
+            super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace,
+                                limit_direction=limit_direction, limit_area=limit_area, **kwargs)
         else:
-            return self._class(data=self.as_pandas().interpolate(method=method, axis=axis, limit=limit, inplace=inplace,
-                                                                 limit_direction=limit_direction, limit_area=limit_area,
-                                                                 downcast=downcast, **kwargs), **self.params_)
+            return self._class(data=self.as_pandas().interpolate(method=method, axis=axis, limit=limit,
+                                                                 inplace=inplace,
+                                                                 limit_direction=limit_direction,
+                                                                 limit_area=limit_area, **kwargs),
+                               **self.params_)
 
     def fillna(self, value=None, method=None, axis='index', inplace=False,
-               limit=None, downcast=None):
+               limit=None):
         """Fill NaN values with a value or method.
 
         This wraps :py:meth:`pandas.DataFrame.fillna` or :py:meth:`pandas.Series.fillna`
@@ -1590,28 +1592,37 @@ class SimBasics(object, metaclass=SimType):
         value : scalar, dict, Series, or DataFrame, optional
             If a scalar, fill all NaN values with this value.
         method : {'backfill', 'bfill', 'pad', 'ffill', None}, optional
-            Method to use for filling holes in reindexed Series.
+            Deprecated fill method.  ``'ffill'``/``'pad'`` delegates to
+            :py:meth:`ffill`; ``'bfill'``/``'backfill'`` delegates to
+            :py:meth:`bfill`.  Prefer calling those methods directly.
         axis : {0, 1, 'index', 'columns'}, default 'index'
             Axis along which to fill.
         inplace : bool, default False
             Modify in place if True, return new object if False.
         limit : int, optional
             Maximum number of consecutive NaN values to fill.
-        downcast : str, optional
-            Downcast data type if possible.
 
         Returns
         -------
         SimSeries or SimDataFrame or None
             Filled object (or None if inplace=True).
         """
+        # ``method`` and ``downcast`` were removed from pandas.fillna in
+        # pandas 2.2.  Translate ``method`` to the appropriate directional
+        # fill call; ``downcast`` is silently dropped.
+        if method is not None:
+            method_lower = str(method).lower()
+            if method_lower in ('ffill', 'pad'):
+                return self.ffill(axis=axis, inplace=inplace, limit=limit)
+            elif method_lower in ('bfill', 'backfill'):
+                return self.bfill(axis=axis, inplace=inplace, limit=limit)
         axis = _clean_axis(axis)
         if inplace:
-            super().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast)
+            super().fillna(value=value, axis=axis, inplace=inplace, limit=limit)
         else:
             return self._class(
-                data=self.as_pandas().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit,
-                                             downcast=downcast), **self.params_)
+                data=self.as_pandas().fillna(value=value, axis=axis, inplace=inplace, limit=limit),
+                **self.params_)
 
     def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False):
         """Replace values in the object.
@@ -1660,15 +1671,26 @@ class SimBasics(object, metaclass=SimType):
             return self._class(data=self.as_pandas().bfill(axis=axis, limit=limit),
                                **self.params_)
 
-    def pct_change(self, periods=1, fill_method=None, limit=None, freq=None, **kwargs):
+    def pct_change(self, periods=1, freq=None, **kwargs):
         """Fractional change between current and prior element, preserving metadata.
 
         Units become dimensionless since the result is a fractional change.
+
+        Note: ``fill_method`` and ``limit`` were removed from
+        ``pandas.DataFrame.pct_change`` in pandas 2.2.  Fill any NA values
+        before calling this method if that behaviour is needed.
         """
-        result = self.as_pandas().pct_change(periods=periods, fill_method=fill_method,
-                                             limit=limit, freq=freq, **kwargs)
+        # Explicitly pass fill_method=None to suppress pandas' deprecated
+        # default of fill_method='pad', which triggers a FutureWarning.
+        result = self.as_pandas().pct_change(periods=periods, fill_method=None,
+                                             freq=freq, **kwargs)
         params = self.params_
-        params['units'] = 'dimensionless'
+        # All output values are dimensionless; build a per-column dict when
+        # there are multiple columns so that set_units() succeeds.
+        if hasattr(self, 'columns') and len(self.columns) > 1:
+            params['units'] = {col: 'dimensionless' for col in self.columns}
+        else:
+            params['units'] = 'dimensionless'
         return self._class(data=result, **params)
 
     def asfreq(self, freq, method=None, how=None, normalize=False, fill_value=None):
