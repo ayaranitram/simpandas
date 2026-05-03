@@ -1,6 +1,6 @@
 # SimPandas — User Manual
 
-**Version 0.90.8 | Python ≥ 3.7 | pandas 1.3 – 2.x**
+**Version 0.91.0 | Python ≥ 3.7 | pandas 1.3 – 3.x**
 
 ---
 

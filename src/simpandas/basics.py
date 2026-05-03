@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: MartÃ­n Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.84.0'
-__release__ = 20260303
+__version__ = '0.91.0'
+__release__ = 20260503
 __all__ = ['SimBasics']
 
 import fnmatch
