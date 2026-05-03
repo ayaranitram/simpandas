@@ -24,9 +24,12 @@ Created on Sun Oct 11 11:14:32 2020
 
 __version__ = '0.90.12'
 __release__ = 20260503
-__all__ = ['SimSeries', 'SimDataFrame', 'ColumnUnits', 'read_excel', 'read_csv', 'read_json',
-           'read_hdf5', 'read_summary', 'read_vdb', 'read_parquet',
-           'read_prodml', 'read_witsml', 'read_resqml', 'read_schedule', 'read_auto', 'concat']
+__all__ = ['SimSeries', 'SimDataFrame', 'SimIndex', 'ColumnUnits',
+           'read_excel', 'read_csv', 'read_json', 'read_hdf5', 'read_summary',
+           'read_vdb', 'read_parquet', 'read_prodml', 'read_witsml', 'read_resqml',
+           'read_schedule', 'read_auto', 'concat',
+           'write_excel', 'write_csv', 'write_json', 'write_hdf5', 'write_summary',
+           'write_parquet', 'write_prodml', 'write_witsml', 'write_resqml', 'write_schedule']
 
 from .series import SimSeries
 from .frame import SimDataFrame
@@ -36,4 +39,6 @@ from .readers import (read_excel, read_csv, read_json, read_hdf5, read_summary,
                       read_schedule, read_auto)
 from .common.merger import concat
 from .common.units import ColumnUnits
+from .writers import (write_excel, write_csv, write_json, write_hdf5, write_summary,
+                      write_parquet, write_prodml, write_witsml, write_resqml, write_schedule)
 

@@ -17,3 +17,4 @@ from simpandas.writers.parquet import write_parquet
 from simpandas.writers.prodml import write_prodml
 from simpandas.writers.witsml import write_witsml
 from simpandas.writers.resqml import write_resqml
+from simpandas.writers.schedule import write_schedule

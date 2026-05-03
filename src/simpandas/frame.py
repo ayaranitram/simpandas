@@ -57,7 +57,7 @@ def _series_to_frame(a_SimSeries, params_=None):
                                               a_SimSeries.to_list())),
                                 index=[a_SimSeries.name],
                                 **params_)
-        except:
+        except Exception:
             return a_SimSeries
     if type(a_SimSeries) is Series:
         try:
@@ -66,7 +66,7 @@ def _series_to_frame(a_SimSeries, params_=None):
                                            )
                                        ),
                              index=a_SimSeries.columns)
-        except:
+        except Exception:
             return a_SimSeries
 
 
@@ -634,10 +634,10 @@ class SimDataFrame(SimBasics, DataFrame):
             else:  # key is not a column name
                 try:  # to evaluate as a filter
                     result = self._get_by_criteria(key)
-                except:
+                except Exception:
                     try:  # to evaluate as an index value
                         result, by_index = self._get_by_index(key)
-                    except:
+                    except Exception:
                         raise KeyError(
                             'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
 
@@ -662,7 +662,7 @@ class SimDataFrame(SimBasics, DataFrame):
                         try:  # to evaluate as a filter
                             _ = self.filter(each, returnFilter=True)
                             filters += [each]
-                        except:
+                        except Exception:
                             try:  # to evaluate as an index value
                                 _temp_result, _temp_by_index  = self._get_by_index(each)
                                 if _temp_by_index:
@@ -674,7 +674,7 @@ class SimDataFrame(SimBasics, DataFrame):
                                         indexes += list(_temp_result.index)
                                 else:
                                     key += list(_temp_result.columns)
-                            except:
+                            except Exception:
                                 # discard this item
                                 logging.error('The parameter ' + str(each) + ' is not valid.')
 
@@ -686,7 +686,7 @@ class SimDataFrame(SimBasics, DataFrame):
             if bool(filters):
                 try:
                     index_filter = self.filter(filters, returnFilter=True)
-                except:
+                except Exception:
                     warn('filter conditions are not valid:\n   ' + ' and '.join(filters))
                 if index_filter is not None and not index_filter.any():
                     warn('filter conditions removed every row :\n   ' + ' and '.join(filters))
@@ -704,10 +704,10 @@ class SimDataFrame(SimBasics, DataFrame):
             # attempt to get the desired keys, first as column names, then as indexes
             try:
                 result = self._get_by_column(key)
-            except:
+            except Exception:
                 try:
                     result, by_index = self._get_by_index(key)
-                except:
+                except Exception:
                     if key is None:
                         raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
                     else:
@@ -750,7 +750,7 @@ class SimDataFrame(SimBasics, DataFrame):
                     # this Series is one index for multiple columns
                     try:
                         result_units = self.get_units(result.index)
-                    except:
+                    except Exception:
                         result_units = {result.name: 'unitless'}
                 else:
                     result_units = self.get_units_string(result.name)
@@ -779,7 +779,7 @@ class SimDataFrame(SimBasics, DataFrame):
                 i_result = _series_to_frame(i_result, self.params_)
             try:
                 result = i_result.sort_index()
-            except:
+            except Exception:
                 result = i_result
 
         # if is a single row return it as a DataFrame instead of a Series
@@ -849,7 +849,7 @@ class SimDataFrame(SimBasics, DataFrame):
                             try:
                                 value.index = _converter(value.index, value.index_units, self.index_units,
                                                          print_conversion_path=self.verbose)
-                            except:
+                            except Exception:
                                 warn(
                                     "WARNING: failed to convert the provided index to the units of this SimDataFrame index.")
                         else:
@@ -2040,23 +2040,23 @@ class SimDataFrame(SimBasics, DataFrame):
         if type(self.index) is DatetimeIndex and type(key) not in [DatetimeIndex, Timestamp, int, float, ndarray]:
             try:
                 return (self._get_by_dateIndex(key), True)
-            except:
+            except Exception:
                 pass
 
         # try to find key by index value using .loc
         try:
             return (self.as_pandas().loc[key], True,)
-        except:
+        except Exception:
             # try to find key by index position using .loc
             try:
                 return (self.as_pandas().iloc[key], True,)
-            except:
+            except Exception:
                 try:
                     return (self.as_pandas().loc[:, key], False,)
-                except:
+                except Exception:
                     try:
                         return (self.as_pandas().iloc[:, key], False,)
-                    except:
+                    except Exception:
                         raise ValueError(' ' + str(key) + ' is not a valid index value or position.')
 
     def _get_by_dateIndex(self, key):
@@ -2069,30 +2069,30 @@ class SimDataFrame(SimBasics, DataFrame):
             if type(key) in [DatetimeIndex, Timestamp, datetime64, ndarray, dt.date]:
                 try:
                     return self.as_pandas().loc[key]
-                except:
+                except Exception:
                     pass
 
             if type(key) is not str and (_is_date(key) or type(key) not in [DatetimeIndex, Timestamp]):
                 try:
                     return self.as_pandas().loc[key]
-                except:
+                except Exception:
                     try:
                         return self.as_pandas().iloc[key]
-                    except:
+                    except Exception:
                         pass
 
             if type(key) is str and len(
                     _multisplit(key, ('==', '!=', '>=', '<=', '<>', '><', '>', '<', '=', ' '))) == 1 and _is_date(key):
                 try:
                     key = _date(key, speak=self.verbose)
-                except:
+                except Exception:
                     try:
                         key = _date(key, formatIN=_is_date(key, returnFormat=True), formatOUT='DD-MMM-YYYY', speak=self.verbose)
-                    except:
+                    except Exception:
                         raise Warning('\n Not able to undertand the key as a date.\n')
                 try:
                     return self.as_pandas().loc[key]
-                except:
+                except Exception:
                     pass
 
             if type(key) is str:
@@ -2231,7 +2231,7 @@ class SimDataFrame(SimBasics, DataFrame):
         elif type(criteria) is not list:
             try:
                 criteria = list(criteria)
-            except:
+            except Exception:
                 pass
         for key in criteria:
             if type(key) is str and key not in self.columns:
@@ -2646,7 +2646,7 @@ class SimDataFrame(SimBasics, DataFrame):
             if type(conditions) is not list:
                 try:
                     conditions = list(conditions)
-                except:
+                except Exception:
                     raise TypeError('conditions argument must be a string.')
             conditions = ' and '.join(conditions)
 
@@ -2690,12 +2690,12 @@ class SimDataFrame(SimBasics, DataFrame):
                 if conditions[i] in ['"', "'"]:
                     try:
                         f = conditions.index(conditions[i], i + 1)
-                    except:
+                    except Exception:
                         raise ValueError('wring syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
                 else:
                     try:
                         f = conditions.index(']', i + 1)
-                    except:
+                    except Exception:
                         raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
@@ -2792,7 +2792,7 @@ class SimDataFrame(SimBasics, DataFrame):
         if return_filter or return_frame:
             try:
                 filter_array = eval(filter_str)
-            except:
+            except Exception:
                 return None
         if return_filter:
             ret_tuple += [filter_array]
@@ -3141,12 +3141,12 @@ class SimDataFrame(SimBasics, DataFrame):
             try:
                 temp = tempdf['W?PR*:' + str(w)]
                 tempdf['_PROD:' + str(w)] = (temp != 0).sum(axis=1)
-            except:
+            except Exception:
                 tempdf['_PROD:' + str(w)] = 0
             try:
                 temp = tempdf['W?IR*:' + str(w)]
                 tempdf['_INJE:' + str(w)] = (temp != 0).sum(axis=1)
-            except:
+            except Exception:
                 tempdf['_INJE:' + str(w)] = 0
 
             tempdf['WSTATUS:' + str(w)] = [

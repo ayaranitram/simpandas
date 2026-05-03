@@ -48,3 +48,4 @@ def _get_index_atts(data=None, index=None, units=None, **kwargs):
     elif type(data) in (SimSeries, SimDataFrame) and type(data.index.name) is str and len(data.index.name) > 0:
         indexInput = data.index.name
 
+    return indexInput

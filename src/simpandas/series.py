@@ -518,7 +518,7 @@ class SimSeries(SimBasics, Series):
                             pass
                     try:
                         result = self.as_simdataframe()[key]
-                    except:
+                    except Exception:
                         raise KeyError("the requested Key is not a valid index or name: " + str(key))
         if self._return_singles_ and isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
@@ -961,7 +961,7 @@ class SimSeries(SimBasics, Series):
             if type(conditions) is not list:
                 try:
                     conditions = list(conditions)
-                except:
+                except Exception:
                     raise TypeError('conditions argument must be a string.')
             conditions = ' and '.join(conditions)
 
@@ -1003,12 +1003,12 @@ class SimSeries(SimBasics, Series):
                 if conditions[i] in ['"', "'"]:
                     try:
                         f = conditions.index(conditions[i], i + 1)
-                    except:
+                    except Exception:
                         raise ValueError('wring syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
                 else:
                     try:
                         f = conditions.index(']', i + 1)
-                    except:
+                    except Exception:
                         raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
@@ -1274,7 +1274,7 @@ class SimSeries(SimBasics, Series):
                 try:
                     object.__setattr__(self, '_units_', {})
                     return self.set_units(units)
-                except:
+                except Exception:
                     object.__setattr__(self, '_units_', old_units)
                     raise ValueError("not able to process dictionary of units.")
             else:
@@ -1299,7 +1299,7 @@ class SimSeries(SimBasics, Series):
                 for k, u in units.items():
                     try:
                         self.set_units(u, k)
-                    except:
+                    except Exception:
                         pass
             elif type(units) is str:
                 if item is None:

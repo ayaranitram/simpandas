@@ -105,7 +105,7 @@ def is_numeric(string):
             try:
                 complex(string)
                 return True
-            except:
+            except Exception:
                 return False
         else:
             return False
@@ -166,7 +166,7 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
             if returnFormat :
                 return date(dateStr, formatIN=formatIN, speak=speak, returnFormat=True )
             return True
-        except :
+        except Exception :
             return False
 
     else :
@@ -175,7 +175,7 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
             if returnFormat :
                 return date(dateStr, formatIN='', speak=speak, returnFormat=True )
             return True
-        except :
+        except Exception :
             pass
 
         formats = [ 'DD-MM-YYYY', 'DD-MMM-YYYY', 'YYYY-MM-DD', 'YYYY-MMM-DD', 'MM-DD-YYYY', 'MMM-DD-YYYY', 'YYYY-DD-MM', 'YYYY-DD-MMM', 'YYYYMMDD', 'YYYYMMMDD', 'DD-MM-YY', 'MMM-DD-YY', 'MM-DD-YY'  ]
@@ -188,7 +188,7 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
                     if returnFormat :
                         return fIN
                     return True
-                except :
+                except Exception :
                     pass
 
         formats = [ 'YYYYMMDD', 'YYYYMMMDD' ]
@@ -198,7 +198,7 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
                 if returnFormat :
                     return f
                 return True
-            except :
+            except Exception :
                 pass
     return False
 
@@ -386,7 +386,7 @@ def date(date, formatIN='', formatOUT='', speak=True, YYbaseIN=1900, returnForma
             for j in range(len(date)) :
                 try:
                     datelist[i][j] = int(datelist[i][j])
-                except :
+                except Exception :
                     datestr[i] = True
                     break
             if datestr[i] == False :

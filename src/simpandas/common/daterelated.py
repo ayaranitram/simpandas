@@ -263,7 +263,7 @@ def days_in_month(month, year=None):
             try:
                 month = to_datetime(month)
                 return days_in_month(month.month, month.year)
-            except:
+            except Exception:
                 raise ValueError("input 'month' not recognized.")
         else:
             raise ValueError("input 'month' not recognized.")

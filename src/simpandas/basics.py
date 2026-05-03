@@ -2145,7 +2145,7 @@ Copy of input object, shifted.
         else:
             try:
                 self.index.name = name
-            except:
+            except Exception:
                 raise ValueError("Not valid index name.")
 
     def get_wells(self, pattern=None):
