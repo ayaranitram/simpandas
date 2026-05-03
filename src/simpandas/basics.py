@@ -2417,18 +2417,6 @@ Copy of input object, shifted.
         return self.real_year(column=column)
 
     def _check_by(self, by, raise_by_error=True):
-        # if not isinstance(self.index, DatetimeIndex):
-        #     original = self.index
-        #     try:
-        #         self.index = to_datetime(['-'.join(map(str, i)) for i in self.index])
-        #     except:
-        #         if raise_by_error:
-        #             raise TypeError("index must be `DatetimeIndex`.")
-        #         else:
-        #             logging.warning("index must be `DatetimeIndex`.")
-        # else:
-        #     original = None
-
         if by is None:
             by = []
         elif type(by) is not str and hasattr(by, '__iter__'):
@@ -2458,9 +2446,6 @@ Copy of input object, shifted.
             by = []
             logging.warning("The column '" + str(by) + "' is not present in this frame")
         user_by = by if len(by) > 0 else None
-
-        # if original is not None:
-        #     self.index = original
         return by, user_by
 
     def _aggregated_calculation(self, by, agg):
@@ -2515,27 +2500,6 @@ Copy of input object, shifted.
 
         """
         result = self.copy()
-
-        # if not isinstance(result.index, DatetimeIndex):
-        #     if len(result.index) > 0 and len(result.index[0]) == 3:
-        #         try:
-        #             result.index = to_datetime(['-'.join(map(str,i)) for i in result.index])
-        #         except:
-        #             raise TypeError("Index must be DateTimeIndex.")
-        #     else:
-        #         raise TypeError("Index must be DateTimeIndex.")
-
-        # time_by = [result.index.year, result.index.month, result.index.day]
-        # group_by, _ = result._check_by(group_by, raise_by_error=raise_by_error)
-        # for tb in time_by:
-        #     try:
-        #         if tb in group_by:
-        #             _ = group_by.remove(tb)
-        #     except ValueError:
-        #         if tuple(tb) in [tuple(g) for g in group_by]:
-        #             _ = group_by.remove(tuple(tb))
-
-        # by = time_by if group_by is None else time_by + group_by
 
         by = group_by
 

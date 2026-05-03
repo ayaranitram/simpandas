@@ -229,8 +229,10 @@ class _SimResampleProxy:
             return wrapped
         if isinstance(result, Series):
             params = self._parent.params_.copy()
+            # Restore the series name if pandas dropped it during resample
+            effective_name = result.name if result.name is not None else params.get('name')
             try:
-                unit_str = self._parent.get_units_string(result.name)
+                unit_str = self._parent.get_units_string(effective_name)
                 if isinstance(unit_str, str) and unit_str != 'unitless':
                     params['units'] = unit_str
                 else:
@@ -239,6 +241,8 @@ class _SimResampleProxy:
                 params['units'] = None
             if 'name' in params:
                 del params['name']
+            if result.name is None and effective_name is not None:
+                result = result.rename(effective_name)
             return SimSeries(result, **params)
         return result
 
