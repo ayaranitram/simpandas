@@ -9,6 +9,7 @@ __version__ = '0.1.5'
 __release__ = 20230715
 
 from simpandas.frame import SimDataFrame
+from simpandas.common.compat import PANDAS_GE_20
 
 __all__ = ['read_excel']
 
@@ -122,13 +123,21 @@ def read_excel(io,
             else:
                 header += [units]
 
-    excelread = pandas.read_excel(io, sheet_name=sheet_name, header=header, names=names, index_col=index_col,
-                                  usecols=usecols, dtype=dtype, engine=engine, converters=converters,
-                                  true_values=true_values, false_values=false_values, skiprows=skiprows, nrows=nrows,
-                                  na_values=na_values, keep_default_na=keep_default_na, na_filter=na_filter,
-                                  verbose=verbose, parse_dates=parse_dates, date_format=date_format,
-                                  thousands=thousands, comment=comment, skipfooter=skipfooter,
-                                  storage_options=storage_options)  # convert_float=convert_float, decimal=decimal, mangle_dupe_cols=mangle_dupe_cols
+    excelread_kwargs = dict(
+        sheet_name=sheet_name, header=header, names=names, index_col=index_col,
+        usecols=usecols, dtype=dtype, engine=engine, converters=converters,
+        true_values=true_values, false_values=false_values, skiprows=skiprows, nrows=nrows,
+        na_values=na_values, keep_default_na=keep_default_na, na_filter=na_filter,
+        verbose=verbose, parse_dates=parse_dates, thousands=thousands,
+        comment=comment, skipfooter=skipfooter, storage_options=storage_options,
+    )
+    if PANDAS_GE_20:
+        excelread_kwargs['date_format'] = date_format
+    else:
+        # pandas < 2.0 uses date_parser; ignore date_format silently
+        pass
+
+    excelread = pandas.read_excel(io, **excelread_kwargs)
 
     if type(excelread) is not dict:
         excelread = {'onesheet':excelread}
