@@ -5,6 +5,25 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.0] - 2026-05-03
+
+### Added
+- All 10 writer functions (`write_excel`, `write_csv`, `write_json`, `write_hdf5`, `write_summary`, `write_parquet`, `write_prodml`, `write_witsml`, `write_resqml`, `write_schedule`) and `SimIndex` are now importable directly from `simpandas` (previously only accessible via sub-modules).
+- `write_schedule` added to `simpandas.writers` public exports.
+- `test/test_window_resample_query.py`: 31 new tests verifying unit-preservation through `rolling`, `expanding`, `ewm`, `resample`, `query`, `eval`, `join`, and `merge`.
+
+### Fixed
+- `writers/schedule.py`: keyword ranking implemented — when multiple keywords cover the same well, the highest-ranked keyword (WCONHIST > WCONINJH) is selected and the others are discarded.
+- `_SimResampleProxy._wrap_result`: restored `SimSeries.name` that pandas drops when resampling a named Series (e.g. `s.resample('2D').mean()` now preserves the series name and its associated unit).
+- Replaced 20+ bare `except:` clauses with `except Exception:` across `frame.py`, `series.py`, `basics.py`, `common/stringformat.py`, and `common/daterelated.py` — bare excepts were silently swallowing `SystemExit` and `KeyboardInterrupt`.
+- `common/_internal_processes.py`: `_get_index_atts()` was truncated with no `return` statement; added `return indexInput`.
+
+### Changed
+- `pyproject.toml`: raised pandas version ceiling from `< 3.0.0` to `< 4.0.0` to support pandas 3.x.
+- `basics.py`: removed stale commented-out code blocks from `_check_by()` and `_fill_daily()`.
+
+---
+
 ## [0.90.12] - 2026-05-02
 
 ### Fixed

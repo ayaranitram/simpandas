@@ -1,4 +1,53 @@
-# What's New in SimPandas — April 2026
+# What's New in SimPandas — May 2026
+
+## 0.91.0 — Public API completeness, reliability fixes, pandas 3.x support — May 2026
+
+This release makes the full writer API accessible from the top-level package, hardens exception handling throughout the codebase, and extends pandas compatibility to 3.x.
+
+### Writers and `SimIndex` now importable from the top level
+
+All 10 writer functions and `SimIndex` can now be imported directly from `simpandas`:
+
+```python
+from simpandas import write_excel, write_csv, write_json, write_hdf5
+from simpandas import write_summary, write_parquet, write_prodml
+from simpandas import write_witsml, write_resqml, write_schedule
+from simpandas import SimIndex
+```
+
+Previously these required importing from sub-modules (`simpandas.writers.excel`, etc.).
+
+### Schedule writer: keyword ranking
+
+When multiple Eclipse history keywords cover the same well (e.g. both `WCONHIST` and `WCONINJH` are present), the writer now automatically selects the highest-ranked keyword and discards the rest, producing a clean, non-duplicate schedule section.
+
+### `resample()` preserves `SimSeries` name
+
+Resampling a named `SimSeries` previously dropped the series name, causing `get_units()` to return `{None: 'unit'}` instead of `{'flow': 'unit'}`:
+
+```python
+s = SimSeries([1.0, 2.0, 3.0], name='flow', units='m3/d',
+              index=pd.date_range('2020-01-01', periods=3, freq='D'))
+r = s.resample('2D').mean()
+print(r.name)            # 'flow'  ← was None before this fix
+print(r.get_units())     # {'flow': 'm3/d'}  ← was {None: 'm3/d'}
+```
+
+### Pandas 3.x compatibility
+
+The pandas version ceiling has been raised from `< 3.0.0` to `< 4.0.0`.  SimPandas is now installable and tested with pandas 2.x; pandas 3.x is permitted by the dependency declaration.
+
+### Reliability: bare `except` clauses replaced
+
+Over 20 bare `except:` clauses across `frame.py`, `series.py`, `basics.py`, `common/stringformat.py`, and `common/daterelated.py` have been replaced with `except Exception:`.  Bare excepts were silently catching `SystemExit` and `KeyboardInterrupt`, making it impossible to interrupt a hung operation with Ctrl-C.
+
+### Test coverage for windowed and set operations
+
+New test file `test/test_window_resample_query.py` adds 31 tests that assert unit-preservation through `rolling`, `expanding`, `ewm`, `resample`, `query`, `eval`, `join`, and `merge`.
+
+---
+
+# Previous Updates — April 2026
 
 ## 0.90.8 — Maintenance and dictionary interop — April 2026
 
