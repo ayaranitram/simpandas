@@ -143,8 +143,6 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
                 args = (args[0].as_pandas(), ) + args[1:]
             else:
                 args = (args[0].as_pandas(), )
-        elif type(args) is SimSeries:
-            args = args.as_pandas()
         if type(args[0]) is not slice and type(args[0]) is tuple and len(args[0]) == 2:
             row_key, col_key = args[0]
             if isinstance(col_key, str) and col_key not in self.spd.columns:

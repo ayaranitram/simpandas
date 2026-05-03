@@ -1960,8 +1960,10 @@ class SimDataFrame(SimBasics, DataFrame):
                 data = self.as_pandas().sum(axis=axis, **kwargs)
             else:
                 i = 0
-                while self.columns[i] not in self.units:
+                while i < len(self.columns) and self.columns[i] not in self.units:
                     i += 1
+                if i >= len(self.columns):
+                    return self._rewrap(self.as_pandas().sum(axis=axis, **kwargs))
                 result = self[self.columns[i]]
                 units = self.units[self.columns[i]]
                 for col in (j for j in range(len(self.columns)) if j != i):

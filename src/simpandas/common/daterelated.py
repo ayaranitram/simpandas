@@ -364,9 +364,9 @@ def real_year(date):
         params = date._SimParameters
         params['name'] = 'year'
         params['units'] = 'year'
-        return SimSeries(data=real_year(date.to_Pandas()), **params)
+        return SimSeries(data=real_year(date.to_pandas()), index=date.index, **params)
 
     if isinstance(date, Series):
         return Series(data=np.array(
-            [Y.year + dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday
+            [Y.year + (dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday - 1) / dt.date(Y.year, 12, 31).timetuple().tm_yday
              for Y in date], dtype=float), index=date.index)

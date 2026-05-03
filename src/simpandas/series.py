@@ -641,7 +641,7 @@ class SimSeries(SimBasics, Series):
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
         op_label = valid_operations[operation][1]
-        fill_value = valid_operations[operation][1] if fill_value is True else fill_value
+        fill_value = valid_operations[operation][2] if fill_value is True else fill_value
 
         # ensure self.index is SimIndex
         if not hasattr(self.index, 'units'):

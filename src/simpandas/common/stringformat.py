@@ -194,7 +194,7 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
         formats = [ 'YYYYMMDD', 'YYYYMMMDD' ]
         for f in formats :
             try :
-                date(dateStr, formatIN=fIN, speak=speak )
+                date(dateStr, formatIN=f, speak=speak )
                 if returnFormat :
                     return f
                 return True

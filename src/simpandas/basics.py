@@ -3239,14 +3239,14 @@ Copy of input object, shifted.
         if method[0] in 't' or (method[0] in 'ac' and at == 'next'):
             if str(dt.dtype).startswith('timedelta'):
                 first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
-                                      index=['0']).set_index(DatetimeIndex([self.index[0]]))
+                                      index=DatetimeIndex([self.index[0]]))
             else:
                 first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
             return self._class(data=np_cumsum(concat_compat([first_row, cumulative])), **params_)
         elif method[0] in 'ac' and at == 'same':
             if str(dt.dtype).startswith('timedelta'):
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
-                                     index=[str(len(self) - 1)]).set_index(DatetimeIndex([self.index[-1]]))
+                                     index=DatetimeIndex([self.index[-1]]))
             else:
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
             return self._class(data=np_cumsum(concat_compat([cumulative, last_row])), **params_)
