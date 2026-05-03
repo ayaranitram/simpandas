@@ -11,8 +11,8 @@ by ``write_parquet`` embed this metadata automatically; plain Parquet
 files work too — supply *units* / *indexUnits* manually.
 """
 
-__version__ = '0.1.0'
-__release__ = 20260418
+__version__ = '0.1.1'
+__release__ = 20260503
 
 import json
 import logging

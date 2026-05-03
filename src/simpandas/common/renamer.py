@@ -6,8 +6,8 @@ Created on Wed Nov 16 18:25:41 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.2'
-__release__ = 20230725
+__version__ = '0.81.3'
+__release__ = 20260503
 __all__ = ['left', 'right', 'rename_left', 'rename_right', 'common_rename',
            'deduplicate_column_names']
 

@@ -5,8 +5,8 @@ Created on Thu Jan 19 21:48:27 2023
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.10'
-__release__ = 20230223
+__version__ = '0.0.11'
+__release__ = 20260503
 __all__ = ['SimIndex']
 
 from abc import ABC

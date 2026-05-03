@@ -5,8 +5,8 @@ Created on Wed Sep 18 12:33:46 2019
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.15.3'
-__release__ = 20230104
+__version__ = '0.15.4'
+__release__ = 20260503
 __all__ = ['multisplit', 'is_numeric', 'get_number', 'is_date', 'date']
 
 from simpandas.errors import UndefinedDateFormatError

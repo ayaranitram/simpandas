@@ -6,8 +6,8 @@ Created on March 3, 2026
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.84.0'
-__release__ = 20260303
+__version__ = '0.84.1'
+__release__ = 20260503
 __all__ = ['concat_compat', 'PANDAS_VERSION', 'PANDAS_GE_20']
 
 import pandas as pd

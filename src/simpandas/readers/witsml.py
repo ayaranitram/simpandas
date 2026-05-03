@@ -15,8 +15,8 @@ extracts tabular data into ``SimDataFrame`` objects.  Supports:
 Uses only ``xml.etree.ElementTree`` — no external dependencies.
 """
 
-__version__ = '0.1.0'
-__release__ = 20260418
+__version__ = '0.1.1'
+__release__ = 20260503
 
 import logging
 import re

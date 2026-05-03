@@ -5,7 +5,7 @@ Created on Thu Sep 29 19:03:52 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.91.0'
+__version__ = '0.91.1'
 __release__ = 20260503
 
 from pandas import Series, DataFrame

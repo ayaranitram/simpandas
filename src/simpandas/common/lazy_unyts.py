@@ -6,6 +6,9 @@ This module exposes a drop-in API for symbols used by simpandas while
 avoiding eager import of unyts during simpandas import.
 """
 
+__version__ = '0.1.0'
+__release__ = 20260503
+
 from functools import lru_cache
 import logging
 

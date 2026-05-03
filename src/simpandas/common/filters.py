@@ -5,8 +5,8 @@ Created on Sun Jan 08 11:10:15 2023
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.81.0'
-__release__ = 20230108
+__version__ = '0.81.1'
+__release__ = 20260503
 __all__ = ['zeros']
 
 from .helpers import clean_axis as _clean_axis

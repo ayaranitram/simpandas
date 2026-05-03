@@ -3,8 +3,8 @@
 Schedule reader for Eclipse DATA files.
 """
 
-__version__ = '0.1.1'
-__release__ = 20260502
+__version__ = '0.1.2'
+__release__ = 20260503
 __all__ = ['read_schedule']
 
 from simpandas.frame import SimDataFrame

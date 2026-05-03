@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.2'
-__release__ = 20230214
+__version__ = '0.80.3'
+__release__ = 20260503
 
 import datetime as dt
 from pandas import Timestamp, DatetimeIndex, Series, to_datetime as _to_datetime, NaT

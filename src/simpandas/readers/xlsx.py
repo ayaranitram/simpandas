@@ -5,8 +5,8 @@ Created on Wed Aug  3 20:24:36 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.1.5'
-__release__ = 20230715
+__version__ = '0.1.6'
+__release__ = 20260503
 
 from simpandas.frame import SimDataFrame
 from simpandas.common.compat import PANDAS_GE_20

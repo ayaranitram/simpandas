@@ -25,8 +25,8 @@ Binary format notes
 * Records are interleaved across wells at each time step.
 """
 
-__version__ = '0.1.0'
-__release__ = 20260418
+__version__ = '0.1.1'
+__release__ = 20260503
 
 import logging
 import os
