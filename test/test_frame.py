@@ -189,3 +189,87 @@ def test_lazy_unyts_convertible_warmup(monkeypatch):
         ('convertible', 'stb/day', 'sm3/day')
     ]
 
+
+# ---------------------------------------------------------------------------
+# SimDataFrame.reindex tests
+# ---------------------------------------------------------------------------
+
+def test_reindex_positional_different_length():
+    """reindex(positional_labels) with a different-length DatetimeIndex must
+    not raise TypeError — it should default to axis=0 (rows)."""
+    import numpy as np
+    idx1 = pd.date_range('2020-01-01', periods=5, freq='D')
+    idx2 = pd.date_range('2020-01-01', periods=10, freq='D')
+    sdf = SimDataFrame({'A': np.ones(5), 'B': np.zeros(5)},
+                       index=idx1, units={'A': 'm', 'B': 's'})
+    result = sdf.reindex(idx2)
+    assert result.shape == (10, 2)
+    assert isinstance(result, SimDataFrame)
+    assert result.units['A'] == 'm'
+
+
+def test_reindex_index_keyword():
+    """reindex(index=...) should reindex rows."""
+    import numpy as np
+    idx1 = pd.date_range('2020-01-01', periods=5, freq='D')
+    idx2 = pd.date_range('2020-01-01', periods=8, freq='D')
+    sdf = SimDataFrame({'A': np.ones(5)}, index=idx1, units='m')
+    result = sdf.reindex(index=idx2)
+    assert result.shape == (8, 1)
+    assert isinstance(result, SimDataFrame)
+
+
+def test_reindex_columns_keyword():
+    """reindex(columns=...) should reindex columns."""
+    import numpy as np
+    sdf = SimDataFrame({'A': np.ones(3), 'B': np.zeros(3)},
+                       units={'A': 'm', 'B': 's'})
+    result = sdf.reindex(columns=['A', 'C'])
+    assert list(result.columns) == ['A', 'C']
+    assert result.shape == (3, 2)
+    assert isinstance(result, SimDataFrame)
+
+
+def test_reindex_both_axes():
+    """reindex(index=..., columns=...) should reindex both axes at once."""
+    import numpy as np
+    idx1 = pd.date_range('2020-01-01', periods=5, freq='D')
+    idx2 = pd.date_range('2020-01-01', periods=3, freq='D')
+    sdf = SimDataFrame({'A': np.ones(5), 'B': np.zeros(5)},
+                       index=idx1, units={'A': 'm', 'B': 's'})
+    result = sdf.reindex(index=idx2, columns=['A', 'C'])
+    assert result.shape == (3, 2)
+    assert list(result.columns) == ['A', 'C']
+    assert isinstance(result, SimDataFrame)
+
+
+# ---------------------------------------------------------------------------
+# SimSeries.get_units tests
+# ---------------------------------------------------------------------------
+
+def test_get_units_no_index_leak():
+    """get_units() must not include index units by default."""
+    ss = SimSeries([1.0, 2.0, 3.0], name='pressure', units='bar',
+                   index=pd.Index([0.0, 1.0, 2.0], name='depth'),
+                   index_units='m')
+    result = ss.get_units()
+    assert 'depth' not in result, 'Index units must not appear in get_units() by default'
+    assert result == {'pressure': 'bar'}
+
+
+def test_get_units_include_index():
+    """get_units(include_index=True) must include index units."""
+    ss = SimSeries([1.0, 2.0, 3.0], name='pressure', units='bar',
+                   index=pd.Index([0.0, 1.0, 2.0], name='depth'),
+                   index_units='m')
+    result = ss.get_units(include_index=True)
+    assert 'depth' in result
+    assert result['depth'] == 'm'
+    assert result['pressure'] == 'bar'
+
+
+def test_get_units_no_index_units():
+    """get_units() when index_units is None must still work cleanly."""
+    ss = SimSeries([1.0, 2.0], name='flow', units='m3/d')
+    result = ss.get_units()
+    assert result == {'flow': 'm3/d'}

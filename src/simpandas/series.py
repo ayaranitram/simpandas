@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.84.0'
-__release__ = 20260303
+__version__ = '0.91.0'
+__release__ = 20260503
 __all__ = ['SimSeries']
 
 import logging
@@ -68,20 +68,54 @@ class SimSeries(SimBasics, Series):
         The data to store in the SimSeries.
     index : array-like or Index
         The index for the SimSeries.
-    units : string or dictionary of units(optional)
-        Can be any string, but only units acepted by the UnitConverter will
-        be considered when doing arithmetic calculations with other SimSeries
-        or SimDataFrames.
-
-    kwargs
-        Additional arguments passed to the Series constructor,
-         e.g. ``name``.
+    units : str, optional
+        Units for the Series. Can be any string, but only units accepted by 
+        the UnitConverter will be considered for arithmetic operations.
+    dtype : str, numpy.dtype, or ExtensionDtype, optional
+        Data type to force.
+    name : str, optional
+        Name of the Series.
+    copy : bool, default False
+        Copy data from inputs.
+    verbose : bool, default False
+        Enable verbose logging for operations.
+    index_units : str, optional
+        Units for the index.
+    name_separator : str, default ':'
+        Character used to separate name components.
+    intersection_character : str, default '&'
+        Character used for intersection operations.
+    auto_append : bool, default False
+        Automatically append units to names.
+    operate_per_name : bool, default False
+        Perform operations per name component.
+    transposed : bool, default False
+        Whether the Series is transposed.
+    meta : dict, optional
+        Additional metadata.
+    source_path : str, optional
+        Path to the source file.
+    return_singles : bool, optional
+        Whether to return single values.
 
     See Also
     --------
-    SimDataFrame
-    pandas.Series
+    SimDataFrame : Two-dimensional unit-aware DataFrame.
+    pandas.Series : Base pandas Series class.
 
+    Truthiness
+    ----------
+    Because ``SimSeries`` inherits from ``pandas.Series``, evaluating it as a
+    boolean (e.g. ``series or {}``) raises ``ValueError`` on multi-element
+    series. Use ``series.empty``, ``len(series) == 0``, or an explicit
+    ``series if series is not None else {}`` instead.
+    
+    Examples
+    --------
+    >>> import simpandas as sp
+    >>> s = sp.SimSeries([1, 2, 3], units='m')
+    >>> s.get_units()
+    'm'
     """
     _metadata = ['units',
                  'verbose',
@@ -107,7 +141,7 @@ class SimSeries(SimBasics, Series):
                  dtype=None,
                  name=None,
                  copy=False,
-                 fastpath=False,
+                 fastpath=False,  # deprecated; kept for API compat but no longer forwarded to pandas
                  verbose=False,
                  index_name=None,
                  index_units=None,
@@ -170,7 +204,7 @@ class SimSeries(SimBasics, Series):
             index_units = index.units
 
         # initialize Series
-        super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy, fastpath=fastpath)
+        super().__init__(data=data, index=index, dtype=dtype, name=name, copy=copy)
 
         # get name
         if self.name is None or (type(self.name) is str and self.name.strip() == ''):
@@ -305,14 +339,137 @@ class SimSeries(SimBasics, Series):
     def as_simdataframe(self):
         return self.to_simdataframe()
 
+    def as_dict(self, data_only: bool = False) -> dict:
+        """Convert this SimSeries to a dictionary.
+
+        Parameters
+        ----------
+        data_only : bool, default False
+            If True, return a plain ``{index_val: raw_value}`` dict (no
+            unit metadata — same as ``dict(self)``).
+            If False (default), return ``{index_val: unyts_value}`` where
+            each value is a ``unyts`` instance carrying its own unit.
+            This makes the conversion reversible via ``SimSeries.from_dict()``.
+
+        Returns
+        -------
+        dict
+            When ``data_only=True``: ``{index_val: raw_value, ...}``
+            When ``data_only=False``: ``{index_val: unyts_instance, ...}``
+            Returns ``{}`` if the series is empty.
+
+        See Also
+        --------
+        SimSeries.from_dict : Reconstruct a SimSeries from a unyts-valued dict.
+
+        Examples
+        --------
+        >>> ss = SimSeries([100, 200], index=[0.0, 1.0],
+        ...               units='psi', name='BHP')
+        >>> d = ss.as_dict()
+        >>> d[0.0]
+        100_psi
+        >>> d[0.0].value
+        100
+        >>> d[0.0].units
+        'psi'
+        >>> reconstructed = SimSeries.from_dict(d, name='BHP')
+        >>> (reconstructed == ss).all()
+        True
+        """
+        if self.empty:
+            return {}
+
+        if data_only:
+            return dict(self)
+
+        from .common.lazy_unyts import units as _units
+
+        unit_str = self.units if isinstance(self.units, str) else None
+        result = {}
+        for idx_val, data_val in self.items():
+            if unit_str and unit_str != 'unitless':
+                result[idx_val] = _units(data_val, unit_str)
+            else:
+                result[idx_val] = data_val
+        return result
+
+    @classmethod
+    def from_dict(cls, d: dict, name: str = None,
+                  index_name: str = None, index_units: str = None) -> 'SimSeries':
+        """Reconstruct a SimSeries from a dict with unyts-valued entries.
+
+        Parameters
+        ----------
+        d : dict
+            A dict produced by :meth:`as_dict` (``data_only=False``).
+            Values may be ``unyts`` instances or plain numbers.
+        name : str, optional
+            Name for the resulting SimSeries.
+        index_name : str, optional
+            Name for the index.
+        index_units : str, optional
+            Units for the index.
+
+        Returns
+        -------
+        SimSeries
+
+        See Also
+        --------
+        SimSeries.as_dict : Produce the unyts-valued dict.
+
+        Examples
+        --------
+        >>> from unyts import units
+        >>> d = {0.0: units(100, 'psi'), 1.0: units(200, 'psi')}
+        >>> ss = SimSeries.from_dict(d, name='BHP')
+        >>> ss.units
+        'psi'
+        """
+        from .common.lazy_unyts import is_Unit
+
+        if not d:
+            return cls(data=None, name=name, dtype=object)
+
+        index = list(d.keys())
+        values = list(d.values())
+
+        # Extract units from unyts instances if present
+        unit_str = None
+        raw_values = []
+        for v in values:
+            if is_Unit(v):
+                if unit_str is None:
+                    unit_str = v.units
+                raw_values.append(v.value)
+            else:
+                raw_values.append(v)
+
+        return cls(
+            data=raw_values,
+            index=index,
+            units=unit_str,
+            name=name,
+            index_name=index_name,
+            index_units=index_units,
+        )
+
     def __call__(self, key=None):
         """
         Returns the series values, a NumPy array or number without units.
+
+        Special-case: if ``key`` is itself a Series or DataFrame, this
+        method is being called by pandas' ``apply_if_callable`` inside
+        ``.mask()`` / ``.where()`` / ``.assign()`` etc.  Return ``self``
+        so pandas treats this SimSeries as a non-callable value.
         """
         if key is None:
             return self.values
-        else:
-            return self[key].values
+        import pandas as pd
+        if isinstance(key, (pd.Series, pd.DataFrame)):
+            return self
+        return self[key].values
 
     def __getitem__(self, key=None):
         from .frame import SimDataFrame
@@ -361,7 +518,7 @@ class SimSeries(SimBasics, Series):
                             pass
                     try:
                         result = self.as_simdataframe()[key]
-                    except:
+                    except Exception:
                         raise KeyError("the requested Key is not a valid index or name: " + str(key))
         if self._return_singles_ and isinstance(result, Series) and len(result) == 1:
             if type(result.iloc[0]) in number:
@@ -484,7 +641,7 @@ class SimSeries(SimBasics, Series):
         intersection_character = operation if intersection_character is None else intersection_character
         op_method = valid_operations[operation][0]
         op_label = valid_operations[operation][1]
-        fill_value = valid_operations[operation][1] if fill_value is True else fill_value
+        fill_value = valid_operations[operation][2] if fill_value is True else fill_value
 
         # ensure self.index is SimIndex
         if not hasattr(self.index, 'units'):
@@ -804,7 +961,7 @@ class SimSeries(SimBasics, Series):
             if type(conditions) is not list:
                 try:
                     conditions = list(conditions)
-                except:
+                except Exception:
                     raise TypeError('conditions argument must be a string.')
             conditions = ' and '.join(conditions)
 
@@ -846,12 +1003,12 @@ class SimSeries(SimBasics, Series):
                 if conditions[i] in ['"', "'"]:
                     try:
                         f = conditions.index(conditions[i], i + 1)
-                    except:
+                    except Exception:
                         raise ValueError('wring syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
                 else:
                     try:
                         f = conditions.index(']', i + 1)
-                    except:
+                    except Exception:
                         raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
@@ -1017,19 +1174,26 @@ class SimSeries(SimBasics, Series):
         else:
             return list(fnmatch.filter(keys, pattern))
 
-    def get_units(self, items=None):
+    def get_units(self, items=None, include_index=False):
         """
-        returns the units for the selected 'items' or for all the columns in the SimDataFrame.
+        Returns the units for the SimSeries.
 
         Parameters
         ----------
         items : str or list of str, optional
             Ignored, this parameter is kept for compatibility with SimDataFrame. The default is None.
+        include_index : bool, optional
+            When True, the index units (if any) are appended to the returned
+            dict under the index name.  Defaults to False so that
+            ``SimSeries(data, units=ss.get_units())`` only receives column
+            units and does not accidentally inject index units as column units.
 
         Returns
         -------
         dict
-            A dictionary of series.name or index.values as keys and their units as values.
+            A dictionary with series.name as key and its units as value.
+            When ``include_index=True``, the index name/units pair is also
+            included.
 
         """
         if self.units is None:
@@ -1041,23 +1205,24 @@ class SimSeries(SimBasics, Series):
         else:
             raise TypeError("unexpected type of .units attribute")
 
-        if self.index_units is None:
-            pass
-        elif self.index.name is None:
-            if '_index_' in units_dict and units_dict['_index_'] == self.index_units:
-                self.index_name = '_index_'
-            elif '_index_' not in units_dict:
-                self.index_name = '_index_'
-                units_dict['_index_'] = self.index_units
-            else:
-                logging.warning("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
-        elif self.index_name not in units_dict:
-            units_dict[self.index_name] = self.index_units
-        elif self.index_units != units_dict[self.index_name]:
-            if self.index_name not in self.columns:
+        if include_index:
+            if self.index_units is None:
+                pass
+            elif self.index.name is None:
+                if '_index_' in units_dict and units_dict['_index_'] == self.index_units:
+                    self.index_name = '_index_'
+                elif '_index_' not in units_dict:
+                    self.index_name = '_index_'
+                    units_dict['_index_'] = self.index_units
+                else:
+                    logging.warning("The index of the SimSeries doesn't have a name, and the generic name `_index_` is already in use.")
+            elif self.index_name not in units_dict:
                 units_dict[self.index_name] = self.index_units
-            else:
-                units_dict[str(self.index_name) + '_index_'] = self.index_units
+            elif self.index_units != units_dict[self.index_name]:
+                if self.index_name not in self.columns:
+                    units_dict[self.index_name] = self.index_units
+                else:
+                    units_dict[str(self.index_name) + '_index_'] = self.index_units
         return units_dict
 
     def set_units(self, units, item=None):
@@ -1109,7 +1274,7 @@ class SimSeries(SimBasics, Series):
                 try:
                     object.__setattr__(self, '_units_', {})
                     return self.set_units(units)
-                except:
+                except Exception:
                     object.__setattr__(self, '_units_', old_units)
                     raise ValueError("not able to process dictionary of units.")
             else:
@@ -1134,7 +1299,7 @@ class SimSeries(SimBasics, Series):
                 for k, u in units.items():
                     try:
                         self.set_units(u, k)
-                    except:
+                    except Exception:
                         pass
             elif type(units) is str:
                 if item is None:
@@ -1411,7 +1576,7 @@ class SimSeries(SimBasics, Series):
                                                   key=key),
                 **self.params_)
 
-    def plot(self, y=None, x=None, others=None, **kwargs):
+    def plot(self, y=None, x=None, others=None, label=None, **kwargs):
         """
         wrapper of Pandas plot method, with some superpowers
 
@@ -1423,6 +1588,9 @@ class SimSeries(SimBasics, Series):
             the columns to be used for x coordinates. The default is the index.
         others : SimDataFrame, SimSeries, DataFrame or Series; optional
             other Frames to include in the plot, for the same selected columns. The default is None.
+        label : str, optional
+            Override the legend label for this series in the chart.
+            When provided, replaces the default series name in the legend.
         **kwargs : TYPE
             any other keyword argument for matplolib.
 
@@ -1430,4 +1598,4 @@ class SimSeries(SimBasics, Series):
         -------
         matplotlib AxesSubplot.
         """
-        return self.sdf.plot(y=y, x=x, others=others, **kwargs)
+        return self.sdf.plot(y=y, x=x, others=others, labels=[label] if label is not None else None, **kwargs)

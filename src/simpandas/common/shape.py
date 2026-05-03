@@ -5,8 +5,8 @@ Created on Wed May 13 00:46:05 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.4.1'
-__release__ = 20220523
+__version__ = '0.4.2'
+__release__ = 20260503
 __all__ = ['melt', 'pivot']
 
 import pandas
@@ -24,7 +24,7 @@ def melt(df, hue='--auto', label='--auto', SimObject=None, full_output=False, **
         SimDF = True
         unitsdict = df.get_units().copy()
         units = lambda col: unitsdict[col] if col in unitsdict else None
-        df = df.DF
+        df = df.df
     else:
         SimDF = False
 

@@ -5,8 +5,8 @@ Created on Wed Sep 18 12:33:46 2019
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.15.3'
-__release__ = 20230104
+__version__ = '0.15.4'
+__release__ = 20260503
 __all__ = ['multisplit', 'is_numeric', 'get_number', 'is_date', 'date']
 
 from simpandas.errors import UndefinedDateFormatError
@@ -18,12 +18,26 @@ import datetime as dt
 
 def multisplit(string, sep=[' '], remove=[' ']) :
     """
-    receives a string and returns a list with string split
-    by all the separators in sep.
-    the default separator is the blank space ' '.
-    use the remove parameter to indicate the separators that
-    must not be reported in the output list.
-    by default, the blank space is not reported.
+    Split a string by multiple separators.
+
+    Receives a string and returns a list with the string split by all the
+    separators in sep. The default separator is the blank space ' '.
+    Use the remove parameter to indicate separators that must not be
+    reported in the output list. By default, blank space is not reported.
+
+    Parameters
+    ----------
+    string : str
+        The input string to split.
+    sep : list of str, optional
+        List of separator strings. Default is [' '].
+    remove : list of str, optional
+        Separators to remove from the output. Default is [' '].
+
+    Returns
+    -------
+    list of str
+        List of split string parts.
     """
     assert type(string) is str
 
@@ -91,7 +105,7 @@ def is_numeric(string):
             try:
                 complex(string)
                 return True
-            except:
+            except Exception:
                 return False
         else:
             return False
@@ -152,7 +166,7 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
             if returnFormat :
                 return date(dateStr, formatIN=formatIN, speak=speak, returnFormat=True )
             return True
-        except :
+        except Exception :
             return False
 
     else :
@@ -161,7 +175,7 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
             if returnFormat :
                 return date(dateStr, formatIN='', speak=speak, returnFormat=True )
             return True
-        except :
+        except Exception :
             pass
 
         formats = [ 'DD-MM-YYYY', 'DD-MMM-YYYY', 'YYYY-MM-DD', 'YYYY-MMM-DD', 'MM-DD-YYYY', 'MMM-DD-YYYY', 'YYYY-DD-MM', 'YYYY-DD-MMM', 'YYYYMMDD', 'YYYYMMMDD', 'DD-MM-YY', 'MMM-DD-YY', 'MM-DD-YY'  ]
@@ -174,17 +188,17 @@ def is_date(dateStr, formatIN='', speak=False, returnFormat=False ):
                     if returnFormat :
                         return fIN
                     return True
-                except :
+                except Exception :
                     pass
 
         formats = [ 'YYYYMMDD', 'YYYYMMMDD' ]
         for f in formats :
             try :
-                date(dateStr, formatIN=fIN, speak=speak )
+                date(dateStr, formatIN=f, speak=speak )
                 if returnFormat :
                     return f
                 return True
-            except :
+            except Exception :
                 pass
     return False
 
@@ -372,7 +386,7 @@ def date(date, formatIN='', formatOUT='', speak=True, YYbaseIN=1900, returnForma
             for j in range(len(date)) :
                 try:
                     datelist[i][j] = int(datelist[i][j])
-                except :
+                except Exception :
                     datestr[i] = True
                     break
             if datestr[i] == False :

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.2'
-__release__ = 20230214
+__version__ = '0.80.3'
+__release__ = 20260503
 
 import datetime as dt
 from pandas import Timestamp, DatetimeIndex, Series, to_datetime as _to_datetime, NaT
@@ -263,7 +263,7 @@ def days_in_month(month, year=None):
             try:
                 month = to_datetime(month)
                 return days_in_month(month.month, month.year)
-            except:
+            except Exception:
                 raise ValueError("input 'month' not recognized.")
         else:
             raise ValueError("input 'month' not recognized.")
@@ -364,9 +364,9 @@ def real_year(date):
         params = date._SimParameters
         params['name'] = 'year'
         params['units'] = 'year'
-        return SimSeries(data=real_year(date.to_Pandas()), **params)
+        return SimSeries(data=real_year(date.to_pandas()), index=date.index, **params)
 
     if isinstance(date, Series):
         return Series(data=np.array(
-            [Y.year + dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday / dt.date(Y.year, 12, 31).timetuple().tm_yday
+            [Y.year + (dt.date(Y.year, Y.month, Y.day).timetuple().tm_yday - 1) / dt.date(Y.year, 12, 31).timetuple().tm_yday
              for Y in date], dtype=float), index=date.index)

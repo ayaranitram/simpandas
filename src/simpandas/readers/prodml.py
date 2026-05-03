@@ -14,8 +14,8 @@ the root element's namespace.  It uses only the standard-library
 ``xml.etree.ElementTree`` parser — no external dependencies.
 """
 
-__version__ = '0.1.0'
-__release__ = 20260418
+__version__ = '0.1.1'
+__release__ = 20260503
 
 import logging
 import os

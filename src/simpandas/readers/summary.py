@@ -9,8 +9,8 @@ with properly labelled columns and units.
 No external dependencies beyond NumPy and pandas.
 """
 
-__version__ = '0.1.1'
-__release__ = 20260420
+__version__ = '0.1.2'
+__release__ = 20260503
 
 from simpandas.frame import SimDataFrame
 

@@ -5,8 +5,8 @@ Created on Mon Aug 22 23:11:38 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.83.5'
-__release__ = 20230225
+__version__ = '0.91.0'
+__release__ = 20260503
 __all__ = ['_SimLocIndexer']
 
 import logging
@@ -143,8 +143,6 @@ class _SimLocIndexer(_SimBaseIndexer, _LocIndexer):
                 args = (args[0].as_pandas(), ) + args[1:]
             else:
                 args = (args[0].as_pandas(), )
-        elif type(args) is SimSeries:
-            args = args.as_pandas()
         if type(args[0]) is not slice and type(args[0]) is tuple and len(args[0]) == 2:
             row_key, col_key = args[0]
             if isinstance(col_key, str) and col_key not in self.spd.columns:

@@ -16,8 +16,8 @@ Usage::
 
 """
 
-__version__ = '0.1.0'
-__release__ = 20260421
+__version__ = '0.1.1'
+__release__ = 20260503
 
 import collections.abc
 from typing import Any, Iterator, List, Optional, Union

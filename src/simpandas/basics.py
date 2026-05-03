@@ -1,12 +1,12 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Sun Oct 11 11:14:32 2020
 
 @author: MartÃ­n Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.84.0'
-__release__ = 20260303
+__version__ = '0.91.0'
+__release__ = 20260503
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -20,7 +20,7 @@ from warnings import warn
 from .common.lazy_unyts import is_Unit, convertible as _convertible, unit_inverse as _unit_inverse, unitless_names as _unitless_names
 
 from .indexer import _SimLocIndexer, _iSimLocIndexer
-from .common.compat import concat_compat
+from .common.compat import concat_compat, PANDAS_GE_30 as _PANDAS_GE_30
 from .common.daterelated import days_in_year, real_year, days_in_month, check_day, check_month
 from .common.math import znorm as _znorm, minmaxnorm as _minmaxnorm, jitter as _jitter
 from .common.renamer import right as _right, left as _left, common_rename as _common_rename
@@ -40,6 +40,18 @@ class SimType(type):
 
 
 class SimBasics(object, metaclass=SimType):
+    """
+    Mixin class providing common functionality for SimDataFrame and SimSeries.
+
+    This class contains shared methods and properties used by both SimDataFrame
+    and SimSeries, including unit handling, metadata management, and common
+    operations that preserve units through pandas transformations.
+
+    Notes
+    -----
+    SimBasics uses a custom metaclass (SimType) to enable dynamic type checking
+    and method wrapping for unit-aware operations.
+    """
 
     def __contains__(self, item):
         """Membership test against columns or index name.
@@ -290,10 +302,18 @@ class SimBasics(object, metaclass=SimType):
 
     def where(self, cond, other=None, *args, **kwargs):
         """Replace values where the condition is False, preserving units."""
+        if hasattr(cond, 'as_pandas'):
+            cond = cond.as_pandas()
+        if hasattr(other, 'as_pandas'):
+            other = other.as_pandas()
         return self._rewrap(self.as_pandas().where(cond, other, *args, **kwargs))
 
     def mask(self, cond, other=None, *args, **kwargs):
         """Replace values where the condition is True, preserving units."""
+        if hasattr(cond, 'as_pandas'):
+            cond = cond.as_pandas()
+        if hasattr(other, 'as_pandas'):
+            other = other.as_pandas()
         return self._rewrap(self.as_pandas().mask(cond, other, *args, **kwargs))
 
     def sample(self, *args, **kwargs):
@@ -1531,7 +1551,7 @@ class SimBasics(object, metaclass=SimType):
             return self.name_separator
 
     def interpolate(self, method='slinear', axis='index', limit=None, inplace=False,
-                    limit_direction=None, limit_area=None, downcast=None, **kwargs):
+                    limit_direction=None, limit_area=None, **kwargs):
         """Fill NaN values using interpolation.
 
         This wraps :py:meth:`pandas.DataFrame.interpolate` or :py:meth:`pandas.Series.interpolate`
@@ -1551,8 +1571,6 @@ class SimBasics(object, metaclass=SimType):
             Direction for limit parameter.
         limit_area : {'inside', 'outside'}, optional
             Whether to fill NaN values inside or outside known values.
-        downcast : str, optional
-            Downcast data type if possible.
         **kwargs : optional
             Additional arguments passed to pandas interpolate method.
 
@@ -1561,17 +1579,21 @@ class SimBasics(object, metaclass=SimType):
         SimSeries or SimDataFrame or None
             Interpolated object (or None if inplace=True).
         """
+        # Note: ``downcast`` was removed from pandas.interpolate in pandas 2.2;
+        # do not forward it to avoid FutureWarning / TypeError.
         axis = _clean_axis(axis)
         if inplace:
-            super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace, limit_direction=limit_direction,
-                                limit_area=limit_area, downcast=downcast, **kwargs)
+            super().interpolate(method=method, axis=axis, limit=limit, inplace=inplace,
+                                limit_direction=limit_direction, limit_area=limit_area, **kwargs)
         else:
-            return self._class(data=self.as_pandas().interpolate(method=method, axis=axis, limit=limit, inplace=inplace,
-                                                                 limit_direction=limit_direction, limit_area=limit_area,
-                                                                 downcast=downcast, **kwargs), **self.params_)
+            return self._class(data=self.as_pandas().interpolate(method=method, axis=axis, limit=limit,
+                                                                 inplace=inplace,
+                                                                 limit_direction=limit_direction,
+                                                                 limit_area=limit_area, **kwargs),
+                               **self.params_)
 
     def fillna(self, value=None, method=None, axis='index', inplace=False,
-               limit=None, downcast=None):
+               limit=None):
         """Fill NaN values with a value or method.
 
         This wraps :py:meth:`pandas.DataFrame.fillna` or :py:meth:`pandas.Series.fillna`
@@ -1582,28 +1604,37 @@ class SimBasics(object, metaclass=SimType):
         value : scalar, dict, Series, or DataFrame, optional
             If a scalar, fill all NaN values with this value.
         method : {'backfill', 'bfill', 'pad', 'ffill', None}, optional
-            Method to use for filling holes in reindexed Series.
+            Deprecated fill method.  ``'ffill'``/``'pad'`` delegates to
+            :py:meth:`ffill`; ``'bfill'``/``'backfill'`` delegates to
+            :py:meth:`bfill`.  Prefer calling those methods directly.
         axis : {0, 1, 'index', 'columns'}, default 'index'
             Axis along which to fill.
         inplace : bool, default False
             Modify in place if True, return new object if False.
         limit : int, optional
             Maximum number of consecutive NaN values to fill.
-        downcast : str, optional
-            Downcast data type if possible.
 
         Returns
         -------
         SimSeries or SimDataFrame or None
             Filled object (or None if inplace=True).
         """
+        # ``method`` and ``downcast`` were removed from pandas.fillna in
+        # pandas 2.2.  Translate ``method`` to the appropriate directional
+        # fill call; ``downcast`` is silently dropped.
+        if method is not None:
+            method_lower = str(method).lower()
+            if method_lower in ('ffill', 'pad'):
+                return self.ffill(axis=axis, inplace=inplace, limit=limit)
+            elif method_lower in ('bfill', 'backfill'):
+                return self.bfill(axis=axis, inplace=inplace, limit=limit)
         axis = _clean_axis(axis)
         if inplace:
-            super().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit, downcast=downcast)
+            super().fillna(value=value, axis=axis, inplace=inplace, limit=limit)
         else:
             return self._class(
-                data=self.as_pandas().fillna(value=value, method=method, axis=axis, inplace=inplace, limit=limit,
-                                             downcast=downcast), **self.params_)
+                data=self.as_pandas().fillna(value=value, axis=axis, inplace=inplace, limit=limit),
+                **self.params_)
 
     def replace(self, to_replace=None, value=None, inplace=False, limit=None, regex=False):
         """Replace values in the object.
@@ -1630,11 +1661,19 @@ class SimBasics(object, metaclass=SimType):
             Object with replaced values (or None if inplace=True).
         """
         if inplace:
-            super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex)
+            if _PANDAS_GE_30 or limit is None:
+                super().replace(to_replace=to_replace, value=value, inplace=inplace, regex=regex)
+            else:
+                super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex)
         else:
-            return self._class(
-                data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
-                                              regex=regex), **self.params_)
+            if _PANDAS_GE_30 or limit is None:
+                return self._class(
+                    data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace,
+                                                  regex=regex), **self.params_)
+            else:
+                return self._class(
+                    data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
+                                                  regex=regex), **self.params_)
 
     def ffill(self, axis=0, inplace=False, limit=None):
         """Forward fill NaN values, preserving units and metadata."""
@@ -1652,15 +1691,26 @@ class SimBasics(object, metaclass=SimType):
             return self._class(data=self.as_pandas().bfill(axis=axis, limit=limit),
                                **self.params_)
 
-    def pct_change(self, periods=1, fill_method=None, limit=None, freq=None, **kwargs):
+    def pct_change(self, periods=1, freq=None, **kwargs):
         """Fractional change between current and prior element, preserving metadata.
 
         Units become dimensionless since the result is a fractional change.
+
+        Note: ``fill_method`` and ``limit`` were removed from
+        ``pandas.DataFrame.pct_change`` in pandas 2.2.  Fill any NA values
+        before calling this method if that behaviour is needed.
         """
-        result = self.as_pandas().pct_change(periods=periods, fill_method=fill_method,
-                                             limit=limit, freq=freq, **kwargs)
+        # Explicitly pass fill_method=None to suppress pandas' deprecated
+        # default of fill_method='pad', which triggers a FutureWarning.
+        result = self.as_pandas().pct_change(periods=periods, fill_method=None,
+                                             freq=freq, **kwargs)
         params = self.params_
-        params['units'] = 'dimensionless'
+        # All output values are dimensionless; build a per-column dict when
+        # there are multiple columns so that set_units() succeeds.
+        if hasattr(self, 'columns') and len(self.columns) > 1:
+            params['units'] = {col: 'dimensionless' for col in self.columns}
+        else:
+            params['units'] = 'dimensionless'
         return self._class(data=result, **params)
 
     def asfreq(self, freq, method=None, how=None, normalize=False, fill_value=None):
@@ -2103,7 +2153,7 @@ Copy of input object, shifted.
         else:
             try:
                 self.index.name = name
-            except:
+            except Exception:
                 raise ValueError("Not valid index name.")
 
     def get_wells(self, pattern=None):
@@ -2375,18 +2425,6 @@ Copy of input object, shifted.
         return self.real_year(column=column)
 
     def _check_by(self, by, raise_by_error=True):
-        # if not isinstance(self.index, DatetimeIndex):
-        #     original = self.index
-        #     try:
-        #         self.index = to_datetime(['-'.join(map(str, i)) for i in self.index])
-        #     except:
-        #         if raise_by_error:
-        #             raise TypeError("index must be `DatetimeIndex`.")
-        #         else:
-        #             logging.warning("index must be `DatetimeIndex`.")
-        # else:
-        #     original = None
-
         if by is None:
             by = []
         elif type(by) is not str and hasattr(by, '__iter__'):
@@ -2416,9 +2454,6 @@ Copy of input object, shifted.
             by = []
             logging.warning("The column '" + str(by) + "' is not present in this frame")
         user_by = by if len(by) > 0 else None
-
-        # if original is not None:
-        #     self.index = original
         return by, user_by
 
     def _aggregated_calculation(self, by, agg):
@@ -2474,27 +2509,6 @@ Copy of input object, shifted.
         """
         result = self.copy()
 
-        # if not isinstance(result.index, DatetimeIndex):
-        #     if len(result.index) > 0 and len(result.index[0]) == 3:
-        #         try:
-        #             result.index = to_datetime(['-'.join(map(str,i)) for i in result.index])
-        #         except:
-        #             raise TypeError("Index must be DateTimeIndex.")
-        #     else:
-        #         raise TypeError("Index must be DateTimeIndex.")
-
-        # time_by = [result.index.year, result.index.month, result.index.day]
-        # group_by, _ = result._check_by(group_by, raise_by_error=raise_by_error)
-        # for tb in time_by:
-        #     try:
-        #         if tb in group_by:
-        #             _ = group_by.remove(tb)
-        #     except ValueError:
-        #         if tuple(tb) in [tuple(g) for g in group_by]:
-        #             _ = group_by.remove(tuple(tb))
-
-        # by = time_by if group_by is None else time_by + group_by
-
         by = group_by
 
         if len(by) > 3:  # user criteria to group by
@@ -2521,14 +2535,16 @@ Copy of input object, shifted.
                 if fillna_method is False:
                     pass
                 elif fillna_method is None:
-                    group_df = group_df.interpolate(method='time').fillna(method='pad')
-                elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                    group_df = group_df.fillna(method=fillna_method)
+                    group_df = group_df.interpolate(method='time').ffill()
+                elif fillna_method in ['pad', 'ffill']:
+                    group_df = group_df.ffill()
+                elif fillna_method in ['backfill', 'bfill']:
+                    group_df = group_df.bfill()
                 elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                        'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
-                    group_df = group_df.interpolate(method=fillna_method).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method).ffill()
                 elif fillna_method in ['polynomial', 'spline']:
-                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).ffill()
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
@@ -2540,8 +2556,10 @@ Copy of input object, shifted.
                 pass
             elif fillna_method is None:
                 result = result.interpolate(method='time')
-            elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                result = result.fillna(method=fillna_method)
+            elif fillna_method in ['pad', 'ffill']:
+                result = result.ffill()
+            elif fillna_method in ['backfill', 'bfill']:
+                result = result.bfill()
             elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                    'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
                 result = result.interpolate(method=fillna_method)
@@ -2593,14 +2611,16 @@ Copy of input object, shifted.
                 if fillna_method is False:
                     pass
                 elif fillna_method is None:
-                    group_df = group_df.interpolate(method='time').fillna(method='pad')
-                elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                    group_df = group_df.fillna(method=fillna_method)
+                    group_df = group_df.interpolate(method='time').ffill()
+                elif fillna_method in ['pad', 'ffill']:
+                    group_df = group_df.ffill()
+                elif fillna_method in ['backfill', 'bfill']:
+                    group_df = group_df.bfill()
                 elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                        'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
-                    group_df = group_df.interpolate(method=fillna_method).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method).ffill()
                 elif fillna_method in ['polynomial', 'spline']:
-                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).fillna(method='pad')
+                    group_df = group_df.interpolate(method=fillna_method, order=kwargs['order']).ffill()
                 if new_df is None:
                     new_df = group_df.copy()
                 else:
@@ -2612,8 +2632,10 @@ Copy of input object, shifted.
                 pass
             elif fillna_method is None:
                 result = result.interpolate(method='time')
-            elif fillna_method in ['pad', 'ffill', 'backfill', 'bfill']:
-                result = result.fillna(method=fillna_method)
+            elif fillna_method in ['pad', 'ffill']:
+                result = result.ffill()
+            elif fillna_method in ['backfill', 'bfill']:
+                result = result.bfill()
             elif fillna_method in ['linear', 'time', 'index', 'values', 'nearest',
                                    'zero', 'slinear', 'quadratic', 'cubic', 'barycentric']:
                 result = result.interpolate(method=fillna_method)
@@ -3225,14 +3247,14 @@ Copy of input object, shifted.
         if method[0] in 't' or (method[0] in 'ac' and at == 'next'):
             if str(dt.dtype).startswith('timedelta'):
                 first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
-                                      index=['0']).set_index(DatetimeIndex([self.index[0]]))
+                                      index=DatetimeIndex([self.index[0]]))
             else:
                 first_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[0]])
             return self._class(data=np_cumsum(concat_compat([first_row, cumulative])), **params_)
         elif method[0] in 'ac' and at == 'same':
             if str(dt.dtype).startswith('timedelta'):
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))),
-                                     index=[str(len(self) - 1)]).set_index(DatetimeIndex([self.index[-1]]))
+                                     index=DatetimeIndex([self.index[-1]]))
             else:
                 last_row = DataFrame(dict(zip(self.columns, [0.0] * len(self.columns))), index=[self.index[-1]])
             return self._class(data=np_cumsum(concat_compat([cumulative, last_row])), **params_)

@@ -12,8 +12,8 @@ Requires ``h5py`` (optional dependency) when properties reference external
 HDF5 datasets.
 """
 
-__version__ = '0.1.0'
-__release__ = 20260614
+__version__ = '0.1.1'
+__release__ = 20260503
 
 import logging
 import os

@@ -5,8 +5,8 @@ HDF5 reader with units support for SimPandas.
 Requires the ``h5py`` package (optional dependency).
 """
 
-__version__ = '0.1.0'
-__release__ = 20260418
+__version__ = '0.1.1'
+__release__ = 20260503
 
 from simpandas.frame import SimDataFrame
 

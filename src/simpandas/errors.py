@@ -4,8 +4,8 @@ Created on Wed May 13 15:14:35 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.0.3'
-__release__ = 20221116
+__version__ = '0.0.4'
+__release__ = 20260503
 __all__ = []
 
 

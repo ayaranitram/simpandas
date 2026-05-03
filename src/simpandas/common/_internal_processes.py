@@ -5,8 +5,8 @@ Created on Thu Sep 29 19:03:52 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.6'
-__release__ = 20230104
+__version__ = '0.91.1'
+__release__ = 20260503
 
 from pandas import Series, DataFrame
 from simpandas import SimSeries, SimDataFrame
@@ -42,9 +42,10 @@ def _get_index_atts(data=None, index=None, units=None, **kwargs):
     elif 'index' in kwargs and kwargs['index'] is not None:
         indexInput = kwargs['index']
 
-    if type(indexInput) in (Series, DataFrame) and type(indexInput.name) is str and len(data.index.name) > 0:
+    if type(indexInput) in (Series, DataFrame) and type(indexInput.name) is str and len(indexInput.name) > 0:
         indexInput = indexInput.name
 
     elif type(data) in (SimSeries, SimDataFrame) and type(data.index.name) is str and len(data.index.name) > 0:
         indexInput = data.index.name
 
+    return indexInput

@@ -5,8 +5,8 @@ Created on Wed Aug  3 20:24:36 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.90.7'
-__release__ = 20260426
+__version__ = '0.91.0'
+__release__ = 20260503
 
 from simpandas.writers.xlsx import write_excel
 from simpandas.writers.csv import write_csv
@@ -17,3 +17,4 @@ from simpandas.writers.parquet import write_parquet
 from simpandas.writers.prodml import write_prodml
 from simpandas.writers.witsml import write_witsml
 from simpandas.writers.resqml import write_resqml
+from simpandas.writers.schedule import write_schedule

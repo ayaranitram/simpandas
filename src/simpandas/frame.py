@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.90.5'
-__release__ = 20260421
+__version__ = '0.91.0'
+__release__ = 20260503
 __all__ = ['SimDataFrame']
 
 import logging
@@ -57,7 +57,7 @@ def _series_to_frame(a_SimSeries, params_=None):
                                               a_SimSeries.to_list())),
                                 index=[a_SimSeries.name],
                                 **params_)
-        except:
+        except Exception:
             return a_SimSeries
     if type(a_SimSeries) is Series:
         try:
@@ -66,7 +66,7 @@ def _series_to_frame(a_SimSeries, params_=None):
                                            )
                                        ),
                              index=a_SimSeries.columns)
-        except:
+        except Exception:
             return a_SimSeries
 
 
@@ -181,6 +181,7 @@ class _SimGroupBy:
     aggregate = agg
 
     def apply(self, *args, **kwargs):
+        kwargs.setdefault('include_groups', False)
         return self._wrap_result(self._groupby_obj.apply(*args, **kwargs))
 
     def transform(self, *args, **kwargs):
@@ -228,8 +229,10 @@ class _SimResampleProxy:
             return wrapped
         if isinstance(result, Series):
             params = self._parent.params_.copy()
+            # Restore the series name if pandas dropped it during resample
+            effective_name = result.name if result.name is not None else params.get('name')
             try:
-                unit_str = self._parent.get_units_string(result.name)
+                unit_str = self._parent.get_units_string(effective_name)
                 if isinstance(unit_str, str) and unit_str != 'unitless':
                     params['units'] = unit_str
                 else:
@@ -238,6 +241,8 @@ class _SimResampleProxy:
                 params['units'] = None
             if 'name' in params:
                 del params['name']
+            if result.name is None and effective_name is not None:
+                result = result.rename(effective_name)
             return SimSeries(result, **params)
         return result
 
@@ -256,22 +261,59 @@ class _SimResampleProxy:
 
 class SimDataFrame(SimBasics, DataFrame):
     """
-    A SimDataFrame object is a pandas.DataFrame that units associated with to
-    each column. In addition to the standard DataFrame constructor arguments,
-    SimDataFrame also accepts the following keyword arguments:
+    A SimDataFrame object is a pandas.DataFrame with units associated with each column.
+    
+    In addition to the standard DataFrame constructor arguments, SimDataFrame also 
+    accepts the following keyword arguments for unit tracking and configuration:
 
     Parameters
     ----------
-    units : string or dictionary of units(optional)
-        Can be any string, but only units acepted by the UnitConverter will
-        be considered when doing arithmetic calculations with other SimSeries
-        or SimDataFrames.
+    data : array-like, Iterable, dict, or DataFrame, optional
+        Data to initialize DataFrame with.
+    index : Index or array-like, optional
+        Index to use for resulting DataFrame.
+    columns : Index or array-like, optional
+        Column labels to use for resulting DataFrame.
+    dtype : str, numpy.dtype, or ExtensionDtype, optional
+        Data type to force.
+    copy : bool, default False
+        Copy data from inputs.
+    units : str, dict, or ColumnUnits, optional
+        Units for columns. Can be a single string (applied to all columns), 
+        or a dict mapping column names to unit strings. Only units accepted 
+        by the UnitConverter will be considered for arithmetic operations.
+    verbose : bool, default False
+        Enable verbose logging for operations.
+    index_units : str, optional
+        Units for the index.
+    name_separator : str, default ':'
+        Character used to separate name components in column names.
+    intersection_character : str, default '&'
+        Character used for intersection operations in column names.
+    auto_append : bool, default False
+        Automatically append units to column names.
+    operate_per_name : bool, default False
+        Perform operations per name component.
+    transposed_ : bool, default False
+        Whether the DataFrame is transposed.
+    meta : dict, optional
+        Additional metadata.
+    source_path : str, optional
+        Path to the source file.
+    return_singles : bool, optional
+        Whether to return single values instead of Series.
 
     See Also
     --------
-    SimSeries
-    pandas.DataFrame
+    SimSeries : One-dimensional unit-aware Series.
+    pandas.DataFrame : Base pandas DataFrame class.
 
+    Examples
+    --------
+    >>> import simpandas as sp
+    >>> df = sp.SimDataFrame({'A': [1, 2], 'B': [3, 4]}, units={'A': 'm', 'B': 'kg'})
+    >>> df.get_units()
+    {'A': 'm', 'B': 'kg'}
     """
     _metadata = ['units',
                  'verbose',
@@ -538,6 +580,13 @@ class SimDataFrame(SimBasics, DataFrame):
         return self
 
     def __call__(self, key=None):
+        # Guard against pandas' apply_if_callable: when mask/where/assign
+        # pass a SimDataFrame condition, pandas calls cond(self) because
+        # callable(simdataframe) is True.  Return self so pandas treats
+        # this SimDataFrame as a non-callable value.
+        import pandas as pd
+        if isinstance(key, (pd.Series, pd.DataFrame)):
+            return self
         if key is None:
             key = self.columns
         result = self.__getitem__(key)
@@ -589,10 +638,10 @@ class SimDataFrame(SimBasics, DataFrame):
             else:  # key is not a column name
                 try:  # to evaluate as a filter
                     result = self._get_by_criteria(key)
-                except:
+                except Exception:
                     try:  # to evaluate as an index value
                         result, by_index = self._get_by_index(key)
-                    except:
+                    except Exception:
                         raise KeyError(
                             'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
 
@@ -617,7 +666,7 @@ class SimDataFrame(SimBasics, DataFrame):
                         try:  # to evaluate as a filter
                             _ = self.filter(each, returnFilter=True)
                             filters += [each]
-                        except:
+                        except Exception:
                             try:  # to evaluate as an index value
                                 _temp_result, _temp_by_index  = self._get_by_index(each)
                                 if _temp_by_index:
@@ -629,7 +678,7 @@ class SimDataFrame(SimBasics, DataFrame):
                                         indexes += list(_temp_result.index)
                                 else:
                                     key += list(_temp_result.columns)
-                            except:
+                            except Exception:
                                 # discard this item
                                 logging.error('The parameter ' + str(each) + ' is not valid.')
 
@@ -641,7 +690,7 @@ class SimDataFrame(SimBasics, DataFrame):
             if bool(filters):
                 try:
                     index_filter = self.filter(filters, returnFilter=True)
-                except:
+                except Exception:
                     warn('filter conditions are not valid:\n   ' + ' and '.join(filters))
                 if index_filter is not None and not index_filter.any():
                     warn('filter conditions removed every row :\n   ' + ' and '.join(filters))
@@ -659,10 +708,10 @@ class SimDataFrame(SimBasics, DataFrame):
             # attempt to get the desired keys, first as column names, then as indexes
             try:
                 result = self._get_by_column(key)
-            except:
+            except Exception:
                 try:
                     result, by_index = self._get_by_index(key)
-                except:
+                except Exception:
                     if key is None:
                         raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
                     else:
@@ -705,7 +754,7 @@ class SimDataFrame(SimBasics, DataFrame):
                     # this Series is one index for multiple columns
                     try:
                         result_units = self.get_units(result.index)
-                    except:
+                    except Exception:
                         result_units = {result.name: 'unitless'}
                 else:
                     result_units = self.get_units_string(result.name)
@@ -734,7 +783,7 @@ class SimDataFrame(SimBasics, DataFrame):
                 i_result = _series_to_frame(i_result, self.params_)
             try:
                 result = i_result.sort_index()
-            except:
+            except Exception:
                 result = i_result
 
         # if is a single row return it as a DataFrame instead of a Series
@@ -804,7 +853,7 @@ class SimDataFrame(SimBasics, DataFrame):
                             try:
                                 value.index = _converter(value.index, value.index_units, self.index_units,
                                                          print_conversion_path=self.verbose)
-                            except:
+                            except Exception:
                                 warn(
                                     "WARNING: failed to convert the provided index to the units of this SimDataFrame index.")
                         else:
@@ -833,7 +882,22 @@ class SimDataFrame(SimBasics, DataFrame):
         after = len(self.columns)
 
         if after == before:
-            self.new_units(key, u_dict[key])
+            incoming_unit = u_dict.get(key)
+            if incoming_unit is not None and incoming_unit != 'unitless':
+                # The incoming value explicitly carries a unit — use it.
+                self.new_units(key, incoming_unit)
+            elif key in self.columns:
+                # The incoming value has no explicit unit (plain Series, array,
+                # list, etc.) or was tagged 'unitless'. Preserve the column's
+                # existing unit rather than overwriting it — this is the common
+                # case when users do sdf["col"] = sdf["col"].mask(...) or
+                # assign a numpy array back to the same column.
+                existing_unit = self.get_units(key)
+                if existing_unit is None:
+                    existing_unit = incoming_unit if incoming_unit is not None else 'unitless'
+                self.new_units(key, existing_unit)
+            else:
+                self.new_units(key, incoming_unit if incoming_unit is not None else 'unitless')
         elif after > before:
             for c in range(before, after):
                 if self.columns[c] in self.columns[before: after] and self.columns[c] in u_dict:
@@ -1146,25 +1210,34 @@ class SimDataFrame(SimBasics, DataFrame):
         wrapper for pandas.DataFrame.reindex
 
         labels : array-like, optional
-            New labels / index to conform the axis specified by ‘axis’ to.
-        index, columns : array-like, optional(should be specified using keywords)
-            New labels / index to conform to. Preferably an Index object to avoid duplicating data
+            New labels / index to conform the axis specified by 'axis' to.
+            When only ``labels`` is given (no ``axis``), axis 0 (index) is
+            assumed -- matching pandas' own default behaviour.
+        index, columns : array-like, optional
+            New labels for axis 0 (index) and axis 1 (columns) respectively.
+            Both may be supplied simultaneously to reindex both axes at once.
         axis : int or str, optional
-            Axis to target. Can be either the axis name(‘index’, ‘columns’) or number(0, 1).
+            Axis to target. Can be either the axis name ('index', 'columns')
+            or number (0, 1). Only relevant when ``labels`` is provided.
         """
-        if labels is None and axis is None and index is not None:
-            labels = index
+        # Both index= and columns= supplied -- forward directly to pandas
+        if index is not None and columns is not None:
+            return SimDataFrame(
+                data=self.to_pandas().reindex(index=index, columns=columns, **kwargs),
+                **self.params_)
+
+        # Only index= supplied
+        if index is not None:
+            labels, axis = index, 0
+
+        # Only columns= supplied
+        elif columns is not None:
+            labels, axis = columns, 1
+
+        # Positional labels with no axis -- default to axis 0 (pandas default)
+        elif labels is not None and axis is None:
             axis = 0
-        elif labels is None and axis is None and columns is not None:
-            labels = columns
-            axis = 1
-        elif labels is not None and axis is None and columns is None and index is None:
-            if len(labels) == len(self.index):
-                axis = 0
-            elif len(labels) == len(self.columns):
-                axis = 1
-            else:
-                raise TypeError("labels does not match neither len(index) or len(columns).")
+
         axis = _clean_axis(axis)
         return SimDataFrame(data=self.to_pandas().reindex(labels=labels, axis=axis, **kwargs), **self.params_)
 
@@ -1887,8 +1960,10 @@ class SimDataFrame(SimBasics, DataFrame):
                 data = self.as_pandas().sum(axis=axis, **kwargs)
             else:
                 i = 0
-                while self.columns[i] not in self.units:
+                while i < len(self.columns) and self.columns[i] not in self.units:
                     i += 1
+                if i >= len(self.columns):
+                    return self._rewrap(self.as_pandas().sum(axis=axis, **kwargs))
                 result = self[self.columns[i]]
                 units = self.units[self.columns[i]]
                 for col in (j for j in range(len(self.columns)) if j != i):
@@ -1971,23 +2046,23 @@ class SimDataFrame(SimBasics, DataFrame):
         if type(self.index) is DatetimeIndex and type(key) not in [DatetimeIndex, Timestamp, int, float, ndarray]:
             try:
                 return (self._get_by_dateIndex(key), True)
-            except:
+            except Exception:
                 pass
 
         # try to find key by index value using .loc
         try:
             return (self.as_pandas().loc[key], True,)
-        except:
+        except Exception:
             # try to find key by index position using .loc
             try:
                 return (self.as_pandas().iloc[key], True,)
-            except:
+            except Exception:
                 try:
                     return (self.as_pandas().loc[:, key], False,)
-                except:
+                except Exception:
                     try:
                         return (self.as_pandas().iloc[:, key], False,)
-                    except:
+                    except Exception:
                         raise ValueError(' ' + str(key) + ' is not a valid index value or position.')
 
     def _get_by_dateIndex(self, key):
@@ -2000,30 +2075,30 @@ class SimDataFrame(SimBasics, DataFrame):
             if type(key) in [DatetimeIndex, Timestamp, datetime64, ndarray, dt.date]:
                 try:
                     return self.as_pandas().loc[key]
-                except:
+                except Exception:
                     pass
 
             if type(key) is not str and (_is_date(key) or type(key) not in [DatetimeIndex, Timestamp]):
                 try:
                     return self.as_pandas().loc[key]
-                except:
+                except Exception:
                     try:
                         return self.as_pandas().iloc[key]
-                    except:
+                    except Exception:
                         pass
 
             if type(key) is str and len(
                     _multisplit(key, ('==', '!=', '>=', '<=', '<>', '><', '>', '<', '=', ' '))) == 1 and _is_date(key):
                 try:
                     key = _date(key, speak=self.verbose)
-                except:
+                except Exception:
                     try:
                         key = _date(key, formatIN=_is_date(key, returnFormat=True), formatOUT='DD-MMM-YYYY', speak=self.verbose)
-                    except:
+                    except Exception:
                         raise Warning('\n Not able to undertand the key as a date.\n')
                 try:
                     return self.as_pandas().loc[key]
-                except:
+                except Exception:
                     pass
 
             if type(key) is str:
@@ -2162,7 +2237,7 @@ class SimDataFrame(SimBasics, DataFrame):
         elif type(criteria) is not list:
             try:
                 criteria = list(criteria)
-            except:
+            except Exception:
                 pass
         for key in criteria:
             if type(key) is str and key not in self.columns:
@@ -2577,7 +2652,7 @@ class SimDataFrame(SimBasics, DataFrame):
             if type(conditions) is not list:
                 try:
                     conditions = list(conditions)
-                except:
+                except Exception:
                     raise TypeError('conditions argument must be a string.')
             conditions = ' and '.join(conditions)
 
@@ -2621,12 +2696,12 @@ class SimDataFrame(SimBasics, DataFrame):
                 if conditions[i] in ['"', "'"]:
                     try:
                         f = conditions.index(conditions[i], i + 1)
-                    except:
+                    except Exception:
                         raise ValueError('wring syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
                 else:
                     try:
                         f = conditions.index(']', i + 1)
-                    except:
+                    except Exception:
                         raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
@@ -2723,7 +2798,7 @@ class SimDataFrame(SimBasics, DataFrame):
         if return_filter or return_frame:
             try:
                 filter_array = eval(filter_str)
-            except:
+            except Exception:
                 return None
         if return_filter:
             ret_tuple += [filter_array]
@@ -2857,7 +2932,7 @@ class SimDataFrame(SimBasics, DataFrame):
         slope_df = _slope(df=self, x=x, y=y, window=window, slope=slope, intercept=intercept)
         return SimDataFrame(data=slope_df, index=self.index, columns=names, **params_)
 
-    def plot(self, y=None, x=None, others=None, figsize=None, dpi=None, **kwargs):
+    def plot(self, y=None, x=None, others=None, figsize=None, dpi=None, labels=None, **kwargs):
         """
         wrapper of Pandas plot method, with some superpowers
 
@@ -2877,6 +2952,13 @@ class SimDataFrame(SimBasics, DataFrame):
             The resolution of the figure in dots-per-inch.
             It will be passed to matplotlib.pyplot.figure to create the figure.
             Only valid for a new figure ('figure' keyword not found in kwargs).
+        labels : list of str, optional
+            Override the legend labels for the plotted columns.  The list must
+            have the same length as the number of columns being plotted (``y``).
+            A single string is also accepted when only one column is plotted.
+            When ``others`` is provided this parameter labels only ``self``;
+            use the ``labels`` kwarg with length ``len(others)+1`` for
+            per-source labelling across multiple frames.
         xMin, xMin, yMin, yMax : as per values of X or Y axes.
             A shorcut to xlim and ylim matplotlib keywords,
             must be provided as keyword arguments.
@@ -2935,14 +3017,20 @@ class SimDataFrame(SimBasics, DataFrame):
             if 'figure' not in kwargs and 'ax' not in kwargs:
                 kwargs['figure'], kwargs['ax'] = plt.subplots(figsize=figsize, dpi=dpi)
 
-        labels = None
+        # Merge legacy kwargs['labels'] into the named parameter (backward compat)
+        if labels is None and 'labels' in kwargs:
+            labels = kwargs.pop('labels')
+
+        # Normalise to list and validate length
+        _labels = None
+        if labels is not None:
+            if not isinstance(labels, list):
+                labels = [labels]
+            if len(labels) == len(y):
+                _labels = labels
+
+        labels = _labels
         if others is None:
-            if 'labels' in kwargs:
-                if type(kwargs['labels']) is not list:
-                    kwargs['labels'] = [kwargs['labels']]
-                if len(kwargs['labels']) == len(y):
-                    labels = kwargs['labels']
-                del kwargs['labels']
             if 'ylabel' not in kwargs:
                 ylabel_parts = []
                 for yi in y:
@@ -2953,19 +3041,31 @@ class SimDataFrame(SimBasics, DataFrame):
                 kwargs['ylabel'] = ('\n').join(ylabel_parts)
             if x is not None:
                 if x in self.columns:
+                    _ax = kwargs.get('ax')
+                    if _ax is not None:
+                        _leg = _ax.get_legend()
+                        if _leg is not None and not hasattr(_leg, 'legendHandles'):
+                            _leg.legendHandles = getattr(_leg, 'legend_handles', [])
                     if labels is None:
                         fig = self.as_pandas().plot(x=x, y=y, **kwargs)
                     else:
-                        fig = self.as_pandas().plot(x=x, y=y, label=labels, **kwargs)
+                        col_map = dict(zip(list(y), labels))
+                        fig = self.as_pandas().rename(columns=col_map).plot(x=x, y=labels, **kwargs)
                     plt.tight_layout()
                     return fig
                 else:
                     raise ValueError("Required 'x', " + str(x) + " is not a column name in this SimDataFrame")
             else:
+                _ax = kwargs.get('ax')
+                if _ax is not None:
+                    _leg = _ax.get_legend()
+                    if _leg is not None and not hasattr(_leg, 'legendHandles'):
+                        _leg.legendHandles = getattr(_leg, 'legend_handles', [])
                 if labels is None:
                     fig = self[y].as_pandas().plot(**kwargs)
                 else:
-                    fig = self[y].as_pandas().plot(label=labels, **kwargs)
+                    col_map = dict(zip(list(y), labels))
+                    fig = self[y].as_pandas().rename(columns=col_map).plot(**kwargs)
                 plt.tight_layout()
                 return fig
         else:
@@ -3047,12 +3147,12 @@ class SimDataFrame(SimBasics, DataFrame):
             try:
                 temp = tempdf['W?PR*:' + str(w)]
                 tempdf['_PROD:' + str(w)] = (temp != 0).sum(axis=1)
-            except:
+            except Exception:
                 tempdf['_PROD:' + str(w)] = 0
             try:
                 temp = tempdf['W?IR*:' + str(w)]
                 tempdf['_INJE:' + str(w)] = (temp != 0).sum(axis=1)
-            except:
+            except Exception:
                 tempdf['_INJE:' + str(w)] = 0
 
             tempdf['WSTATUS:' + str(w)] = [
@@ -3060,10 +3160,13 @@ class SimDataFrame(SimBasics, DataFrame):
                 tempdf['_PROD:' + str(w)].iloc[i] < tempdf['_INJE:' + str(w)].iloc[i] else None for i in
                 range(len(tempdf))]
 
-        tempdf['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)].fillna(method='ffill').fillna(method='bfill').astype(
-            'category')
+            tempdf['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)].ffill().bfill().astype('category')
 
+        drop_cols = [c for c in
+                     ['_INJE:' + str(w) for w in tempdf.wells] + ['_PROD:' + str(w) for w in tempdf.wells]
+                     if c in tempdf.columns]
         if inplace:
-            self['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)]
+            for w in tempdf.wells:
+                self['WSTATUS:' + str(w)] = tempdf['WSTATUS:' + str(w)]
         else:
-            return tempdf.drop(columns=['_INJE:' + str(w), '_PROD:' + str(w)], inplace=True)
+            return tempdf.drop(columns=drop_cols)

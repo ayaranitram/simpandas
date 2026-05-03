@@ -132,13 +132,11 @@ def _decompose_column(col_name, sep=':', nx=1, ny=1):
                 i, j, k = ijk
                 num = (i - 1) + (j - 1) * nx + (k - 1) * nx * ny + 1
         elif kw_prefix in ('R', 'A'):
-            # Region / Aquifer: always KEYWORD:NUM
             try:
                 num = int(tail)
             except ValueError:
                 wgname = tail
         else:
-            # Could be KEYWORD:WGNAME or KEYWORD:NUM
             try:
                 num = int(tail)
             except ValueError:

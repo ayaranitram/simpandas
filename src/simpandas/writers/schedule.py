@@ -5,13 +5,15 @@ Created on Wed Sep 21 11:08:06 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.1.2'
-__release__ = 20230104
+__version__ = '0.1.3'
+__release__ = 20260503
 __all__ = ['write_schedule']
 
-from simpandas.errors import OverwrittingError
+from ..errors import OverwrittingError
+from ..common.compat import concat_compat
 import os
-# from .._common.stringformat import date as strDate
+import numpy as np
+import pandas as pd
 from pandas import DataFrame
 
 def write_schedule(self, path, units='FIELD', ControlMode=None, ShutStop=None):
@@ -139,7 +141,7 @@ def write_schedule(self, path, units='FIELD', ControlMode=None, ShutStop=None):
             out['WCONPROD']['keyword'] = 'WCONPROD'
             out['WCONINJE']['keyword'] = 'WCONINJE'
             keywords = concat_compat([out['WCONHIST'], out['WCONINJH'], out['WCONPROD'], out['WCONINJE']])
-            keywords.dropna(axis=0, how='all',subset=range(2,13),inplace=True)
+            keywords = keywords.dropna(axis=0, how='all', subset=range(2,13))
 
             prodh = keywords['keyword'] == 'WCONHIST'
             keywords.loc[prodh,2] = [ 'OPEN' if each else ShutStop for each in (keywords.loc[prodh,4:6].sum(axis=1) > 0) ]
@@ -153,25 +155,31 @@ def write_schedule(self, path, units='FIELD', ControlMode=None, ShutStop=None):
             injef = keywords['keyword'] == 'WCONINJE'
             keywords.loc[injef,3] = [ 'OPEN' if each else ShutStop for each in (keywords.loc[injef,5:6].sum(axis=1) > 0) ]
 
-            if ControlMode is None or item not in ControlMode:
+            if ControlMode is None:
                 notnull = keywords.loc[prodh,[4,6,5]].notna()
                 checkgor = DataFrame({4: keywords.loc[prodh,4].fillna(0) * GORcriteria > keywords.loc[prodh,6].fillna(0) , 5: (keywords.loc[prodh,5].notna()) & ((keywords.loc[prodh,4].isna()) & (keywords.loc[prodh,6].isna())) , 6: keywords.loc[prodh,4].fillna(0) * GORcriteria <= keywords.loc[prodh,6].fillna(0) })
-                keywords.loc[prodh,3] = ((notnull*checkgor).astype(int) *   np.array(['ORAT','GRAT','WRAT']).reshape(1,-1)).sum(axis=1)
+                keywords.loc[prodh,3] = ((notnull*checkgor).astype(int) * np.array(['ORAT','GRAT','WRAT']).reshape(1,-1)).sum(axis=1)
             else:
-                keywords.loc[:,3] = [ ControlMode[item] for item in keywords.loc[:].index ]
+                keywords.loc[:,3] = [ControlMode[item] for item in keywords.loc[:].index]
 
 # working on how to select from the several keyword lines for each well which is the correct keyword to write
 
             keywords['ranking'] = keywords.loc[:,4:20].count(axis=1)
 
-            keywords.reset_index().sort_values(['index','keyword','ranking'],axis=0,ascending=[True,True,False]).groupby('index').first()[['keyword']]
-
+            # Use ranking to keep only the best keyword per well
+            keywords_best = (keywords.reset_index()
+                             .sort_values(['index', 'ranking', 'keyword'], axis=0, ascending=[True, False, True])
+                             .groupby('index').first()[['keyword']])
+            best_kw_map = keywords_best['keyword'].to_dict()
+            keywords = keywords[keywords.apply(
+                lambda row: row['keyword'] == best_kw_map.get(row.name, row['keyword']), axis=1)]
 
             # write keywords
             for kw in keywords['keyword'].unique():
                 outstr.append(kw)
-                for i in range(len(keywords[keywords['keyword'] == kw])):
-                    line = ' ' + ' '.join(map(str,keywords.reset_index().iloc[0].fillna('1*').drop('keyword').to_list())) + ' /'
+                kw_rows = keywords[keywords['keyword'] == kw].reset_index()
+                for j in range(len(kw_rows)):
+                    line = ' ' + ' '.join(map(str, kw_rows.iloc[j].fillna('1*').drop(['keyword', 'ranking']).to_list())) + ' /'
                     outstr.append(line)
                 outstr.append('/')
                 outstr.append('\n')
@@ -244,12 +252,11 @@ def write_schedule(self, path, units='FIELD', ControlMode=None, ShutStop=None):
             out['WCONPROD'].loc[data.iloc[i,itemCol],6] = data.iloc[i,valueCol]
         elif data.iloc[i,attCol] == 'WLPR':  # liquid production rate
             out['WCONPROD'].loc[data.iloc[i,itemCol],7] = data.iloc[i,valueCol]
-        elif data.iloc[i,attCol] == 'WVFP':  # Reservoir fluid volume rate
+        elif data.iloc[i,attCol] == 'WVPR':  # Reservoir fluid volume rate
             out['WCONPROD'].loc[data.iloc[i,itemCol],8] = data.iloc[i,valueCol]
-            # out['WCONINJH'].loc[data.iloc[i,itemCol],7] = data.iloc[i,valueCol]
         elif data.iloc[i,attCol] == 'WALQ':  # Artificial lift quantity
             out['WCONPROD'].loc[data.iloc[i,itemCol],12] = data.iloc[i,valueCol]
-        elif data.iloc[i,attCol] == 'WVFP':  # well VFP table number
+        elif data.iloc[i,attCol] == 'WVFP':  # well VFP table number (WCONPROD col 11, WCONINJE col 9)
             out['WCONPROD'].loc[data.iloc[i,itemCol],11] = data.iloc[i,valueCol]
             out['WCONINJE'].loc[data.iloc[i,itemCol],9] = data.iloc[i,valueCol]
         elif data.iloc[i,attCol] == 'WTHP':  # tubing head pressure (THP)

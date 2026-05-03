@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.2'
-__release__ = 20230104
+__version__ = '0.80.8'
+__release__ = 20260503
 __all__ = ['jitter', 'znorm', 'minmaxnorm']
 
 import numpy as np

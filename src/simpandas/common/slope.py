@@ -5,8 +5,8 @@ Created on Sun Jan 23 22:38:16 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.5.1'
-__release__ = 20220920
+__version__ = '0.5.2'
+__release__ = 20260503
 __all__ = ['slope']
 
 import numpy as np

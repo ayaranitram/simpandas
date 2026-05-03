@@ -6,9 +6,9 @@ Created on March 3, 2026
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.84.0'
-__release__ = 20260303
-__all__ = ['concat_compat', 'PANDAS_VERSION', 'PANDAS_GE_20']
+__version__ = '0.84.2'
+__release__ = 20260503
+__all__ = ['concat_compat', 'PANDAS_VERSION', 'PANDAS_GE_20', 'PANDAS_GE_30']
 
 import pandas as pd
 from packaging import version
@@ -16,6 +16,7 @@ from packaging import version
 # Detect pandas version
 PANDAS_VERSION = version.parse(pd.__version__)
 PANDAS_GE_20 = PANDAS_VERSION >= version.parse("2.0.0")
+PANDAS_GE_30 = PANDAS_VERSION >= version.parse("3.0.0")
 
 
 def concat_compat(objs, ignore_index=False, sort=False, **kwargs):

@@ -13,6 +13,9 @@ Created on March 3, 2026
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
+__version__ = '0.91.0'
+__release__ = 20260503
+
 import warnings
 import sys
 

@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.5'
-__release__ = 20230223
+__version__ = '0.80.8'
+__release__ = 20260503
 __all__ = ['clean_axis', 'string_new_name', 'type_of_frame', 'main_key', 'item_key', 'hashable']
 
 

@@ -5,6 +5,84 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.0] - 2026-05-03
+
+### Added
+- All 10 writer functions (`write_excel`, `write_csv`, `write_json`, `write_hdf5`, `write_summary`, `write_parquet`, `write_prodml`, `write_witsml`, `write_resqml`, `write_schedule`) and `SimIndex` are now importable directly from `simpandas` (previously only accessible via sub-modules).
+- `write_schedule` added to `simpandas.writers` public exports.
+- `test/test_window_resample_query.py`: 31 new tests verifying unit-preservation through `rolling`, `expanding`, `ewm`, `resample`, `query`, `eval`, `join`, and `merge`.
+
+### Fixed
+- `writers/schedule.py`: keyword ranking implemented — when multiple keywords cover the same well, the highest-ranked keyword (WCONHIST > WCONINJH) is selected and the others are discarded.
+- `_SimResampleProxy._wrap_result`: restored `SimSeries.name` that pandas drops when resampling a named Series (e.g. `s.resample('2D').mean()` now preserves the series name and its associated unit).
+- Replaced 20+ bare `except:` clauses with `except Exception:` across `frame.py`, `series.py`, `basics.py`, `common/stringformat.py`, and `common/daterelated.py` — bare excepts were silently swallowing `SystemExit` and `KeyboardInterrupt`.
+- `common/_internal_processes.py`: `_get_index_atts()` was truncated with no `return` statement; added `return indexInput`.
+
+### Changed
+- `pyproject.toml`: raised pandas version ceiling from `< 3.0.0` to `< 4.0.0` to support pandas 3.x.
+- `basics.py`: removed stale commented-out code blocks from `_check_by()` and `_fill_daily()`.
+
+---
+
+## [0.90.12] - 2026-05-02
+
+### Fixed
+- `read_schedule()`: scoped the reader to history keywords only (`WCONHIST`, `WCONINJH`). For forecast keywords (`WCONPROD`, `WCONINJE`), use the `schedule_reader` package directly.
+- `read_schedule()` / `schedule_reader.wcon`: added `None` guards to all four `extract_wcon*` functions to prevent `TypeError: object of type 'NoneType' has no len()` when a keyword is declared but contains no records.
+- `SimDataFrame._SimGroupBy.apply()`: passes `include_groups=False` to suppress the pandas 2.2+ `FutureWarning` about grouping columns being included in the apply result.
+- `read_xlsx()`: replaced deprecated `date_parser=` parameter with `date_format=` for pandas 2.x compatibility.
+- `schedule_reader.wcon.extract_wconhist`: replaced deprecated `.fillna(method='ffill')` with `.ffill()`.
+- `schedule_reader.wcon.extract_wconinjh`: fixed VFP forward-fill applied to full DataFrame instead of the `VFP` column only.
+
+---
+
+## [0.90.11] - 2026-05-02
+
+### Fixed
+- `SimDataFrame.reindex()`: removed an erroneous length-heuristic that raised `TypeError: labels does not match neither len(index) or len(columns)` when a positional label array had a different length from both current axes (the common case when reindexing to a new DatetimeIndex). Positional `labels` now default to axis 0 (rows), exactly matching pandas' own behaviour. Supplying both `index=` and `columns=` simultaneously to reindex both axes in one call is also now supported.
+- `SimSeries.get_units()`: fixed index-unit leakage — the method previously always injected the index name/unit pair into the returned dict, causing downstream operations (e.g. `SimSeries(data, units=ss.get_units())`) to accidentally treat the index unit as a column unit. Index units are now opt-in via the new `include_index=False` parameter.
+
+---
+
+## [0.90.10] - 2026-05-02
+
+### Fixed
+- `SimSeries.plot()` and `SimDataFrame.plot()`: fixed `AttributeError: 'Legend' object has no attribute 'legendHandles'` when overlaying a second series onto an existing axis on matplotlib ≥ 3.7 (which renamed the attribute to `legend_handles`). A compatibility shim now backfills the old name before calling pandas' internal legend merge.
+
+### Added
+- `SimSeries.plot(label=...)`: new explicit `label` string parameter to override the legend label for the plotted series, replacing the default series name.
+- `SimDataFrame.plot(labels=...)`: new explicit `labels` list-of-strings parameter to override the legend labels for all plotted columns. A single string is accepted when only one column is plotted. Wrong-length lists are silently ignored (falls back to column names). The legacy `plot(labels=[...])` via `**kwargs` continues to work for backward compatibility.
+
+---
+
+## [0.90.9] - 2026-04-27
+
+### Fixed
+- Fixed an interaction where `SimSeries` and `SimDataFrame` being callable (due to `__call__`) caused pandas internal helper `apply_if_callable` to crash operations like `.mask()`, `.where()`, and `.assign()` when they received a Sim type as an argument. The internal implementations of `__call__` now safely return `self` when invoked with another pandas Series or DataFrame.
+
+---
+
+## [0.90.8] - 2026-04-26
+
+### Added
+- `SimSeries.as_dict(data_only=False)`: converts a `SimSeries` to a dictionary.
+  By default, values are returned as `unyts` instances (`100_psi`), preserving
+  unit metadata intrinsically.  `data_only=True` returns plain raw values.
+- `SimSeries.from_dict(d, name=None, ...)`: classmethod to reconstruct a
+  `SimSeries` from a dictionary.  Extracts values and units from `unyts`
+  instances if present.
+
+### Fixed
+- `SimDataFrame.__setitem__`: fixed a `KeyError` when re-assigning a value
+  (plain Series, array, or list) to a column that was not previously registered 
+  in the incoming units metadata.  The column's existing unit is now correctly 
+  preserved instead of being lost or crashing.
+- `SimSeries.__init__`: removed deprecated `fastpath` forwarding to pandas
+  to eliminate `DeprecationWarning` in pandas 2.x/3.x.
+- Documentation: added ambiguous truthiness warning to `SimSeries` docstring.
+
+---
+
 ## [0.90.7] - 2026-04-24
 
 ### Added

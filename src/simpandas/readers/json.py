@@ -3,8 +3,8 @@
 JSON reader with units support for SimPandas.
 """
 
-__version__ = '0.1.0'
-__release__ = 20250101
+__version__ = '0.1.1'
+__release__ = 20260503
 
 from simpandas.frame import SimDataFrame
 
