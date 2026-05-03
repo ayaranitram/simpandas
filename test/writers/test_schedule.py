@@ -63,6 +63,57 @@ class TestWriteSchedule:
         except ImportError:
             pytest.skip("Schedule module not accessible via import")
 
+    def test_best_keyword_ranking_logic(self):
+        """Test that only the best keyword per well is selected based on ranking."""
+        import pandas as pd
+        from pandas import DataFrame
+
+        # Simulate what happens inside write_schedule after data is collected:
+        # PROD1 has oil/water/gas data -> WCONHIST (3 non-null) and WCONPROD (2 non-null)
+        # We expect WCONHIST to win for PROD1.
+        # INJ1 has water injection data -> WCONINJH (1 non-null)
+        wells = ['PROD1', 'INJ1']
+
+        wconhist = DataFrame(index=wells, columns=range(2, 13))
+        wconinjh = DataFrame(index=wells, columns=range(2, 13))
+        wconprod = DataFrame(index=wells, columns=range(2, 21))
+        wconinje = DataFrame(index=wells, columns=range(2, 16))
+
+        # PROD1: historical oil, water, gas rates -> WCONHIST cols 4, 5, 6 (ranking=3)
+        wconhist.loc['PROD1', 4] = 1000.0
+        wconhist.loc['PROD1', 5] = 500.0
+        wconhist.loc['PROD1', 6] = 2000.0
+
+        # PROD1: forecast oil, gas rates -> WCONPROD cols 4, 6 (ranking=2)
+        wconprod.loc['PROD1', 4] = 800.0
+        wconprod.loc['PROD1', 6] = 1600.0
+
+        # INJ1: water injection rate -> WCONINJH col 4 (ranking=1)
+        wconinjh.loc['INJ1', 4] = 900.0
+
+        wconhist['keyword'] = 'WCONHIST'
+        wconinjh['keyword'] = 'WCONINJH'
+        wconprod['keyword'] = 'WCONPROD'
+        wconinje['keyword'] = 'WCONINJE'
+
+        keywords = pd.concat([wconhist, wconinjh, wconprod, wconinje])
+        keywords = keywords.dropna(axis=0, how='all', subset=range(2, 13))
+        keywords['ranking'] = keywords.loc[:, 4:20].count(axis=1)
+
+        keywords_best = (keywords.reset_index()
+                         .sort_values(['index', 'ranking', 'keyword'], axis=0, ascending=[True, False, True])
+                         .groupby('index').first()[['keyword']])
+        best_kw_map = keywords_best['keyword'].to_dict()
+        keywords_filtered = keywords[keywords.apply(
+            lambda row: row['keyword'] == best_kw_map.get(row.name, row['keyword']), axis=1)]
+
+        # PROD1 should get WCONHIST (ranking 3 > 2)
+        assert keywords_filtered.loc['PROD1', 'keyword'] == 'WCONHIST'
+        # INJ1 should get WCONINJH (only keyword with data)
+        assert keywords_filtered.loc['INJ1', 'keyword'] == 'WCONINJH'
+        # Only one row per well
+        assert len(keywords_filtered) == 2
+
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

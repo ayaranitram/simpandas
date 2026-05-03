@@ -166,18 +166,20 @@ def write_schedule(self, path, units='FIELD', ControlMode=None, ShutStop=None):
 
             keywords['ranking'] = keywords.loc[:,4:20].count(axis=1)
 
-            # TODO: use ranking to keep only the best keyword per well
+            # Use ranking to keep only the best keyword per well
             keywords_best = (keywords.reset_index()
-                             .sort_values(['index','keyword','ranking'], axis=0, ascending=[True,True,False])
+                             .sort_values(['index', 'ranking', 'keyword'], axis=0, ascending=[True, False, True])
                              .groupby('index').first()[['keyword']])
-
+            best_kw_map = keywords_best['keyword'].to_dict()
+            keywords = keywords[keywords.apply(
+                lambda row: row['keyword'] == best_kw_map.get(row.name, row['keyword']), axis=1)]
 
             # write keywords
             for kw in keywords['keyword'].unique():
                 outstr.append(kw)
                 kw_rows = keywords[keywords['keyword'] == kw].reset_index()
                 for j in range(len(kw_rows)):
-                    line = ' ' + ' '.join(map(str, kw_rows.iloc[j].fillna('1*').drop('keyword').to_list())) + ' /'
+                    line = ' ' + ' '.join(map(str, kw_rows.iloc[j].fillna('1*').drop(['keyword', 'ranking']).to_list())) + ' /'
                     outstr.append(line)
                 outstr.append('/')
                 outstr.append('\n')
