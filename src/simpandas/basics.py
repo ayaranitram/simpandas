@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: MartÃ­n Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.91.0'
-__release__ = 20260503
+__version__ = '0.92.5'
+__release__ = 20260828
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -464,8 +464,6 @@ class SimBasics(object, metaclass=SimType):
         if isinstance(_units_val, ColumnUnits):
             # Use dict so set_units can handle column-count changes (e.g. set_index)
             _units_val = _units_val.to_dict()
-        elif type(_units_val) is dict:
-            _units_val = self.get_units()
         return {'name': self.name if hasattr(self, 'name') else None,
                 'units': _units_val,
                 'index_name': self.index.name if hasattr(self.index, 'name') else None,
@@ -2689,7 +2687,7 @@ Copy of input object, shifted.
         index must be a date type.
 
         available gropuing calculations are:
-            first : keeps the fisrt row per day
+            first : keeps the first row per day
             last : keeps the last row per day
             max : returns the maximum value per day
             min : returns the minimum value per day
@@ -2828,7 +2826,7 @@ Copy of input object, shifted.
         index must be a date type.
 
         available gropuing aggregations are:
-            first : keeps the fisrt row per month
+            first : keeps the first row per month
             last : keeps the last row per month
             max : returns the maximum value per month
             min : returns the minimum value per month
@@ -2990,7 +2988,7 @@ Copy of input object, shifted.
         index must be a date type.
 
         available gropuing aggregations are:
-            first : keeps the fisrt row
+            first : keeps the first row
             last : keeps the last row
             max : returns the maximum value per year
             min : returns the minimum value per year

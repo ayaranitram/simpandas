@@ -22,7 +22,7 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.92.0'
+__version__ = '0.92.5'
 __release__ = 20260828
 __all__ = ['SimSeries', 'SimDataFrame', 'SimIndex', 'ColumnUnits',
            'read_excel', 'read_csv', 'read_json', 'read_hdf5', 'read_summary',

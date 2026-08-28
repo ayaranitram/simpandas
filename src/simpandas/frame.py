@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.91.0'
-__release__ = 20260503
+__version__ = '0.92.5'
+__release__ = 20260828
 __all__ = ['SimDataFrame']
 
 import logging
@@ -899,8 +899,9 @@ class SimDataFrame(SimBasics, DataFrame):
             else:
                 self.new_units(key, incoming_unit if incoming_unit is not None else 'unitless')
         elif after > before:
+            new_cols = set(self.columns[before: after])
             for c in range(before, after):
-                if self.columns[c] in self.columns[before: after] and self.columns[c] in u_dict:
+                if self.columns[c] in new_cols and self.columns[c] in u_dict:
                     self.new_units(self.columns[c], u_dict[self.columns[c]])
                 else:
                     self.new_units(self.columns[c], 'unitless')
@@ -1301,6 +1302,35 @@ class SimDataFrame(SimBasics, DataFrame):
             return SimDataFrame(data=data, **self.params_)
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
+        """
+        Drop specified labels from rows or columns, keeping units in sync.
+
+        Parameters
+        ----------
+        labels : single label or list-like, optional
+            Index or column labels to drop, depending on ``axis``. Names
+            (or name patterns resolved via ``find_keys``, e.g. partial
+            matches) are accepted in addition to exact labels.
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            Whether ``labels`` refers to rows (0) or columns (1).
+        index : single label or list-like, optional
+            Alternative to ``labels, axis=0``.
+        columns : single label or list-like, optional
+            Alternative to ``labels, axis=1``.
+        level : int or level name, optional
+            For a MultiIndex, the level from which the labels are removed.
+        inplace : bool, default False
+            If True, drop in place and return None.
+        errors : {'ignore', 'raise'}, default 'raise'
+            If 'ignore', suppress errors and only drop existing labels.
+
+        Returns
+        -------
+        SimDataFrame or None
+            A new SimDataFrame with the given labels removed (or ``None``
+            if ``inplace=True``). When columns are dropped, the per-column
+            units are dropped alongside the matching columns.
+        """
         axis = _clean_axis(axis)
         if labels is not None:
             if axis == 1 and type(labels) is not str and hasattr(labels, '__iter__'):
@@ -1370,6 +1400,31 @@ class SimDataFrame(SimBasics, DataFrame):
             self._units_[loc] = unit
 
     def dropna(self, axis=0, how='all', thresh=None, subset=None, inplace=False):
+        """
+        Remove rows or columns containing missing (NaN) values.
+
+        Parameters
+        ----------
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            Drop rows (0) or columns (1) that contain missing values.
+        how : {'any', 'all'}, default 'all'
+            'any': drop the row/column if any value is missing.
+            'all': drop it only if every value is missing.
+        thresh : int, optional
+            Require this many non-NaN values to keep the row/column; when
+            given it takes precedence over ``how``.
+        subset : column label or list of labels (row labels when axis=1), optional
+            Only consider these columns/rows when looking for missing
+            values. Name patterns resolved via ``find_keys`` are accepted.
+        inplace : bool, default False
+            If True, drop in place and return None.
+
+        Returns
+        -------
+        SimDataFrame or None
+            A new SimDataFrame with missing data dropped (or ``None`` if
+            ``inplace=True``).
+        """
         axis = _clean_axis(axis)
         if subset is not None:
             if type(subset) is str and subset in self.columns:
@@ -1389,6 +1444,29 @@ class SimDataFrame(SimBasics, DataFrame):
             return SimDataFrame(data=data, **self.params_)
 
     def drop_duplicates(self, subset=None, keep='first', inplace=False, ignore_index=False):
+        """
+        Remove duplicate rows.
+
+        Parameters
+        ----------
+        subset : column label or list of labels, optional
+            Only consider these columns when identifying duplicates;
+            defaults to using every column.
+        keep : {'first', 'last', False}, default 'first'
+            Which duplicate occurrence to keep: the first, the last, or
+            (with False) drop all occurrences of a duplicated row.
+        inplace : bool, default False
+            If True, drop duplicates in place and return None.
+        ignore_index : bool, default False
+            If True, the resulting index is relabelled 0, 1, ..., n-1
+            instead of keeping the original index values.
+
+        Returns
+        -------
+        SimDataFrame or None
+            A new SimDataFrame with duplicate rows removed (or ``None`` if
+            ``inplace=True``).
+        """
         if inplace:
             super().drop_duplicates(subset=subset, keep=keep, inplace=inplace, ignore_index=ignore_index)
         else:
@@ -1396,9 +1474,32 @@ class SimDataFrame(SimBasics, DataFrame):
                 data=self.as_pandas().drop_duplicates(subset=subset, keep=keep, inplace=inplace, ignore_index=ignore_index),
                 **self.params_)
 
+    def duplicated(self, subset=None, keep='first'):
+        """
+        Return a boolean Series denoting duplicate rows.
+
+        Parameters
+        ----------
+        subset : column label or list of labels, optional
+            Only consider these columns when identifying duplicates;
+            defaults to using every column.
+        keep : {'first', 'last', False}, default 'first'
+            Mark all duplicates as True except the first occurrence, the
+            last occurrence, or (with False) mark every duplicated row.
+
+        Returns
+        -------
+        SimSeries
+            Boolean flags indexed like this SimDataFrame. The result has no
+            units: a duplication flag is not a physical quantity, so it is
+            not tagged with any column's unit.
+        """
+        result = self.as_pandas().duplicated(subset=subset, keep=keep)
+        return SimSeries(data=result, index=self.index, name=result.name)
+
     def drop_zeros(self, axis=None, inplace=False):
         """
-        drop the axis(rows or columns) where all the values are zeross.
+        drop the axis(rows or columns) where all the values are zeros.
 
         axis parameter can be:
             'columns' or 1 : removes all the columns fill with zeroes
@@ -2697,12 +2798,12 @@ class SimDataFrame(SimBasics, DataFrame):
                     try:
                         f = conditions.index(conditions[i], i + 1)
                     except Exception:
-                        raise ValueError('wring syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
+                        raise ValueError('wrong syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
                 else:
                     try:
                         f = conditions.index(']', i + 1)
                     except Exception:
-                        raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
+                        raise ValueError("wrong syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
                     filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
@@ -2816,6 +2917,42 @@ class SimDataFrame(SimBasics, DataFrame):
 
     def sort_values(self, by=None, axis='--auto', ascending=True, inplace=False, kind='quicksort', na_position='last',
                     ignore_index=False, key=None):
+        """
+        Sort the SimDataFrame by the values along rows or columns.
+
+        Parameters
+        ----------
+        by : str or list of str, optional
+            Name(s) of the column(s) to sort by when ``axis=0`` (or of the
+            row(s)/index label(s) to sort by when ``axis=1``).
+        axis : {0, 'index', 1, 'columns', '--auto'}, default '--auto'
+            Axis to sort along. With the default ``'--auto'`` and no
+            ``by``:
+            - a single-row, multi-column frame is sorted by that row's
+              values (equivalent to ``axis=1``);
+            - a multi-row, single-column frame is sorted by that column's
+              values (equivalent to ``axis=0, by=<that column>``);
+            - otherwise it falls back to ``axis=0`` (sort by index).
+        ascending : bool or list of bool, default True
+            Sort ascending vs. descending; use a list matching ``by`` for
+            per-column order.
+        inplace : bool, default False
+            If True, sort in place and return None.
+        kind : {'quicksort', 'mergesort', 'heapsort', 'stable'}, default 'quicksort'
+            Sorting algorithm, forwarded to numpy.
+        na_position : {'first', 'last'}, default 'last'
+            Where to place NaN values.
+        ignore_index : bool, default False
+            If True, the resulting index is relabelled 0, 1, ..., n-1.
+        key : callable, optional
+            Function applied to the values before sorting.
+
+        Returns
+        -------
+        SimDataFrame or None
+            A new sorted SimDataFrame with units preserved (or ``None`` if
+            ``inplace=True``).
+        """
         axis = _clean_axis(axis)
         if by is None and axis == '--auto':
             if len(self.index) == 1 and len(self.columns) > 1:
