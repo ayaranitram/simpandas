@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simpandas"
-version = "0.91.0"
+version = "0.92.0"
 authors = [
   { name="Martin Carlos Araya", email="martinaraya@gmail.com" },
 ]
@@ -27,6 +27,7 @@ dependencies = [
     'schedule_reader >= 0.7.15',
     'openpyxl',
     'xlsxwriter',
+    'h5py',
 ]
 [project.urls]
 "Homepage" = "https://github.com/ayaranitram/simpandas"

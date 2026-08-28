@@ -188,6 +188,40 @@ sdf.to_summary("OUTPUT.SMSPEC", dimens=[50, 60, 20])
 | `unsmry_path` | `None` | Path to `.UNSMRY` (auto-discovered when `None`) |
 | `nameSeparator` | `':'` | Separator used to build `KEYWORD:WGNAME` column names |
 
+### 5.7 `read_sr3`
+
+Read CMG SR3 binary results files (IMEX, GEM, STARS — HDF5-based) into a
+`SimDataFrame`. Covers the time-series (SUMMARY-equivalent) data under
+`TimeSeries/{WELLS,GROUPS,SECTORS,LAYERS,SPECIAL HISTORY}`; grid/spatial
+properties are out of scope. Requires the optional `h5py` package.
+
+Column names follow the `KEYWORD:ORIGIN` convention (e.g. `OILRATSC:PROD`,
+`BHP:PROD`); completions from `LAYERS` become `KEYWORD:WELL:i,j,k`. Units
+are resolved from the file's own `General/UnitsTable` and
+`General/NameRecordTable` dimensionality formulas, so they reflect
+whatever output unit system (FIELD/SI/etc.) the simulation used.
+
+```python
+from simpandas import read_sr3
+
+# Single merged SimDataFrame (outer-joined on DATE across all categories)
+sdf = read_sr3("CASE.sr3")
+print(sdf["OILRATSC:PROD"])   # e.g. in bbl/day
+
+# Or keep each TimeSeries category separate
+by_category = read_sr3("CASE.sr3", merge=False)
+wells = by_category["WELLS"]
+```
+
+`read_sr3` parameter highlights:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `path` | required | Path to the `.sr3` file |
+| `categories` | `None` | Subset of `WELLS`/`GROUPS`/`SECTORS`/`LAYERS`/`SPECIAL HISTORY` to read (`None` = all present) |
+| `merge` | `True` | `True` returns one merged `SimDataFrame`; `False` returns `{category: SimDataFrame}` |
+| `nameSeparator` | `':'` | Separator used to build `KEYWORD:ORIGIN` column names |
+
 ## 6. Readers and Writers Modules
 
 ### 6.1 `simpandas.readers`
@@ -197,6 +231,7 @@ sdf.to_summary("OUTPUT.SMSPEC", dimens=[50, 60, 20])
 - `read_hdf5`: HDF5 reader with SimPandas layout detection (requires `h5py`).
 - `read_summary`: Eclipse binary summary reader (.SMSPEC + .UNSMRY). Stores
   `dimens` and `startdat` in `sdf.meta` for automatic write-back.
+- `read_sr3`: CMG SR3 (IMEX/GEM/STARS) time-series reader (requires `h5py`).
 - `read_vdb`: VIP/Nexus `.vdb` plot-data reader (NT32 binary format).
 - `read_parquet`: Apache Parquet reader with units metadata (requires `pyarrow`).
 - `read_prodml`: PRODML v1/v2 XML reader (production volumes, time series, well tests).
