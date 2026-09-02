@@ -148,10 +148,12 @@ src/simpandas/writters.py                - NEW FILE - backward compatibility shi
    - Option C: Copy docstring content from another similar method and adapt
 2. **Verify import**: `python -c "from simpandas import SimDataFrame, SimSeries"`
 3. **Run test suite**: `pytest test/ -v --tb=short`
+4. **Address pandas FutureWarning on single-string DataFrame indexing with a datetimelike index**
+   - In `SimDataFrame._get_by_column()`, avoid `self.as_pandas().__getitem__(key)` for scalar string keys; use column-safe access (`.loc[:, key]`) so pandas does not interpret the string as a row slice when the index is datetime-like.
 
 ### Phase 4 Continuation (After Import Fix)
-4. Validate all Phase 1-3 fixes work correctly
-5. Create remaining ~30 tests for SimDataFrame untested methods:
+5. Validate all Phase 1-3 fixes work correctly
+6. Create remaining ~30 tests for SimDataFrame untested methods:
    - `rms()`, `prod()`, `filter()`, `get_keys()`, `find_keys()`
    - `keys_by_units()`, `drop_duplicates()`, `drop_zeros()`
    - `melt()`, `slope()`, `to_SimulationResults()`
