@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martin Carlos Araya
 """
 
-__version__ = '0.91.0'
-__release__ = 20260503
+__version__ = '0.92.5'
+__release__ = 20260901
 __all__ = ['SimSeries']
 
 import logging
@@ -772,21 +772,24 @@ class SimSeries(SimBasics, Series):
             '<': Series.lt,
         }[operation]
         if precision is None and _convertible(self.units, other.units):
-            return operation(self.as_pandas(), other.to(self.units).as_pandas(),
-                             level=level, fill_value=fill_value, axis=axis)
+            result = operation(self.as_pandas(), other.to(self.units).as_pandas(),
+                               level=level, fill_value=fill_value, axis=axis)
         elif precision is None:
             warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
-            return operation(self.as_pandas(), other.as_pandas(),
-                             level=level, fill_value=fill_value, axis=axis)
+            result = operation(self.as_pandas(), other.as_pandas(),
+                               level=level, fill_value=fill_value, axis=axis)
         elif type(precision) is not int:
             raise ValueError("`precision` must be an integer.")
         elif _convertible(self.units, other.units):
-            return operation(self.as_pandas().round(precision), other.to(self.units).as_pandas().round(precision),
-                             level=level, fill_value=fill_value, axis=axis)
+            result = operation(self.as_pandas().round(precision), other.to(self.units).as_pandas().round(precision),
+                               level=level, fill_value=fill_value, axis=axis)
         else:
             warnings.warn(f"not possible to convert `other` units ({other.units}) to {self.units}'")
-            return operation(self.as_pandas().round(precision), other.as_pandas().round(precision),
-                             level=level, fill_value=fill_value, axis=axis)
+            result = operation(self.as_pandas().round(precision), other.as_pandas().round(precision),
+                               level=level, fill_value=fill_value, axis=axis)
+        # Boolean comparison flags are not a physical quantity: no units.
+        return SimSeries(data=result, index=result.index, name=result.name)
+
 
     def rolling(self, *args, **kwargs):
         """Return a rolling window proxy that preserves SimPandas metadata on outputs."""
@@ -863,7 +866,53 @@ class SimSeries(SimBasics, Series):
         return self.as_pandas().corr(other.as_pandas() if isinstance(other, SimSeries) else other,
                                      method=method, min_periods=min_periods)
 
+    def duplicated(self, keep='first'):
+        """
+        Return a boolean SimSeries denoting duplicate values.
+
+        Parameters
+        ----------
+        keep : {'first', 'last', False}, default 'first'
+            Mark all duplicates as True except the first occurrence, the
+            last occurrence, or (with False) mark every duplicated value.
+
+        Returns
+        -------
+        SimSeries
+            Boolean flags indexed like this SimSeries, with no units (a
+            duplication flag is not a physical quantity).
+        """
+        result = self.as_pandas().duplicated(keep=keep)
+        return SimSeries(data=result, index=self.index, name=result.name)
+
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
+        """
+        Drop specified labels (index entries) from the SimSeries.
+
+        Parameters
+        ----------
+        labels : single label or list-like, optional
+            Index labels to drop.
+        axis : {0}, default 0
+            Unused; kept only for compatibility with SimDataFrame.drop.
+        index : single label or list-like, optional
+            Alternative to ``labels``; has the same effect.
+        columns : ignored
+            Kept only for signature compatibility with SimDataFrame.drop;
+            a SimSeries has no columns to drop.
+        level : int or level name, optional
+            For a MultiIndex, the level from which the labels are removed.
+        inplace : bool, default False
+            If True, drop in place and return None.
+        errors : {'ignore', 'raise'}, default 'raise'
+            If 'ignore', suppress errors and only drop existing labels.
+
+        Returns
+        -------
+        SimSeries or None
+            A new SimSeries with the given labels removed (or ``None`` if
+            ``inplace=True``).
+        """
         axis = _clean_axis(axis)
         if inplace:
             super().drop(labels=labels, axis=axis, index=index, columns=columns,
@@ -874,6 +923,25 @@ class SimSeries(SimBasics, Series):
                              **self.params_)
 
     def dropna(self, axis=0, inplace=False, how=None):
+        """
+        Remove index entries with missing (NaN) values.
+
+        Parameters
+        ----------
+        axis : {0}, default 0
+            Unused; kept only for compatibility with SimDataFrame.dropna.
+        inplace : bool, default False
+            If True, drop missing values in place and return None.
+        how : ignored
+            Kept only for signature compatibility with SimDataFrame.dropna;
+            a 1-D Series always drops an entry when its single value is missing.
+
+        Returns
+        -------
+        SimSeries or None
+            A new SimSeries with missing values removed (or ``None`` if
+            ``inplace=True``).
+        """
         axis = _clean_axis(axis)
         if inplace:
             super().dropna(axis=axis, inplace=inplace, how=how)
@@ -884,7 +952,7 @@ class SimSeries(SimBasics, Series):
 
     def drop_zeros(self, axis=None, inplace=False):
         """
-        drop the rows where the values are zeross.
+        drop the rows where the values are zeros.
         """
         filt = self.zeros(axis=0)
         if inplace:
@@ -1004,12 +1072,12 @@ class SimSeries(SimBasics, Series):
                     try:
                         f = conditions.index(conditions[i], i + 1)
                     except Exception:
-                        raise ValueError('wring syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
+                        raise ValueError('wrong syntax, closing ' + conditions[i] + ' not found in:\n   ' + conditions)
                 else:
                     try:
                         f = conditions.index(']', i + 1)
                     except Exception:
-                        raise ValueError("wring syntax, closing ']' not found in:\n   " + conditions)
+                        raise ValueError("wrong syntax, closing ']' not found in:\n   " + conditions)
                 if f > i + 1:
                     key = conditions[i + 1:f]
                     filter_str, key, pandas_agg = key_to_string(filter_str, key, pandas_agg, special_operation, numpy_operation, pandas_aggregation, caller=self, conditions=conditions)
@@ -1113,6 +1181,9 @@ class SimSeries(SimBasics, Series):
 
     def mean(self, axis=0, **kwargs):
         return units(self.as_pandas().mean(axis=axis, **kwargs), self.get_UnitsString())
+
+    def median(self, axis=0, **kwargs):
+        return units(self.as_pandas().median(axis=axis, **kwargs), self.get_UnitsString())
 
     def mode(self, axis=0, **kwargs):
         return units(self.as_pandas().mode(axis=axis, **kwargs), self.get_UnitsString())
@@ -1367,7 +1438,7 @@ class SimSeries(SimBasics, Series):
         index must be a date type.
 
         available gropuing calculations are:
-            first : keeps the fisrt row per month
+            first : keeps the first row per month
             last : keeps the last row per month
             max : returns the maximum value per month
             min : returns the minimum value per month
@@ -1563,6 +1634,34 @@ class SimSeries(SimBasics, Series):
 
     def sort_values(self, axis=0, ascending=True, inplace=False, kind='quicksort',
                     na_position='last', ignore_index=False, key=None):
+        """
+        Sort the SimSeries by its values.
+
+        Parameters
+        ----------
+        axis : {0}, default 0
+            Unused; kept only for compatibility with SimDataFrame.sort_values.
+        ascending : bool, default True
+            Sort ascending (True) or descending (False).
+        inplace : bool, default False
+            If True, sort in place and return None. If False (default),
+            return a new sorted SimSeries.
+        kind : {'quicksort', 'mergesort', 'heapsort', 'stable'}, default 'quicksort'
+            Sorting algorithm, forwarded to numpy.
+        na_position : {'first', 'last'}, default 'last'
+            Where to place NaN values.
+        ignore_index : bool, default False
+            If True, the resulting index is relabelled 0, 1, ..., n-1
+            instead of keeping the original index values.
+        key : callable, optional
+            Function applied to the values (not the index) before sorting.
+
+        Returns
+        -------
+        SimSeries or None
+            A new SimSeries sorted by value, with units and other metadata
+            preserved (or ``None`` if ``inplace=True``).
+        """
         if inplace:
             super().sort_values(axis=axis, ascending=ascending, inplace=inplace,
                                 kind=kind, na_position=na_position, ignore_index=ignore_index, key=key)

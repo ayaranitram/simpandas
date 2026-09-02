@@ -3,8 +3,8 @@
 Schedule reader for Eclipse DATA files.
 """
 
-__version__ = '0.1.2'
-__release__ = 20260503
+__version__ = '0.1.3'
+__release__ = 20260902
 __all__ = ['read_schedule']
 
 from simpandas.frame import SimDataFrame
@@ -107,11 +107,14 @@ def read_schedule(filepath,
     import pandas as pd
     try:
         from schedule_reader.data_reader import read_data
-        from schedule_reader.wcon import extract_wconhist, extract_wconinjh
+        from schedule_reader.wcon import extract_wconhist, extract_wconinjh, extract_wconprod, extract_wconinje
     except ImportError as exc:
         raise ImportError(
             'schedule_reader is required to use read_schedule(). '
             'Install it with `pip install schedule_reader`.') from exc
+
+    # schedule_reader expects a str path (it calls str methods on it internally)
+    filepath = str(filepath)
 
     system = None
     if units is not None:
@@ -131,8 +134,8 @@ def read_schedule(filepath,
     for keyword, extractor in [
         ('WCONHIST', extract_wconhist),
         ('WCONINJH', extract_wconinjh),
-        # ('WCONPROD', extract_wconprod),
-        # ('WCONINJE', extract_wconinje),
+        ('WCONPROD', extract_wconprod),
+        ('WCONINJE', extract_wconinje),
     ]:
         table = extractor(schedule_dict)
         if table is not None and len(table) > 0:

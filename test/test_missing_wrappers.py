@@ -228,3 +228,109 @@ class TestAsfreq:
         result = df.asfreq('12h')
         assert isinstance(result, SimDataFrame)
         assert len(result) == 5  # 3 days at 12h freq = 5 entries
+
+
+# ---------------------------------------------------------------------------
+# idxmin / idxmax (regression: pandas.Series.idxmin/idxmax reject
+# `numeric_only`, unlike pandas.DataFrame.idxmin/idxmax)
+# ---------------------------------------------------------------------------
+
+class TestIdxMinMax:
+    def test_series_idxmax_does_not_raise(self):
+        ss = SimSeries([1.0, 5.0, 3.0], units='m')
+        assert ss.idxmax() == 1
+        assert ss.idxmin() == 0
+
+    def test_frame_idxmax_returns_simseries_without_units(self):
+        df = SimDataFrame({'a': [1.0, 5.0, 3.0], 'b': [10.0, 2.0, 30.0]},
+                          units={'a': 'm', 'b': 'psi'})
+        result = df.idxmax()
+        assert isinstance(result, SimSeries)
+        assert result['a'] == 1 and result['b'] == 2
+        assert all(not v for v in result.get_units().values())  # index labels are not a physical quantity
+
+
+# ---------------------------------------------------------------------------
+# eq / ne / ge / le / gt / lt (flexible comparison methods, unit-aware)
+# ---------------------------------------------------------------------------
+
+class TestFlexComparisons:
+    def test_frame_eq_converts_units(self):
+        df1 = SimDataFrame({'a': [1.0, 2.0, 3.0]}, units={'a': 'm'})
+        df2 = SimDataFrame({'a': [1000.0, 2000.0, 3000.0]}, units={'a': 'mm'})
+        assert df1.eq(df2).all().all()
+
+    def test_frame_gt_converts_units(self):
+        df1 = SimDataFrame({'a': [1.0, 2.0, 3.0]}, units={'a': 'm'})
+        df2 = SimDataFrame({'a': [1000.0, 2000.0, 3000.0]}, units={'a': 'mm'})
+        assert not df1.gt(df2).any().any()
+
+    def test_series_eq_returns_simseries(self):
+        ss1 = SimSeries([1.0, 2.0, 3.0], units='m')
+        ss2 = SimSeries([1000.0, 2000.0, 3000.0], units='mm')
+        result = ss1.eq(ss2)
+        assert isinstance(result, SimSeries)
+        assert bool(result.all())
+
+
+# ---------------------------------------------------------------------------
+# duplicated (regression: should not attach a source column's unit to a
+# boolean flag)
+# ---------------------------------------------------------------------------
+
+class TestDuplicated:
+    def test_frame_duplicated_is_unitless(self):
+        df = SimDataFrame({'a': [1.0, 1.0, 2.0]}, units={'a': 'm'})
+        result = df.duplicated()
+        assert isinstance(result, SimSeries)
+        assert all(not v for v in result.get_units().values())
+        assert list(result) == [False, True, False]
+
+    def test_series_duplicated_is_unitless(self):
+        ss = SimSeries([1.0, 1.0, 2.0], units='m')
+        result = ss.duplicated()
+        assert isinstance(result, SimSeries)
+        assert all(not v for v in result.get_units().values())
+
+
+# ---------------------------------------------------------------------------
+# median (regression: SimSeries.median lacked the units() wrapping applied
+# to its sibling aggregations sum/mean/std/...)
+# ---------------------------------------------------------------------------
+
+class TestSeriesMedian:
+    def test_series_median_has_units(self):
+        ss = SimSeries([1.0, 2.0, 3.0], units='m')
+        result = ss.median()
+        assert str(result.units) == 'm'
+
+
+# ---------------------------------------------------------------------------
+# corr / cov / corrwith (regression: correlation/covariance mislabeled with
+# a source column's unit instead of being left unitless)
+# ---------------------------------------------------------------------------
+
+class TestCorrCovCorrwith:
+    def test_corr_is_unitless(self):
+        df = SimDataFrame({'a': [1.0, 2.0, 3.0], 'b': [3.0, 2.0, 1.0]},
+                          units={'a': 'm', 'b': 'psi'})
+        result = df.corr()
+        assert isinstance(result, SimDataFrame)
+        assert all(u is None for u in result.get_units().values())
+
+    def test_cov_is_unitless(self):
+        df = SimDataFrame({'a': [1.0, 2.0, 3.0], 'b': [3.0, 2.0, 1.0]},
+                          units={'a': 'm', 'b': 'psi'})
+        result = df.cov()
+        assert isinstance(result, SimDataFrame)
+        assert all(u is None for u in result.get_units().values())
+
+    def test_corrwith_is_unitless(self):
+        df1 = SimDataFrame({'a': [1.0, 2.0, 3.0], 'b': [3.0, 2.0, 1.0]},
+                           units={'a': 'm', 'b': 'psi'})
+        df2 = SimDataFrame({'a': [2.0, 4.0, 6.0], 'b': [1.0, 2.0, 3.0]},
+                           units={'a': 'm', 'b': 'psi'})
+        result = df1.corrwith(df2)
+        assert isinstance(result, SimSeries)
+        assert all(not v for v in result.get_units().values())
+

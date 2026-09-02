@@ -5,6 +5,8 @@ Created on Thu Nov 17 00:32:09 2022
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
+import warnings
+
 import pytest
 from simpandas import SimDataFrame, SimSeries
 import pandas as pd
@@ -56,6 +58,56 @@ def test_series_conversion():
     df = SimDataFrame({'a':[1,2]}, units='m')
     s = df['a']
     assert isinstance(s, SimSeries)
+
+
+def test_magic_string_column_lookup_uses_name_patterns():
+    df = SimDataFrame(
+        {'WOPR:WELL-1': [1, 2], 'WOPR:WELL-2': [3, 4], 'BHP:WELL-1': [5, 6]},
+        units={'WOPR:WELL-1': 'm3/s', 'WOPR:WELL-2': 'm3/s', 'BHP:WELL-1': 'bar'},
+    )
+
+    result = df['WOPR']
+
+    assert list(result.columns) == ['WOPR:WELL-1', 'WOPR:WELL-2']
+    assert result.get_units() == {'WOPR:WELL-1': 'm3/s', 'WOPR:WELL-2': 'm3/s'}
+
+
+def test_string_column_lookup_on_datetime_index_no_futurewarning():
+    df = SimDataFrame(
+        {'A': [1, 2, 3], 'B': [4, 5, 6]},
+        index=pd.date_range('2020-01-01', periods=3, freq='D'),
+        units={'A': 'm', 'B': 's'},
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        result = df['A']
+
+    assert isinstance(result, SimSeries)
+    assert result.tolist() == [1, 2, 3]
+    assert not any(
+        'Indexing a DataFrame with a datetimelike index using a single string to slice the rows' in str(w.message)
+        for w in caught
+    )
+
+
+def test_string_row_lookup_on_datetime_index_is_resolved_as_index():
+    df = SimDataFrame(
+        {'A': [10, 20, 30], 'B': [40, 50, 60]},
+        index=pd.date_range('2020-01-01', periods=3, freq='D'),
+        units={'A': 'm', 'B': 's'},
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        result = df['2020-01-02']
+
+    assert isinstance(result, SimDataFrame)
+    assert result.loc['2020-01-02', 'A'] == 20
+    assert not any(
+        'Indexing a DataFrame with a datetimelike index using a single string to slice the rows' in str(w.message)
+        for w in caught
+    )
 
 
 # ===========================================================================

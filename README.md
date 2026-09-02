@@ -3,19 +3,20 @@ A couple of Pandas DataFrame and Series subclasses, extended to work with units 
 
 This package is under development and is regularly updated. Back-compatibility is intended to be maintained when possible.
 
-**Version:** 0.91.0 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 3.x
+**Version:** 0.92.5 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 3.x
 
 ## What Contains This Package
 It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>, <a href="https://seaborn.pydata.org/">**seaborn**</a> and <a href="https://github.com/ayaranitram/unyts">**unyts**</a> and further own methods, to be able to deal with tables of quantities and facilitate common manipulations of time-dependent data.
 
 ### Key Features
 - **Unit-aware DataFrames and Series:** Automatic unit tracking and conversion using unyts
-- **Pandas 2.x compatible:** Works with both pandas 1.x and 2.x
+- **Pandas 1.3-3.x compatible:** Compatibility wrappers avoid pandas 2.x/3.x deprecation paths while retaining support for pandas 1.3+
 - **Enhanced I/O:** Read/write Excel, CSV, and JSON files with unit metadata preservation
 - **Expanded pandas wrapper coverage:** `ffill`, `bfill`, `pct_change`, `asfreq`, `combine_first`, `isin`, `compare`, `swaplevel`, `align`, `update`, `resample`, and `between` now return Sim types where applicable
 - **Time-series utilities:** Built-in methods for daily, monthly, yearly aggregations
 - **Eclipse-style simulator support:** Handle column naming conventions from reservoir simulators
 - **Eclipse/OPM summary round-trip:** Read/write `.SMSPEC` + `.UNSMRY` files with `to_summary` / `read_summary` and optional `OPM` or `ECLIPSE` naming style
+- **Schedule history import:** Read `WCONHIST` and `WCONINJH` Eclipse schedule history records with inferred FIELD or METRIC units
 
 ## Installation
 
@@ -35,6 +36,7 @@ pip install --upgrade simpandas
 - **matplotlib**
 - **seaborn**
 - **unyts** ≥1.0.0
+- **schedule_reader** ≥0.7.15 (for Eclipse schedule imports)
 - **openpyxl** (for Excel support)
 - **xlsxwriter** (for Excel writing)
 - **packaging** (for version detection)
@@ -61,8 +63,11 @@ df = read_json('data.json')         # restores units from SimPandas JSON
 
 ## Compatibility Notes
 
-### Pandas 2.x Support
-Version 0.84.0+ is fully compatible with pandas 2.x while maintaining backward compatibility with pandas 1.3.0+. The deprecated `.append()` method has been replaced with `pd.concat()` internally.
+### Pandas Compatibility
+Version 0.92.5 supports pandas 1.3.0 through the 3.x series. Compatibility wrappers avoid deprecated pandas `copy` arguments where pandas Copy-on-Write supersedes them. `GroupBy.apply()` excludes grouping columns on pandas 2.2+ to match pandas' forward behavior, while retaining the legacy call signature on older supported versions.
+
+### Selection Semantics
+With Eclipse-style column names, a string can select a semantic column group. For example, `sdf['WOPR']` selects columns such as `WOPR:WELL-1` and `WOPR:WELL-2` in their original column order. Exact column names always take precedence; strings that do not resolve to a column or name pattern can resolve to date-like index labels.
 
 ### Python Version
 - **Minimum:** Python 3.7
@@ -79,13 +84,16 @@ from simpandas.writters import write_excel
 from simpandas.writers import write_excel
 ```
 
-### Maintenance Updates (April 2026)
+### Maintenance Updates (September 2026)
 - Added wrappers for missing pandas methods in `SimBasics` to preserve metadata through more operations.
 - Added `_SimResampleProxy` and `resample()` support on both `SimDataFrame` and `SimSeries`.
 - Fixed filter parsing infrastructure by wiring `common.filters.key_to_string(...)` correctly from `SimSeries.filter()` and `SimDataFrame.filter()`.
 - Added `as_dict()` and `from_dict()` for `SimSeries` with `unyts` instance support.
 - Fixed `KeyError` in `__setitem__` when re-assigning columns and preserved existing units.
 - Added regression coverage in `test/test_bugfix_dca.py`.
+- Resolved ambiguous string selection between name-pattern columns and datetime indexes without pandas indexing warnings.
+- Added pandas 3.x compatibility for `replace`, `set_index`, `concat`, `rename`, `align`, `astype`, and `GroupBy.apply()`.
+- Updated schedule-reader string normalization for pandas 3.x dtype-selection behavior.
 
 ## Documentation
 
@@ -103,7 +111,11 @@ For detailed documentation, examples, and API reference, see:
 ### API At A Glance
 
 ```python
-from simpandas import SimDataFrame, SimSeries, read_excel, read_csv, read_json, read_summary, concat
+from simpandas import (
+    SimDataFrame, SimSeries, SimIndex, ColumnUnits, concat,
+    read_excel, read_csv, read_json, read_hdf5, read_parquet,
+    read_summary, read_sr3, read_schedule, read_vdb,
+)
 from simpandas.index import SimIndex
 
 from simpandas.writers.xlsx import write_excel

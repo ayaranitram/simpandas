@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import os
 import tempfile
+import warnings
 
 from simpandas import SimDataFrame, SimSeries, read_csv, read_json
 
@@ -48,9 +49,14 @@ class TestGroupBy:
         assert isinstance(result, SimDataFrame)
 
     def test_groupby_apply(self, sample_df):
-        result = sample_df[['a', 'b', 'g']].groupby('g').apply(lambda x: x.as_pandas().sum())
-        # apply result is wrapped
-        assert result is not None
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            result = sample_df[['a', 'b', 'g']].groupby('g').apply(
+                lambda group: 'g' not in group.as_pandas().columns)
+
+        assert result.tolist() == [True, True]
+        assert not any('DataFrameGroupBy.apply operated on the grouping columns' in str(w.message)
+                       for w in caught)
 
     def test_groupby_transform(self, sample_df):
         result = sample_df[['a', 'b', 'g']].groupby('g').transform('sum')
