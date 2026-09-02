@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.92.5'
-__release__ = 20260828
+__release__ = 20260901
 __all__ = ['SimDataFrame']
 
 import logging
@@ -17,6 +17,8 @@ import fnmatch
 from numpy import ndarray, datetime64
 import datetime as dt
 import matplotlib.pyplot as plt
+from packaging.version import Version
+from pandas import __version__ as _pandas_version
 
 from .common.lazy_unyts import convertible as _convertible, convert_for_SimPandas as _converter, unit_power as _unit_power, unit_addition as _unit_addition, unit_product as _unit_product, unit_division as _unit_division, unitless_names as _unitless_names, number, Unit, units, is_Unit
 
@@ -181,7 +183,8 @@ class _SimGroupBy:
     aggregate = agg
 
     def apply(self, *args, **kwargs):
-        kwargs.setdefault('include_groups', False)
+        if Version(_pandas_version) >= Version('2.2.0'):
+            kwargs.setdefault('include_groups', False)
         return self._wrap_result(self._groupby_obj.apply(*args, **kwargs))
 
     def transform(self, *args, **kwargs):
@@ -594,6 +597,20 @@ class SimDataFrame(SimBasics, DataFrame):
             result = result.__call__()
         return result
 
+    def _column_key_matches(self, key):
+        """Return True if ``key`` should be interpreted as a column selector.
+
+        Exact column names are accepted as-is. For string keys with
+        ``name_separator``-based column naming, semantic matches like
+        ``'WOPR'`` -> ``['WOPR:WELL-1', 'WOPR:WELL-2']`` also count as
+        column access.
+        """
+        if not isinstance(key, str):
+            return False
+        if key in self.columns:
+            return True
+        return bool(self.find_keys(key))
+
     def __getitem__(self, key):
         # if key is boolean filter, return the filtered SimDataFrame
         if isinstance(key, Series) or type(key) is ndarray:
@@ -627,10 +644,15 @@ class SimDataFrame(SimBasics, DataFrame):
         if type(key) is tuple:
             key = list(key)
 
-        # if key is a string but not a column name, check if it is an item, attribute, pattern, filter or index
-        if type(key) is str and key not in self.columns:
-            if bool(self.find_keys(key)):  # catch the column names this key represent
-                key = list(self.find_keys(key))
+        # if key is a string, decide whether it resolves to a column selector
+        # (exact match or name-pattern match) before falling back to index/filter
+        # semantics. This prevents ambiguous date-like row labels from being
+        # mistaken for columns, while still supporting the project's
+        # magic-string column naming conventions.
+        if type(key) is str:
+            if self._column_key_matches(key):
+                if key not in self.columns:
+                    key = list(self.find_keys(key))
             elif key in [self.index.name, self.index_name]:  # key is the name of the index
                 return SimSeries(data=self.index.values,
                                  name=self.index.name,
@@ -715,14 +737,12 @@ class SimDataFrame(SimBasics, DataFrame):
                     if key is None:
                         raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
                     else:
-                        raise KeyError(
-                            'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
+                        raise KeyError(str(key) + ' is not a valid column name, pattern, index or filter criteria.')
         else:
             if key is None:
                 raise KeyError("None is not a valid column name, pattern, index or filter criteria.")
             else:
-                raise KeyError(
-                    'The requested key is not a valid column name, pattern, index or filter criteria:\n   ' + key)
+                raise KeyError(str(key) + ' is not a valid column name, pattern, index or filter criteria.')
 
         # convert returned object to SimDataFrame or SimSeries accordingly
         if type(result) is DataFrame:
@@ -1084,6 +1104,11 @@ class SimDataFrame(SimBasics, DataFrame):
         elif isinstance(pre_index_units, list) and len(pre_index_units) == 1:
             pre_index_units = pre_index_units[0]
 
+        if verify_integrity:
+            candidate = self.as_pandas().set_index(key, drop=drop, append=append, inplace=False, **kwargs)
+            if candidate.index.has_duplicates:
+                raise ValueError("Index has duplicate values.")
+
         if inplace:
             pre_units = self.get_units()
             if isinstance(pre_units, ColumnUnits):
@@ -1091,8 +1116,7 @@ class SimDataFrame(SimBasics, DataFrame):
             elif isinstance(pre_units, list):
                 pre_units = dict(zip(list(self.columns), pre_units))
 
-            super().set_index(key, drop=drop, append=append, inplace=inplace, verify_integrity=verify_integrity,
-                              **kwargs)
+            super().set_index(key, drop=drop, append=append, inplace=inplace, **kwargs)
 
             # Keep _units_ aligned with current columns then apply remaining units
             self._sync_units()
@@ -1107,7 +1131,7 @@ class SimDataFrame(SimBasics, DataFrame):
             params_['index_name'] = key
             params_['index_units'] = pre_index_units
             return SimDataFrame(data=self.as_pandas().set_index(key, drop=drop, append=append, inplace=inplace,
-                                                       verify_integrity=verify_integrity, **kwargs), **params_)
+                                                       **kwargs), **params_)
 
     def get_index_units(self):
         if not isinstance(self.index, SimIndex) and type(self.index_units_) is str:
@@ -1204,7 +1228,39 @@ class SimDataFrame(SimBasics, DataFrame):
             return result
 
     def corr(self, method='pearson', min_periods=1, numeric_only=True):
-        return self._rewrap(self.as_pandas().corr(method=method, min_periods=min_periods, numeric_only=numeric_only))
+        """
+        Compute pairwise correlation of columns.
+
+        Correlation coefficients are dimensionless by definition, so the
+        returned SimDataFrame carries no units regardless of the source
+        columns' units.
+        """
+        result = self.as_pandas().corr(method=method, min_periods=min_periods, numeric_only=numeric_only)
+        return SimDataFrame(data=result, index=result.index, columns=result.columns)
+
+    def cov(self, min_periods=None, ddof=1, numeric_only=False):
+        """
+        Compute pairwise covariance of columns.
+
+        The unit of ``Cov(A, B)`` is the product of the units of ``A`` and
+        ``B``, which SimPandas does not currently track for a matrix
+        result; the returned SimDataFrame is left without units rather
+        than mislabeling entries with a single column's unit.
+        """
+        result = self.as_pandas().cov(min_periods=min_periods, ddof=ddof, numeric_only=numeric_only)
+        return SimDataFrame(data=result, index=result.index, columns=result.columns)
+
+    def corrwith(self, other, axis=0, drop=False, method='pearson', numeric_only=False, min_periods=None):
+        """
+        Compute pairwise correlation between rows or columns of two objects.
+
+        Correlation coefficients are dimensionless by definition, so the
+        returned SimSeries carries no units.
+        """
+        other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
+        result = self.as_pandas().corrwith(other_pd, axis=axis, drop=drop, method=method,
+                                           numeric_only=numeric_only, min_periods=min_periods)
+        return SimSeries(data=result, index=result.index, name=result.name)
 
     def reindex(self, labels=None, index=None, columns=None, axis=None, **kwargs):
         """
@@ -1634,11 +1690,11 @@ class SimDataFrame(SimBasics, DataFrame):
         """
         col_before = list(self.columns)
         if inplace:
-            super().rename(mapper=mapper, index=index, columns=columns, axis=axis, copy=copy, inplace=inplace,
+            super().rename(mapper=mapper, index=index, columns=columns, axis=axis, inplace=inplace,
                            level=level, errors=errors)
             col_after = list(self.columns)
         else:
-            catch = super().rename(mapper=mapper, index=index, columns=columns, axis=axis, copy=copy, inplace=inplace,
+            catch = super().rename(mapper=mapper, index=index, columns=columns, axis=axis, inplace=inplace,
                                    level=level, errors=errors)
             col_after = list(catch.columns)
         
@@ -2135,7 +2191,12 @@ class SimDataFrame(SimBasics, DataFrame):
 
         try to get a column by column name(.__getitem__[key] )
         """
-        return self.as_pandas().__getitem__(key)
+        pandas_df = self.as_pandas()
+        if isinstance(key, str):
+            if key in pandas_df.columns:
+                return pandas_df.loc[:, key]
+            raise KeyError(str(key) + ' is not a valid column name.')
+        return pandas_df.__getitem__(key)
 
     def _get_by_index(self, key):
         """
@@ -2154,10 +2215,11 @@ class SimDataFrame(SimBasics, DataFrame):
         try:
             return (self.as_pandas().loc[key], True,)
         except Exception:
-            # try to find key by index position using .loc
+            # try to find key by index position using .iloc
             try:
                 return (self.as_pandas().iloc[key], True,)
             except Exception:
+                # try to find key as a column name using .loc and .iloc
                 try:
                     return (self.as_pandas().loc[:, key], False,)
                 except Exception:

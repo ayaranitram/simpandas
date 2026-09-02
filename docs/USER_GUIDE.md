@@ -9,8 +9,7 @@ Core ideas:
 - Arithmetic and conversions use `unyts` when units are convertible.
 - Metadata (`units`, `index_units`, naming conventions, flags) is carried through most operations.
 
-Top-level API:
-- `from simpandas import SimDataFrame, SimSeries, read_excel, read_csv, read_json, concat`
+Top-level API includes `SimDataFrame`, `SimSeries`, `SimIndex`, `ColumnUnits`, all supported readers and writers, and `concat`.
 
 ## 2. Installation
 
@@ -67,6 +66,7 @@ Key capabilities:
 - Aggregations: `sum`, `mean`, `median`, `min`, `max`, `std`, `var`, `prod`, `quantile`, `mode`, `count`, `rms`.
 - Data wrangling: `drop`, `dropna`, `drop_duplicates`, `sort_values`, `melt`, `rename`, `reindex`, `transpose`.
 - Additional wrappers: `ffill`, `bfill`, `pct_change`, `asfreq`, `combine_first`, `compare`, `isin`, `swaplevel`, `align`, `update`, `resample`.
+- Grouping: `groupby()` returns a proxy that wraps aggregation, transformation, filtering, and apply results back into Sim types. On pandas 2.2+, `GroupBy.apply()` excludes grouping columns to follow pandas' forward behavior.
 - Binary operations and comparisons follow pandas semantics while preserving units when possible.
 
 ### 4.2 `SimSeries`
@@ -222,6 +222,19 @@ wells = by_category["WELLS"]
 | `merge` | `True` | `True` returns one merged `SimDataFrame`; `False` returns `{category: SimDataFrame}` |
 | `nameSeparator` | `':'` | Separator used to build `KEYWORD:ORIGIN` column names |
 
+### 5.8 `read_schedule`
+
+Read Eclipse schedule history records into a `SimDataFrame`. The reader currently collects `WCONHIST` and `WCONINJH` records, adds a `keyword` column, and assigns common FIELD or METRIC units from the file's `RUNSPEC` section.
+
+```python
+from simpandas import read_schedule
+
+sdf = read_schedule("CASE.DATA")
+print(sdf.units["OIL rate"])
+```
+
+Pass `units="FIELD"` or `units="METRIC"` to override unit-system detection. This reader requires the `schedule_reader` dependency.
+
 ## 6. Readers and Writers Modules
 
 ### 6.1 `simpandas.readers`
@@ -237,6 +250,7 @@ wells = by_category["WELLS"]
 - `read_prodml`: PRODML v1/v2 XML reader (production volumes, time series, well tests).
 - `read_witsml`: WITSML v1.4.1.1/v2 XML reader (log curves, trajectories, mudlogs).
 - `read_resqml`: RESQML v2 EPC reader (continuous/discrete property time series, requires `h5py`).
+- `read_schedule`: Eclipse schedule-history reader for `WCONHIST` and `WCONINJH` records (requires `schedule_reader`).
 
 ### 6.2 `simpandas.writers`
 - `write_csv`: Write `SimDataFrame`/`SimSeries` to CSV with a units row.
@@ -347,8 +361,10 @@ Notes:
 
 Selection works like pandas with simpandas-aware wrappers:
 - `loc` and `iloc` preserve class/metadata where possible.
+- Exact string column labels select that column.
+- For Eclipse-style names, semantic strings resolve to matching columns. For example, `sdf["WOPR"]` selects `WOPR:WELL-1`, `WOPR:WELL-2`, and other matching `WOPR` columns in their source order.
+- Strings that do not match an exact column or name pattern can resolve to date-like index labels or filter criteria.
 - Name-based wildcard filtering is supported in several helper methods.
-- Date-aware filtering paths are available for temporal strings.
 
 ```python
 subset = sdf.loc[sdf.index[:10], ["rate", "pressure"]]
@@ -363,6 +379,14 @@ All common reductions are available with metadata propagation:
 ```python
 daily_mean = sdf.mean(axis=0)
 series_std = ss.std()
+```
+
+### Grouped Apply
+
+`groupby()` keeps results unit-aware. On pandas 2.2 and later, groups passed to `apply()` omit the grouping columns, matching pandas' future default and avoiding its deprecation warning.
+
+```python
+totals = sdf.groupby("well").apply(lambda group: group.sum())
 ```
 
 ## 11. IO Patterns

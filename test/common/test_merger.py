@@ -1,5 +1,6 @@
 import pytest
 import pandas as pd
+import warnings
 from simpandas.common.merger import concat, merge_index, merge_units
 from simpandas import SimDataFrame, SimSeries
 
@@ -9,6 +10,17 @@ def test_concat_basic():
     out = concat([df1, df2])
     assert isinstance(out, SimDataFrame)
     assert out.shape[0] == 2
+
+
+def test_concat_does_not_emit_copy_warning():
+    df1 = SimDataFrame({'a':[1]}, units='m')
+    df2 = SimDataFrame({'a':[2]}, units='m')
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        concat([df1, df2], copy=True)
+
+    assert not any('The copy keyword is deprecated' in str(w.message) for w in caught)
 
 def test_concat_type_error():
     with pytest.raises(TypeError):

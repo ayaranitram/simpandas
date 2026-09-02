@@ -1,8 +1,28 @@
 # -*- coding: utf-8 -*-
 """Tests for the schedule keywords reader."""
 
+from pathlib import Path
+
 import pandas as pd
 from simpandas import SimDataFrame, read_auto, read_schedule
+
+
+def test_read_schedule_complete_field_deck():
+    data_path = Path(__file__).parent.parent / '_testing_data' / 'SAMPLE_SCHEDULE.DATA'
+    sdf = read_schedule(str(data_path))
+
+    assert isinstance(sdf, SimDataFrame)
+    assert set(sdf['keyword']) == {'WCONHIST', 'WCONINJH'}
+    assert set(sdf['well']) == {'WELL-1', 'WELL-2', 'WELL-3'}
+    assert len(sdf) == 12
+    assert set(sdf['date'].dropna()) == {
+        pd.Timestamp('2020-01-01'),
+        pd.Timestamp('2020-02-01'),
+        pd.Timestamp('2020-04-01'),
+        pd.Timestamp('2021-01-01'),
+    }
+    assert sdf.units['OIL rate'] == 'STB/DAY'
+    assert sdf.units['WATER rate'] == 'STB/DAY'
 
 
 def test_read_schedule_detects_field_units(tmp_path):

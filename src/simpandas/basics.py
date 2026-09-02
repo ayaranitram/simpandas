@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.92.5'
-__release__ = 20260828
+__release__ = 20260901
 __all__ = ['SimBasics']
 
 import fnmatch
@@ -349,15 +349,67 @@ class SimBasics(object, metaclass=SimType):
         return self._rewrap(self.as_pandas().sem(axis=axis, skipna=skipna, ddof=ddof,
                                                  numeric_only=numeric_only, **kwargs))
 
+    def all(self, axis=0, bool_only=False, skipna=True, **kwargs):
+        """Return whether every element is True, unitless (boolean result).
+
+        Computed via the plain pandas object to avoid a pandas-internal
+        single-column boolean reduction edge case that otherwise raises
+        ``AttributeError`` when going through the Sim* constructor path.
+        """
+        import pandas as pd
+        from .series import SimSeries
+        result = self.as_pandas().all(axis=axis, bool_only=bool_only, skipna=skipna, **kwargs)
+        if isinstance(result, pd.Series):
+            return SimSeries(data=result, index=result.index, name=result.name)
+        return result
+
+    def any(self, axis=0, bool_only=False, skipna=True, **kwargs):
+        """Return whether any element is True, unitless (boolean result).
+
+        Computed via the plain pandas object to avoid a pandas-internal
+        single-column boolean reduction edge case that otherwise raises
+        ``AttributeError`` when going through the Sim* constructor path.
+        """
+        import pandas as pd
+        from .series import SimSeries
+        result = self.as_pandas().any(axis=axis, bool_only=bool_only, skipna=skipna, **kwargs)
+        if isinstance(result, pd.Series):
+            return SimSeries(data=result, index=result.index, name=result.name)
+        return result
+
     def idxmin(self, axis=0, skipna=True, numeric_only=False):
-        """Return index of first occurrence of minimum, preserving wrapper type."""
-        return self._rewrap(self.as_pandas().idxmin(axis=axis, skipna=skipna,
-                                                    numeric_only=numeric_only))
+        """Return index label of first occurrence of minimum, preserving wrapper type.
+
+        The result is an index/column label (not a physical quantity), so
+        it is returned without units.
+        """
+        import pandas as pd
+        from .series import SimSeries
+        try:
+            # pandas.Series.idxmin() has no `numeric_only` kwarg (DataFrame-only param)
+            result = self.as_pandas().idxmin(axis=axis, skipna=skipna, numeric_only=numeric_only)
+        except TypeError:
+            result = self.as_pandas().idxmin(axis=axis, skipna=skipna)
+        if isinstance(result, pd.Series):
+            return SimSeries(data=result, index=result.index, name=result.name)
+        return result
 
     def idxmax(self, axis=0, skipna=True, numeric_only=False):
-        """Return index of first occurrence of maximum, preserving wrapper type."""
-        return self._rewrap(self.as_pandas().idxmax(axis=axis, skipna=skipna,
-                                                    numeric_only=numeric_only))
+        """Return index label of first occurrence of maximum, preserving wrapper type.
+
+        The result is an index/column label (not a physical quantity), so
+        it is returned without units.
+        """
+        import pandas as pd
+        from .series import SimSeries
+        try:
+            # pandas.Series.idxmax() has no `numeric_only` kwarg (DataFrame-only param)
+            result = self.as_pandas().idxmax(axis=axis, skipna=skipna, numeric_only=numeric_only)
+        except TypeError:
+            result = self.as_pandas().idxmax(axis=axis, skipna=skipna)
+        if isinstance(result, pd.Series):
+            return SimSeries(data=result, index=result.index, name=result.name)
+        return result
 
     def explode(self, column=None, ignore_index=False):
         """Transform each element of a list-like to a row, preserving units."""
@@ -420,7 +472,10 @@ class SimBasics(object, metaclass=SimType):
 
     def astype(self, dtype, copy=True, errors='raise'):
         """Cast to a specified dtype, preserving units."""
-        return self._rewrap(self.as_pandas().astype(dtype, copy=copy, errors=errors))
+        result = self.as_pandas().astype(dtype, errors=errors)
+        if copy is True:
+            result = result.copy()
+        return self._rewrap(result)
 
     def head(self, n=5):
         """
@@ -970,6 +1025,36 @@ class SimBasics(object, metaclass=SimType):
         """Implement self < other."""
         return self._arithmethic_operation(other, operation='<', fill_value=None)
 
+    def eq(self, other, axis=0, level=None):
+        """Flexible equality comparison, unit-aware equivalent of ``self == other``.
+
+        Unlike ``pandas.DataFrame.eq``/``Series.eq`` (which compare raw
+        values), this converts ``other`` to this object's units first when
+        the units are convertible but not identical (e.g. comparing a
+        column in ``m`` against one in ``mm``).
+        """
+        return self._arithmethic_operation(other, operation='==', level=level, fill_value=None, axis=axis)
+
+    def ne(self, other, axis=0, level=None):
+        """Flexible inequality comparison, unit-aware equivalent of ``self != other``."""
+        return self._arithmethic_operation(other, operation='!=', level=level, fill_value=None, axis=axis)
+
+    def ge(self, other, axis=0, level=None):
+        """Flexible ``>=`` comparison, unit-aware equivalent of ``self >= other``."""
+        return self._arithmethic_operation(other, operation='>=', level=level, fill_value=None, axis=axis)
+
+    def le(self, other, axis=0, level=None):
+        """Flexible ``<=`` comparison, unit-aware equivalent of ``self <= other``."""
+        return self._arithmethic_operation(other, operation='<=', level=level, fill_value=None, axis=axis)
+
+    def gt(self, other, axis=0, level=None):
+        """Flexible ``>`` comparison, unit-aware equivalent of ``self > other``."""
+        return self._arithmethic_operation(other, operation='>', level=level, fill_value=None, axis=axis)
+
+    def lt(self, other, axis=0, level=None):
+        """Flexible ``<`` comparison, unit-aware equivalent of ``self < other``."""
+        return self._arithmethic_operation(other, operation='<', level=level, fill_value=None, axis=axis)
+
     def __neg__(self):
         """Implement -self (unary negation)."""
         return self._class(data=self.as_pandas().__neg__(), **self.params_)
@@ -1466,7 +1551,7 @@ class SimBasics(object, metaclass=SimType):
         else:
             objs = [each.split(self.name_separator)[-1] for each in self.columns if
                     self.name_separator in each and each[0] == initial]
-        return list(set(objs))
+        return list(dict.fromkeys(objs))
 
     @property
     def wells(self):
@@ -1500,7 +1585,7 @@ class SimBasics(object, metaclass=SimType):
             else:
                 if each not in atts:
                     atts[each] = []
-        atts = {att: list(set(atts[att])) for att in atts}
+        atts = {att: list(dict.fromkeys(atts[att])) for att in atts}
         return atts
 
     @property
@@ -1658,12 +1743,19 @@ class SimBasics(object, metaclass=SimType):
         SimSeries or SimDataFrame or None
             Object with replaced values (or None if inplace=True).
         """
+        kwargs = dict(to_replace=to_replace, value=value, regex=regex)
+
         if inplace:
-            super().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit, regex=regex)
+            try:
+                super().replace(inplace=True, limit=limit, **kwargs)
+            except TypeError:
+                super().replace(inplace=True, **kwargs)
         else:
-            return self._class(
-                data=self.as_pandas().replace(to_replace=to_replace, value=value, inplace=inplace, limit=limit,
-                                              regex=regex), **self.params_)
+            try:
+                pandas_result = self.as_pandas().replace(inplace=False, limit=limit, **kwargs)
+            except TypeError:
+                pandas_result = self.as_pandas().replace(inplace=False, **kwargs)
+            return self._class(data=pandas_result, **self.params_)
 
     def ffill(self, axis=0, inplace=False, limit=None):
         """Forward fill NaN values, preserving units and metadata."""
@@ -1744,8 +1836,10 @@ class SimBasics(object, metaclass=SimType):
               fill_value=None):
         """Align two objects on their axes, returning two Sim objects."""
         other_pd = other.as_pandas() if hasattr(other, 'as_pandas') else other
-        left, right = self.as_pandas().align(other_pd, join=join, axis=axis,
-                                             level=level, copy=copy, fill_value=fill_value)
+        align_kwargs = dict(join=join, axis=axis, level=level, fill_value=fill_value)
+        if copy is not None:
+            align_kwargs['copy'] = copy
+        left, right = self.as_pandas().align(other_pd, **align_kwargs)
         left_wrapped = self._rewrap(left)
         right_wrapped = other._rewrap(right) if hasattr(other, '_rewrap') else right
         return left_wrapped, right_wrapped

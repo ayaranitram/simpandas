@@ -5,8 +5,8 @@ Created on Sun Oct 11 11:14:32 2020
 @author: Martín Carlos Araya <martinaraya@gmail.com>
 """
 
-__version__ = '0.80.8'
-__release__ = 20260503
+__version__ = '0.92.5'
+__release__ = 20260902
 __all__ = ['concat', 'merge']
 
 from simpandas.frame import SimDataFrame
@@ -58,8 +58,12 @@ def concat(objs, axis=0, join='outer', ignore_index=False, keys=None, levels=Non
     if 'units' in merged_params_:
         del merged_params_['units']
 
-    sdf = pd.concat(df_objs, axis=axis, join=join, ignore_index=ignore_index, keys=keys, levels=levels, names=names,
-                    verify_integrity=verify_integrity, sort=sort, copy=copy)
+    if copy:
+        df_objs = [obj.copy() if hasattr(obj, 'copy') else obj for obj in df_objs]
+
+    concat_kwargs = dict(axis=axis, join=join, ignore_index=ignore_index, keys=keys, levels=levels, names=names,
+                         verify_integrity=verify_integrity, sort=sort)
+    sdf = pd.concat(df_objs, **concat_kwargs)
     if len(sim_objs) > 0:
         sdf = SimDataFrame(data=sdf, units=merged_units, **merged_params_)
 

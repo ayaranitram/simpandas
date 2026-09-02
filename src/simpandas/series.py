@@ -6,7 +6,7 @@ Created on Sun Oct 11 11:14:32 2020
 """
 
 __version__ = '0.92.5'
-__release__ = 20260828
+__release__ = 20260901
 __all__ = ['SimSeries']
 
 import logging
@@ -866,6 +866,25 @@ class SimSeries(SimBasics, Series):
         return self.as_pandas().corr(other.as_pandas() if isinstance(other, SimSeries) else other,
                                      method=method, min_periods=min_periods)
 
+    def duplicated(self, keep='first'):
+        """
+        Return a boolean SimSeries denoting duplicate values.
+
+        Parameters
+        ----------
+        keep : {'first', 'last', False}, default 'first'
+            Mark all duplicates as True except the first occurrence, the
+            last occurrence, or (with False) mark every duplicated value.
+
+        Returns
+        -------
+        SimSeries
+            Boolean flags indexed like this SimSeries, with no units (a
+            duplication flag is not a physical quantity).
+        """
+        result = self.as_pandas().duplicated(keep=keep)
+        return SimSeries(data=result, index=self.index, name=result.name)
+
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None, inplace=False, errors='raise'):
         """
         Drop specified labels (index entries) from the SimSeries.
@@ -1162,6 +1181,9 @@ class SimSeries(SimBasics, Series):
 
     def mean(self, axis=0, **kwargs):
         return units(self.as_pandas().mean(axis=axis, **kwargs), self.get_UnitsString())
+
+    def median(self, axis=0, **kwargs):
+        return units(self.as_pandas().median(axis=axis, **kwargs), self.get_UnitsString())
 
     def mode(self, axis=0, **kwargs):
         return units(self.as_pandas().mode(axis=axis, **kwargs), self.get_UnitsString())
