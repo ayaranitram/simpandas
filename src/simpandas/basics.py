@@ -3521,6 +3521,11 @@ Copy of input object, shifted.
         return write_summary(self, smspec_path, unsmry_path=unsmry_path,
                              startdat=startdat, dimens=dimens)
 
+    def to_sr3(self, path, **kwargs):
+        """Write to a CMG SR3 file.  See ``writers.sr3.write_sr3``."""
+        from simpandas.writers.sr3 import write_sr3
+        return write_sr3(self, path, **kwargs)
+
     def to_parquet(self, filepath, compression='snappy', **kwargs):
         """Write to Parquet with units metadata.  See ``writers.parquet.write_parquet``."""
         from simpandas.writers.parquet import write_parquet

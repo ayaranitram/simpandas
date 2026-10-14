@@ -15,8 +15,8 @@ Requires the optional ``h5py`` package (only imported when ``read_sr3`` is
 actually called).
 """
 
-__version__ = '0.1.0'
-__release__ = 20260828
+__version__ = '0.93.0'
+__release__ = 20261014
 
 import logging
 import re
@@ -94,6 +94,22 @@ def _parse_dimensionality(code):
     return parsed
 
 
+def _unit_from_dimensionality(dim_code, units_by_index):
+    """Resolve a dimensionality code like '11|-13|' into a unit string (or None)."""
+    unit = None
+    for idx, sign in _parse_dimensionality(dim_code):
+        factor = units_by_index.get(idx)
+        if not factor:
+            continue
+        if unit is None:
+            unit = factor if sign > 0 else _unit_inverse(factor)
+        elif sign > 0:
+            unit = _unit_product(unit, factor)
+        else:
+            unit = _unit_division(unit, factor)
+    return unit
+
+
 def _build_keyword_units(h5file):
     """Return {keyword: unit_string_or_None} resolved from the sr3 unit tables."""
     units_by_index = _build_units_table(h5file)
@@ -110,18 +126,7 @@ def _build_keyword_units(h5file):
             keyword_units[keyword] = None
             continue
 
-        unit = None
-        for idx, sign in _parse_dimensionality(dim_code):
-            factor = units_by_index.get(idx)
-            if not factor:
-                continue
-            if unit is None:
-                unit = factor if sign > 0 else _unit_inverse(factor)
-            elif sign > 0:
-                unit = _unit_product(unit, factor)
-            else:
-                unit = _unit_division(unit, factor)
-        keyword_units[keyword] = unit
+        keyword_units[keyword] = _unit_from_dimensionality(dim_code, units_by_index)
 
     return keyword_units
 
@@ -269,10 +274,23 @@ def read_sr3(path,
         date_by_index, _days_by_index = _build_master_dates(h5file)
 
         results = {}
+        origin_category = {}
         for category in requested:
             out = _read_category(h5file, category, keyword_units, date_by_index, sep)
             if out is not None:
                 results[category] = out
+                if category != 'LAYERS':
+                    for origin in _decode(h5file[f'TimeSeries/{category}/Origins'][:]):
+                        if origin:
+                            origin_category.setdefault(origin, category)
+
+        sr3_meta = {
+            'attrs': {k: (v.decode('ascii', errors='replace') if isinstance(v, bytes) else str(v))
+                      for k, v in h5file.attrs.items()},
+            'origin_category': origin_category,
+        }
+        if 'General/ComponentTable' in h5file:
+            sr3_meta['components'] = _decode(h5file['General/ComponentTable']['Name'])
 
     if not results:
         raise ValueError(f"No requested TimeSeries categories found in '{path}'.")
@@ -288,6 +306,7 @@ def read_sr3(path,
             operate_per_name=operatePerName,
             verbose=verbose,
             source_path=str(path),
+            meta={'sr3': sr3_meta},
         )
 
     if not merge:

@@ -9,13 +9,18 @@ TimeSeries/<CATEGORY>/{Origins,Variables,Data,Timesteps}) and then exercise
 ``read_sr3`` against it.
 """
 
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import pytest
 
 h5py = pytest.importorskip('h5py')
 
 from simpandas import SimDataFrame
 from simpandas.readers.sr3 import read_sr3
+
+_REAL_SR3_SAMPLES = Path(__file__).resolve().parents[1] / '_testing_data' / 'sr3_reader'
 
 
 def _make_sr3(path):
@@ -112,3 +117,18 @@ def test_read_sr3_merge_false_returns_dict(sr3_path):
 def test_read_sr3_missing_category_raises(sr3_path):
     with pytest.raises(ValueError):
         read_sr3(sr3_path, categories=['GROUPS'], merge=True)
+
+
+@pytest.mark.parametrize(('sample_name', 'expected_column'), [
+    ('cartesian_grid_example.sr3', 'BHP:PROD'),
+    ('coreflood_geochem.sr3', 'BHP:CO2-Injector'),
+])
+def test_read_sr3_real_examples(sample_name, expected_column):
+    sdf = read_sr3(_REAL_SR3_SAMPLES / sample_name, categories=['WELLS'])
+
+    assert isinstance(sdf, SimDataFrame)
+    assert len(sdf.index) > 0
+    assert isinstance(sdf.index, pd.DatetimeIndex)
+    assert expected_column in sdf.columns
+    assert expected_column in sdf.get_units()
+    assert sdf[expected_column].notna().any()
