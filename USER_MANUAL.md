@@ -1,6 +1,6 @@
 # SimPandas — User Manual
 
-**Version 0.91.0 | Python ≥ 3.7 | pandas 1.3 – 3.x**
+**Version 0.93.0 | Python ≥ 3.7 | pandas 1.3 – 3.x**
 
 ---
 
@@ -47,6 +47,8 @@
    - 7.10 [RESQML EPC](#710-resqml-epc)
    - 7.11 [Automatic Dispatcher](#711-automatic-dispatcher)
    - 7.12 [Eclipse Summary I/O](#712-eclipse-summary-io)
+   - 7.13 [CMG SR3](#713-cmg-sr3)
+   - 7.14 [Eclipse Schedule Reader](#714-eclipse-schedule-reader)
 8. [Column-Name Conventions](#8-column-name-conventions)
    - 8.1 [Name Separator](#81-name-separator)
    - 8.2 [Intersection Character](#82-intersection-character)
@@ -1073,6 +1075,45 @@ Supported summary styles:
 Local Grid Refinement (LGR) vectors are also supported in both reader and
 writer.
 
+### 7.13 CMG SR3
+
+`read_sr3` reads the time-series data of a CMG `.sr3` file (IMEX, GEM, STARS);
+`write_sr3` writes a `SimDataFrame` back to one. Requires `h5py`.
+
+```python
+from simpandas import read_sr3
+from simpandas.writers.sr3 import write_sr3
+
+sdf = read_sr3('case.sr3')                         # all categories, merged on the date index
+wells = read_sr3('case.sr3', categories=['WELLS'])  # columns like OILRATSC:PROD
+parts = read_sr3('case.sr3', merge=False)           # dict {category: SimDataFrame}
+
+write_sr3(sdf, 'copy.sr3', simulator='GEM')
+```
+
+Categories: `WELLS`, `GROUPS`, `SECTORS`, `LAYERS`, `SPECIAL HISTORY`. Units are
+taken from the file. Reading every category of a large file produces a very wide
+table; restrict `categories` when possible. Grid properties are not read.
+
+### 7.14 Eclipse Schedule Reader
+
+`read_schedule` reads the `WCONHIST`, `WCONINJH`, `WCONPROD` and `WCONINJE`
+keywords of an Eclipse `.DATA` file (requires `schedule_reader`).
+
+```python
+from simpandas import read_schedule
+
+sdf = read_schedule('CASE.DATA')            # units from RUNSPEC (FIELD/METRIC)
+sdf = read_schedule('CASE.DATA', units='METRIC')
+```
+
+- Columns `date`, `keyword` and `well` identify each record.
+- The `date` of a record is the one in force when the keyword appears (`START`,
+  `DATES`, `TIME` or `TSTEP`), repeated until the next date keyword.
+- `DATES` use the Eclipse format `DD MMM YYYY [HH:MM:SS.SSSS]` (time optional).
+- Rows are sorted by date (stable: the deck order is kept within a date) and the
+  index is reset.
+
 ---
 
 ## 8. Column-Name Conventions
@@ -1522,6 +1563,8 @@ pip install h5py      # for HDF5 and RESQML
 | `read_hdf5` | function | Read HDF5 with unit metadata |
 | `read_summary` | function | Read Eclipse binary summary |
 | `read_vdb` | function | Read VIP/Nexus VDB plot data |
+| `read_sr3` | function | Read CMG SR3 time-series data |
+| `read_schedule` | function | Read Eclipse `WCONHIST`/`WCONINJH`/`WCONPROD`/`WCONINJE` |
 | `read_parquet` | function | Read Parquet with unit metadata |
 | `read_prodml` | function | Read PRODML XML |
 | `read_witsml` | function | Read WITSML XML |
@@ -1542,6 +1585,7 @@ pip install h5py      # for HDF5 and RESQML
 | `witsml` | `write_witsml` | Write to WITSML XML |
 | `resqml` | `write_resqml` | Write to RESQML EPC |
 | `schedule` | `write_schedule` | Write production-schedule files |
+| `sr3` | `write_sr3` | Write CMG SR3 files |
 
 ### Common utilities (`simpandas.common`)
 

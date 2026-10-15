@@ -1,6 +1,6 @@
 # SimPandas — Developer Manual
 
-**Version 0.90.8 | For contributors and maintainers**
+**Version 0.93.0 | For contributors and maintainers**
 
 ---
 
@@ -26,6 +26,8 @@
    - 9.2 [CSV](#92-csv)
    - 9.3 [JSON](#93-json)
    - 9.4 [Schedule Writer](#94-schedule-writer)
+   - 9.5 [Schedule Reader](#95-schedule-reader)
+   - 9.6 [CMG SR3](#96-cmg-sr3)
 10. [Common Utilities (`simpandas.common`)](#10-common-utilities-simpandascommon)
 11. [Adding a New Method](#11-adding-a-new-method)
 12. [Adding a New I/O Format](#12-adding-a-new-io-format)
@@ -69,12 +71,15 @@ d:\git\simpandas\
 │       │   ├── __init__.py       # exports read_excel, read_csv, read_json
 │       │   ├── xlsx.py
 │       │   ├── csv.py
-│       │   └── json.py
+│       │   ├── json.py
+│       │   ├── schedule.py       # read_schedule
+│       │   └── sr3.py            # read_sr3
 │       │
 │       └── writers/
 │           ├── __init__.py
 │           ├── xlsx.py
-│           └── schedule.py
+│           ├── schedule.py
+│           └── sr3.py            # write_sr3
 │
 ├── test/
 │   ├── __init__.py
@@ -485,6 +490,36 @@ and `SimSeries`).  Produces `{"data": {...}, "units": {...}}`.
 `writers/schedule.py` → `write_schedule` is a domain-specific writer for
 Eclipse-style petroleum simulation schedule files.  It is not part of the
 general-purpose I/O layer.
+
+### 9.5 Schedule Reader
+
+`readers/schedule.py` → `read_schedule` wraps the external `schedule_reader`
+package.  `schedule_reader.read_data` returns an ordered dict of
+`event_id -> {'DATES': str}` or `{KEYWORD: [fields]}` (`START`, `TIME` and
+`TSTEP` are converted to `DATES` events).
+
+- The `extract_wcon*` functions assign `table['date']` from a Series with a fresh
+  0..n index, which misaligns against the non-sequential event-id index.
+  `read_schedule` therefore ignores that column and rebuilds it with
+  `_keyword_dates`, which walks the event dict in order and tracks the current date.
+- `_parse_record_dates` parses `DD MMM YYYY [HH:MM:SS.SSSS]` strictly (`JLY`
+  accepted) and everything else as ISO 8601.  Never use `dayfirst=True` on ISO
+  strings: some pandas versions swap day and month.  `schedule_reader.time_parser.parse_date`
+  implements the same rules.
+- The result is concatenated per keyword (`WCONHIST`, `WCONINJH`, `WCONPROD`,
+  `WCONINJE`) and sorted with `sort_values('date', kind='stable')` so ties keep
+  the keyword order.  Keep `kind='stable'`; tests rely on it.
+- Tests: `test/readers/test_schedule.py` with `test/_testing_data/SAMPLE_SCHEDULE.DATA`.
+
+### 9.6 CMG SR3
+
+`readers/sr3.py` (`read_sr3`) and `writers/sr3.py` (`write_sr3`) use `h5py`
+(imported lazily via `_require_h5py`).  Units are resolved from the file's
+`General/UnitsTable` and `General/NameRecordTable`.  `read_sr3` stores
+`meta['sr3']['origin_category']`, which `write_sr3` uses first when classifying
+origins.  Tests: `test/readers/test_sr3.py`; real fixtures with attribution and
+MIT license in `test/_testing_data/sr3_reader/` (read only `categories=['WELLS']`
+for the large coreflood file, the full merge is very slow).
 
 ---
 

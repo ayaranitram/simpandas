@@ -1,5 +1,29 @@
 # What's New in SimPandas — May 2026
 
+## 0.93.0 — CMG SR3 support and schedule reader fixes — October 2026
+
+### CMG SR3 files
+
+```python
+from simpandas import read_sr3
+from simpandas.writers.sr3 import write_sr3
+
+sdf = read_sr3('case.sr3', categories=['WELLS'])   # columns named KEYWORD:ORIGIN
+write_sr3(sdf, 'copy.sr3')
+```
+
+Units come from the file itself. Requires `h5py`. Two real examples from the MIT-licensed
+[sr3_reader](https://github.com/nikolai-andrianov/sr3_reader) project are used as tests.
+
+### `read_schedule()` fixes
+
+- Every record gets the date in force and keeps it until the next `DATES`, `TIME` or `TSTEP` keyword (previously dates were wrong or `NaT`).
+- `WCONPROD` and `WCONINJE` are read together with `WCONHIST` and `WCONINJH`.
+- Rows are sorted by date; ties keep the keyword order of the deck.
+- Dates follow the Eclipse `DD MMM YYYY [HH:MM:SS.SSSS]` format, and `TIME`/`TSTEP` dates are no longer read day-first. The same strict parser is now used in `schedule_reader` (`START`, `DATES`, `TIME`, `TSTEP`).
+
+---
+
 ## 0.91.0 — Public API completeness, reliability fixes, pandas 3.x support — May 2026
 
 This release makes the full writer API accessible from the top-level package, hardens exception handling throughout the codebase, and extends pandas compatibility to 3.x.

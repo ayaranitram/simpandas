@@ -5,6 +5,24 @@ All notable changes to the simpandas project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.93.0] - 2026-10-15
+
+### Added
+- `read_sr3()` / `write_sr3()`: read and write CMG SR3 (HDF5) files (IMEX, GEM, STARS). Requires `h5py`.
+- Real SR3 examples (`cartesian_grid_example.sr3`, `coreflood_geochem.sr3`) from [nikolai-andrianov/sr3_reader](https://github.com/nikolai-andrianov/sr3_reader) (MIT) under `test/_testing_data/sr3_reader/`, with attribution and license, and the parametrized test `test_read_sr3_real_examples`.
+- `read_schedule()` now also reads the forecast keywords `WCONPROD` and `WCONINJE`, in addition to `WCONHIST` and `WCONINJH`.
+- `test/_testing_data/SAMPLE_SCHEDULE.DATA` extended with `TSTEP`, `WCONPROD` and `WCONINJE`; new test `test_read_schedule_repeats_dates_for_time_and_tstep`.
+
+### Fixed
+- `read_schedule()`: each record now carries the date in force (from `START`, `DATES`, `TIME` or `TSTEP`), repeated until the next date keyword. Dates were previously misaligned or `NaT` because of an index-aligned assignment in `schedule_reader`.
+- `read_schedule()`: `DATES` strings are parsed in the Eclipse format `DD MMM YYYY [HH:MM:SS.SSSS]` (time optional, `JLY` accepted); ISO strings generated from `TIME`/`TSTEP` are no longer read day-first (e.g. `2021-02-01` was read as 2021-01-02 on some pandas versions).
+- `schedule_reader.time_parser`: new strict `parse_date()` used by `parse_dates`, `tstep_to_dates` and `time_to_dates`, so `START`, `DATES`, `TIME` and `TSTEP` share one parser.
+
+### Changed
+- `read_schedule()` returns rows sorted by date (stable sort, so the keyword order of the deck is kept within a date) with a reset index.
+
+---
+
 ## [0.91.0] - 2026-05-03
 
 ### Added

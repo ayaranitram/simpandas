@@ -3,7 +3,7 @@ A couple of Pandas DataFrame and Series subclasses, extended to work with units 
 
 This package is under development and is regularly updated. Back-compatibility is intended to be maintained when possible.
 
-**Version:** 0.92.5 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 3.x
+**Version:** 0.93.0 | **Python:** ≥3.7 (≥3.8 recommended) | **Pandas:** 1.3.0 - 3.x
 
 ## What Contains This Package
 It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>, <a href="https://seaborn.pydata.org/">**seaborn**</a> and <a href="https://github.com/ayaranitram/unyts">**unyts**</a> and further own methods, to be able to deal with tables of quantities and facilitate common manipulations of time-dependent data.
@@ -16,7 +16,8 @@ It is powered by other packages, like <a href="https://numpy.org/">**NumPy**</a>
 - **Time-series utilities:** Built-in methods for daily, monthly, yearly aggregations
 - **Eclipse-style simulator support:** Handle column naming conventions from reservoir simulators
 - **Eclipse/OPM summary round-trip:** Read/write `.SMSPEC` + `.UNSMRY` files with `to_summary` / `read_summary` and optional `OPM` or `ECLIPSE` naming style
-- **Schedule history import:** Read `WCONHIST` and `WCONINJH` Eclipse schedule history records with inferred FIELD or METRIC units
+- **Schedule import:** Read `WCONHIST`, `WCONINJH`, `WCONPROD` and `WCONINJE` Eclipse schedule records with inferred FIELD or METRIC units; each row carries the date set by `START`/`DATES`/`TIME`/`TSTEP`
+- **CMG SR3 support:** Read/write CMG `.sr3` files (IMEX, GEM, STARS) with `read_sr3` / `write_sr3` (requires `h5py`)
 
 ## Installation
 
@@ -36,7 +37,8 @@ pip install --upgrade simpandas
 - **matplotlib**
 - **seaborn**
 - **unyts** ≥1.0.0
-- **schedule_reader** ≥0.7.15 (for Eclipse schedule imports)
+- **schedule_reader** ≥0.7.15 (for Eclipse schedule imports; use the latest version for the strict Eclipse date parsing)
+- **h5py** (optional, for CMG SR3 files)
 - **openpyxl** (for Excel support)
 - **xlsxwriter** (for Excel writing)
 - **packaging** (for version detection)
@@ -64,7 +66,7 @@ df = read_json('data.json')         # restores units from SimPandas JSON
 ## Compatibility Notes
 
 ### Pandas Compatibility
-Version 0.92.5 supports pandas 1.3.0 through the 3.x series. Compatibility wrappers avoid deprecated pandas `copy` arguments where pandas Copy-on-Write supersedes them. `GroupBy.apply()` excludes grouping columns on pandas 2.2+ to match pandas' forward behavior, while retaining the legacy call signature on older supported versions.
+Version 0.93.0 supports pandas 1.3.0 through the 3.x series. Compatibility wrappers avoid deprecated pandas `copy` arguments where pandas Copy-on-Write supersedes them. `GroupBy.apply()` excludes grouping columns on pandas 2.2+ to match pandas' forward behavior, while retaining the legacy call signature on older supported versions.
 
 ### Selection Semantics
 With Eclipse-style column names, a string can select a semantic column group. For example, `sdf['WOPR']` selects columns such as `WOPR:WELL-1` and `WOPR:WELL-2` in their original column order. Exact column names always take precedence; strings that do not resolve to a column or name pattern can resolve to date-like index labels.
@@ -94,6 +96,10 @@ from simpandas.writers import write_excel
 - Resolved ambiguous string selection between name-pattern columns and datetime indexes without pandas indexing warnings.
 - Added pandas 3.x compatibility for `replace`, `set_index`, `concat`, `rename`, `align`, `astype`, and `GroupBy.apply()`.
 - Updated schedule-reader string normalization for pandas 3.x dtype-selection behavior.
+
+### Release 0.93.0 (October 2026)
+- Added `read_sr3` / `write_sr3` for CMG SR3 files, tested with two real examples from [sr3_reader](https://github.com/nikolai-andrianov/sr3_reader) (MIT).
+- Fixed `read_schedule`: dates are repeated for every record until the next `DATES`/`TIME`/`TSTEP`, parsed as `DD MMM YYYY [HH:MM:SS.SSSS]`, and rows are returned sorted by date. `WCONPROD` and `WCONINJE` are now read too.
 
 ## Documentation
 
