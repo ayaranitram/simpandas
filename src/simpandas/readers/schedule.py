@@ -97,6 +97,40 @@ def _populate_units(data, system):
     return units
 
 
+def _keyword_dates(schedule_dict, keyword):
+    """Return the active date for each occurrence of a schedule keyword."""
+    current_date = None
+    dates = []
+    for event in schedule_dict.values():
+        if 'DATES' in event:
+            current_date = event['DATES']
+        elif keyword in event and event[keyword] is not None:
+            dates.append(current_date)
+    return dates
+
+
+def _parse_record_dates(record_dates):
+    """Parse `DD MMM YYYY [HH:MM:SS.SSSS]` strings (Eclipse DATES format) and ISO strings (from TIME/TSTEP)."""
+    import re
+    import pandas as pd
+    eclipse = re.compile(
+        r"^\s*'?(\d{1,2})'?\s+'?([A-Za-z]{3})'?\s+(\d{4})(?:\s+(\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?))?\s*/?\s*$")
+    parsed = []
+    for each in record_dates:
+        match = eclipse.match(each) if isinstance(each, str) else None
+        if match:
+            day, month, year, clock = match.groups()
+            month = {'JLY': 'JUL'}.get(month.upper(), month.upper())
+            text = f"{int(day):02d} {month} {year}" + (f" {clock}" if clock else "")
+            fmt = '%d %b %Y' + (' %H:%M:%S.%f' if clock and '.' in clock else
+                                ' %H:%M:%S' if clock and clock.count(':') == 2 else
+                                ' %H:%M' if clock else '')
+            parsed.append(pd.to_datetime(text, format=fmt))
+        else:
+            parsed.append(pd.to_datetime(each, format='ISO8601'))
+    return pd.DatetimeIndex(parsed).to_numpy()
+
+
 def read_schedule(filepath,
                   encoding: str = 'cp1252',
                   units: str = None,
@@ -140,6 +174,13 @@ def read_schedule(filepath,
         table = extractor(schedule_dict)
         if table is not None and len(table) > 0:
             table = table.copy()
+            record_dates = _keyword_dates(schedule_dict, keyword)
+            if len(record_dates) != len(table):
+                raise ValueError(
+                    f"Could not match {len(record_dates)} {keyword} schedule records "
+                    f"to {len(table)} extracted rows."
+                )
+            table['date'] = _parse_record_dates(record_dates)
             table['keyword'] = keyword
             tables.append(table)
 
@@ -167,4 +208,4 @@ def read_schedule(filepath,
     if 'operatePerName' in kwargs:
         sim_kwargs['operate_per_name'] = kwargs.pop('operatePerName')
 
-    return SimDataFrame(data=data, **sim_kwargs)
+    return SimDataFrame(data=data, **sim_kwargs).sort_values(by='date', kind='stable').reset_index(drop=True)
